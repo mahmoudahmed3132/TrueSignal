@@ -3,8 +3,8 @@ package uptime
 import (
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
-	"github.com/honeywire/hub/internal/store"
+	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/store"
 )
 
 // FilterCriteria holds the parameters for building an uptime projection

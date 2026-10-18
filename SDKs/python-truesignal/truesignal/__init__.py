@@ -102,15 +102,15 @@ class PolicyEngine:
 # SENSOR STRUCT & INIT
 # ============================================================================
 
-class HoneyWireSensor(ABC):
+class TrueSignalSensor(ABC):
     def __init__(self):
-        self.hub_endpoint = os.getenv("HW_HUB_ENDPOINT")
-        self.hub_key = os.getenv("HW_HUB_KEY")
-        self.sensor_id = os.getenv("HW_SENSOR_ID")
-        self.config_rev = os.getenv("HW_CONFIG_REV", "")
-        self.test_mode = os.getenv("HW_TEST_MODE", "false").lower() == "true"
+        self.hub_endpoint = os.getenv("TS_HUB_ENDPOINT")
+        self.hub_key = os.getenv("TS_HUB_KEY")
+        self.sensor_id = os.getenv("TS_SENSOR_ID")
+        self.config_rev = os.getenv("TS_CONFIG_REV", "")
+        self.test_mode = os.getenv("TS_TEST_MODE", "false").lower() == "true"
         
-        self.severity = os.getenv("HW_SEVERITY", "medium") 
+        self.severity = os.getenv("TS_SEVERITY", "medium") 
 
         self._validate_required_env()
         
@@ -131,7 +131,7 @@ class HoneyWireSensor(ABC):
 
     def _validate_required_env(self):
         if not all([self.hub_endpoint, self.hub_key, self.sensor_id]):
-            raise ValueError("Missing required environment variables (HW_HUB_ENDPOINT, HW_HUB_KEY, HW_SENSOR_ID).")
+            raise ValueError("Missing required environment variables (TS_HUB_ENDPOINT, TS_HUB_KEY, TS_SENSOR_ID).")
 
     def _normalize_severity(self, raw_severity) -> str:
         mapping = {"1": "info", "2": "low", "3": "medium", "4": "high", "5": "critical"}

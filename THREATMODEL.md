@@ -1,8 +1,8 @@
-# THREAT MODEL - HoneyWire
+# THREAT MODEL - TrueSignal
 
 ## 1. System Overview
 
-HoneyWire is a decentralized sensor deployment system. For a deep dive into the architecture and data flows, see the [Architecture Overview](Docs/architecture/README.md). From a security perspective, the system is composed of:
+TrueSignal is a decentralized sensor deployment system. For a deep dive into the architecture and data flows, see the [Architecture Overview](Docs/architecture/README.md). From a security perspective, the system is composed of:
 
 - **Hub:** The central orchestrator, policy engine, and trust anchor.
 - **Wizard:** An untrusted local CLI tool that discovers host services and requests deployment intents.
@@ -102,8 +102,8 @@ Sensors execute as isolated containers.
 The following risks represent known architectural trade-offs or constraints that are explicitly formally accepted:
 
 ### Risk-01: Post-Delivery Compose Tampering
-A compromised local Wizard could bypass Hub validation entirely by ignoring the `honeywire-compose.yml` returned by the Hub, instead executing a locally crafted, malicious compose file.
-* **Why it is accepted:** Hub validation guarantees the safety of what it *generates*, not what the host *chooses to run*. Exploiting this requires write access to the filesystem and access to the Docker socket. An attacker with these privileges already possesses equivalent root-level control of the host. Thus, HoneyWire-specific controls are no longer the relevant security boundary; it is a general host-security failure.
+A compromised local Wizard could bypass Hub validation entirely by ignoring the `truesignal-compose.yml` returned by the Hub, instead executing a locally crafted, malicious compose file.
+* **Why it is accepted:** Hub validation guarantees the safety of what it *generates*, not what the host *chooses to run*. Exploiting this requires write access to the filesystem and access to the Docker socket. An attacker with these privileges already possesses equivalent root-level control of the host. Thus, TrueSignal-specific controls are no longer the relevant security boundary; it is a general host-security failure.
 
 ### Risk-02: CLI Command History Exposure
 During the initial host provisioning link, the Wizard requires the API key as a CLI argument (e.g., `wizard --link <url> --api-key <key>`). This exposes the credential briefly in `ps` output and shell history.
@@ -113,7 +113,7 @@ During the initial host provisioning link, the Wizard requires the API key as a 
 
 ## 5. Core Security Principles
 
-HoneyWire security is not based on trust. It is predicated on strict verification and boundary enforcement:
+TrueSignal security is not based on trust. It is predicated on strict verification and boundary enforcement:
 
 1. **Hub is the ONLY Authority:** No security or policy logic resides in the Wizard.
 2. **All Inputs are Untrusted:** External manifests, local Wizard requests and deployed sensors telemetry are treated as hostile input.

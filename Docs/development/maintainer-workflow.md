@@ -3,7 +3,7 @@
 **⚠️ NOTE: This document is for core maintainers. It is NOT required for standard development or OSS contributions.** 
 If you just want to build a sensor or fix a UI bug, please refer to `setup.md` instead.
 
-This guide outlines how to set up an advanced local environment. Because HoneyWire is a distributed orchestration platform, testing the full lifecycle from pushing a sensor image to the Hub compiling a manifest, to the Wizard pulling and deploying that image requires simulating a real infrastructure ecosystem.
+This guide outlines how to set up an advanced local environment. Because TrueSignal is a distributed orchestration platform, testing the full lifecycle from pushing a sensor image to the Hub compiling a manifest, to the Wizard pulling and deploying that image requires simulating a real infrastructure ecosystem.
 
 ---
 
@@ -12,7 +12,7 @@ This guide outlines how to set up an advanced local environment. Because HoneyWi
 In standard development, testing a sensor involves running it directly with Docker and pointing it at a Mock Hub. 
 However, to test changes to the Hub Compiler or the Wizard's Deployment Engine, you need:
 1. A real Docker Registry so the Wizard can execute `docker compose pull` on your test images.
-2. A local Hub running to generate the `honeywire-compose.yml`.
+2. A local Hub running to generate the `truesignal-compose.yml`.
 3. The Wizard connecting to the local Hub to fetch intents and apply them to the Docker daemon.
 
 ---
@@ -21,7 +21,7 @@ However, to test changes to the Hub Compiler or the Wizard's Deployment Engine, 
 
 To simulate the production supply chain, we run a local Docker registry (for images) and optionally a local Gitea instance (if you are testing CI automation hooks).
 
-Create a `docker-compose.test-infra.yml` file outside the HoneyWire repository:
+Create a `docker-compose.test-infra.yml` file outside the TrueSignal repository:
 
 ```yaml
 services:
@@ -55,19 +55,19 @@ Run `docker compose -f docker-compose.test-infra.yml up -d`.
 ### Step A: Push your Test Sensor to the Local Registry
 1. Build your custom sensor or experimental branch locally:
    ```bash
-   docker build -t localhost:5000/honeywire/test-sensor:latest ./Sensors/official/TcpTarpit
+   docker build -t localhost:5000/truesignal/test-sensor:latest ./Sensors/official/TcpTarpit
    ```
 2. Push it to your local registry:
    ```bash
-   docker push localhost:5000/honeywire/test-sensor:latest
+   docker push localhost:5000/truesignal/test-sensor:latest
    ```
-3. *Crucial:* Modify your test manifest (`manifest.dev.json`) so the `deployment.image` points to `localhost:5000/honeywire/test-sensor:latest` and upload/sync this manifest to your local Hub.
+3. *Crucial:* Modify your test manifest (`manifest.dev.json`) so the `deployment.image` points to `localhost:5000/truesignal/test-sensor:latest` and upload/sync this manifest to your local Hub.
 
 ### Step B: Run the Local Hub
 Start the Hub in development mode. Leave this running in a dedicated terminal pane so you can monitor the logs for HTTP requests and compilation errors.
 ```bash
 cd Hub
-HW_ENV=development HW_PORT=8080 go run cmd/hub/main.go
+TS_ENV=development TS_PORT=8080 go run cmd/hub/main.go
 ```
 *(Ensure the UI is also running via `npm run dev` in `Hub/ui` if you are working on the ui, you can also use the hub's embedded ui at `http://localhost:8080`if you need to use the dashboard to provision API keys).*
 
@@ -129,10 +129,10 @@ Check the `registry-pages` branch to confirm:
 - The `latest` field points to the new version
 
 ### Step 5: Dashboard Sync & Manual Upgrades
-Because HoneyWire explicitly avoids background network polling for security and network hygiene, the Hub will not automatically discover this new version in the background.
+Because TrueSignal explicitly avoids background network polling for security and network hygiene, the Hub will not automatically discover this new version in the background.
 
 To sync the catalog:
-1. Run `honeywire status` via the edge node CLI, OR
+1. Run `truesignal status` via the edge node CLI, OR
 2. go into Fleet Management or Node Details view in the Hub Dashboard.
 
-This triggers an on-demand registry fetch. The Hub will compare the latest compatible versions against deployed sensors and flag nodes with an **"Update Available"** indicator. Users must manually trigger the `/api/v2/nodes/{id}/upgrade` endpoint (via the UI) or run `honeywire apply` to instruct the node to pull the new version schema and execute a compose restart.
+This triggers an on-demand registry fetch. The Hub will compare the latest compatible versions against deployed sensors and flag nodes with an **"Update Available"** indicator. Users must manually trigger the `/api/v2/nodes/{id}/upgrade` endpoint (via the UI) or run `truesignal apply` to instruct the node to pull the new version schema and execute a compose restart.

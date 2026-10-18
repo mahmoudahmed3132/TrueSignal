@@ -1,6 +1,6 @@
-# HoneyWire Hub Backend Overview
+# TrueSignal Hub Backend Overview
 
-The HoneyWire Hub backend is the central orchestrator of the system, written entirely in Go. It strictly adheres to a **Domain Service Pattern** (a lightweight form of Clean Architecture / Domain-Driven Design). This design ensures high testability, predictable state management, and clear separation of concerns.
+The TrueSignal Hub backend is the central orchestrator of the system, written entirely in Go. It strictly adheres to a **Domain Service Pattern** (a lightweight form of Clean Architecture / Domain-Driven Design). This design ensures high testability, predictable state management, and clear separation of concerns.
 
 ## Technology Stack
 
@@ -46,12 +46,12 @@ The entry point for all network requests.
     - **SPA Routing & Frontend Embedding:** The router securely serves the embedded Vue 3 frontend. It enforces strict API protection (returning pure 404 JSON for unmatched `/api/` routes) while providing a transparent SPA fallback (serving `index.html`) for unrecognized paths, enabling seamless frontend History API navigation (e.g., `/dashboard`) without reload errors.
 
 ### 2. Secure Compose Compiler (`internal/compose`)
-Responsible for compiling deterministic, hardened `honeywire-compose.yml` configurations served to remote edge nodes. See the [Compose Compiler Architecture](/Docs/architecture/hub/backend/compose.md) for more details.
+Responsible for compiling deterministic, hardened `truesignal-compose.yml` configurations served to remote edge nodes. See the [Compose Compiler Architecture](/Docs/architecture/hub/backend/compose.md) for more details.
 - **Secure Defaults by Inversion:** Explicitly maps specific allowed schema primitives (e.g. strict Linux capabilities, normalized volume paths) into a locked-down Compose base instead of attempting to filter arbitrary config maps.
 - **Validation Engine:** Sanitizes configurations, normalizes directory paths via `filepath.Clean()`, enforces a capability allowlist, and rejects potentially unsafe interpolation patterns.
 - **Dual-Manifest Version Resolution:** Supports manual updates and historical rollbacks. When a node requests its configuration, the compiler resolves the specific deployed version:
   - If the node is running the latest version, it pulls from the in-memory registry cache.
-  - If the node is running an older/historical version, the compiler lazy-loads and caches that specific tagged manifest from the registry (e.g., `hw-sensor-tarpit-v1.0.0.json`) to perform compilation matching the node's deployed state.
+  - If the node is running an older/historical version, the compiler lazy-loads and caches that specific tagged manifest from the registry (e.g., `ts-sensor-tarpit-v1.0.0.json`) to perform compilation matching the node's deployed state.
 
 ### 3. Domain Service Layer (`internal/services`)
 The brain of the application. Everything in `internal/services/*` is framework-agnostic.
@@ -69,7 +69,7 @@ The data access layer.
 #### Schema Migrations & Constraints
 - The Hub uses an embedded, automated migration system. 
 - **CRITICAL:** Do NOT use the legacy `CREATE new_table -> DROP old_table -> RENAME` workaround for altering schemas if the table is referenced by foreign keys with `ON DELETE CASCADE`. Doing so while foreign keys are enforced will instantly trigger the cascade and wipe out dependent data (e.g., dropping `node_sensors` deletes all `events`).
-- **Solution:** HoneyWire uses a modern SQLite driver (3.35.0+) that natively supports `ALTER TABLE ... DROP COLUMN`. Always use native `ALTER TABLE` operations to guarantee schema mutations are non-destructive and isolated.
+- **Solution:** TrueSignal uses a modern SQLite driver (3.35.0+) that natively supports `ALTER TABLE ... DROP COLUMN`. Always use native `ALTER TABLE` operations to guarantee schema mutations are non-destructive and isolated.
 
 ### 5. Read/Analytics Layer (`internal/projections`)
 A specialized CQRS (Command Query Responsibility Segregation) pattern used for heavy dashboard analytics.
@@ -79,8 +79,8 @@ A specialized CQRS (Command Query Responsibility Segregation) pattern used for h
 
 ## Authentication Strategies
 
-HoneyWire employs a multi-tiered authentication strategy depending on the actor:
+TrueSignal employs a multi-tiered authentication strategy depending on the actor:
 
-1. **UI Dashboard (Humans):** Secured via short-lived Sessions and HTTP-Only, Secure, SameSite `hw_auth` Cookies. Handled via `UIAuthMiddleware`.
-2. **Sensors/Agents (Machines):** Secured via statically generated, cryptographically random API Keys (`hw_key_...`). Passed via `Authorization: Bearer` or `X-Api-Key` headers and validated by `AgentAuthMiddleware`. These are aggressively cached in memory to prevent database bottlenecks during heartbeat storms.
+1. **UI Dashboard (Humans):** Secured via short-lived Sessions and HTTP-Only, Secure, SameSite `ts_auth` Cookies. Handled via `UIAuthMiddleware`.
+2. **Sensors/Agents (Machines):** Secured via statically generated, cryptographically random API Keys (`ts_key_...`). Passed via `Authorization: Bearer` or `X-Api-Key` headers and validated by `AgentAuthMiddleware`. These are aggressively cached in memory to prevent database bottlenecks during heartbeat storms.
 3. **Dual-Auth Endpoints:** Shared endpoints (like `/api/v2/manifests`) are protected by `DualAuthMiddleware`, which attempts Bearer authentication first before falling back to Cookie validation.

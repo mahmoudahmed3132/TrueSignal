@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 type ProjectionStore interface {

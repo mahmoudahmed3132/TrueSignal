@@ -37,7 +37,7 @@ jobs:
       - name: Validate source manifest
         id: validate
         run: |
-          EXPECTED_ID="hw-sensor-${{ steps.vars.outputs.SENSOR_NAME }}"
+          EXPECTED_ID="ts-sensor-${{ steps.vars.outputs.SENSOR_NAME }}"
           SOURCE=$(find Sensors/official -name "*.json" | while read file; do
               ID=$(jq -r '.id // empty' "$file" 2>/dev/null || true)
               if [ "$ID" = "$EXPECTED_ID" ]; then
@@ -104,8 +104,8 @@ jobs:
           cp scripts/build-registry-index.sh /tmp/build-registry-index.sh
           chmod +x /tmp/build-registry-index.sh
 
-          git config user.name "HoneyWire CI"
-          git config user.email "ci@honeywire.dev"
+          git config user.name "TrueSignal CI"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           if git ls-remote --exit-code --heads origin registry-pages >/dev/null 2>&1; then
             git fetch origin registry-pages
@@ -113,7 +113,7 @@ jobs:
           else
             git checkout --orphan registry-pages
             git rm -rf . 2>/dev/null || true
-            echo "# HoneyWire Sensor Registry" > README.md
+            echo "# TrueSignal Sensor Registry" > README.md
             git add README.md
             git commit -m "Initialize registry-pages branch"
           fi

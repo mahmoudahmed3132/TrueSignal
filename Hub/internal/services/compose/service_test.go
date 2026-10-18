@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/honeywire/hub/internal/catalog"
-	"github.com/honeywire/hub/internal/models"
-	composesvc "github.com/honeywire/hub/internal/services/compose"
+	"github.com/truesignal/hub/internal/catalog"
+	"github.com/truesignal/hub/internal/models"
+	composesvc "github.com/truesignal/hub/internal/services/compose"
 )
 
 type MockStore struct {
@@ -37,7 +37,7 @@ func (m *MockStore) GetNodeDetails(nodeID string) (*models.Node, error) {
 	return &models.Node{
 		ID: "node-1",
 		InstalledSensors: []models.NodeSensor{
-			{ID: "hw-sensor-test"},
+			{ID: "ts-sensor-test"},
 		},
 		DesiredRevision: "old_revision",
 	}, nil
@@ -65,7 +65,7 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"sensors": []map[string]interface{}{
 					{
-						"id":     "hw-sensor-test",
+						"id":     "ts-sensor-test",
 						"latest": "2.0.0",
 						"versions": []map[string]string{
 							{"v": "1.0.0"},
@@ -87,7 +87,7 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 		}
 		
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"id":             "hw-sensor-test",
+			"id":             "ts-sensor-test",
 			"version":        version,
 			"deployment": map[string]interface{}{
 				"image_repository": "test",
@@ -181,16 +181,16 @@ func TestGetNodeComposeSynchronousSync(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"sensors": []map[string]interface{}{
 					{
-						"id":     "hw-sensor-test",
+						"id":     "ts-sensor-test",
 						"version": "v1.0.0",
 					},
 				},
 			})
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/hw-sensor-test-v1.0.0.json") {
+		if strings.HasPrefix(r.URL.Path, "/ts-sensor-test-v1.0.0.json") {
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"id":      "hw-sensor-test",
+				"id":      "ts-sensor-test",
 				"version": "1.0.0",
 				"deployment": map[string]interface{}{
 					"image": "test-image",
@@ -226,16 +226,16 @@ func TestComposeSetDesiredRevisionErrorHandling(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"sensors": []map[string]interface{}{
 					{
-						"id":     "hw-sensor-test",
+						"id":     "ts-sensor-test",
 						"latest": "v1.0.0",
 					},
 				},
 			})
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/hw-sensor-test-v1.0.0.json") {
+		if strings.HasPrefix(r.URL.Path, "/ts-sensor-test-v1.0.0.json") {
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"id":      "hw-sensor-test",
+				"id":      "ts-sensor-test",
 				"version": "1.0.0",
 				"deployment": map[string]interface{}{
 					"image": "test-image",

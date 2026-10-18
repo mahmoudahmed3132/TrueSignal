@@ -1,6 +1,6 @@
 # Contribution Rules
 
-To maintain a stable, secure, and cohesive platform, all contributions to HoneyWire must adhere to the following rules. Pull Requests that violate these guidelines will not be merged.
+To maintain a stable, secure, and cohesive platform, all contributions to TrueSignal must adhere to the following rules. Pull Requests that violate these guidelines will not be merged.
 
 ## 1. Code Style and Architecture
 
@@ -23,7 +23,7 @@ To maintain a stable, secure, and cohesive platform, all contributions to HoneyW
 
 **⚠️ WARNING: Do NOT break schema contracts.**
 
-HoneyWire relies on strict JSON contracts to communicate across distributed components. Any changes to API payloads must be backward compatible.
+TrueSignal relies on strict JSON contracts to communicate across distributed components. Any changes to API payloads must be backward compatible.
 
 *   Before modifying telemetry shapes, review the [Data Contracts](/Docs/architecture/dataContracts.md).
 *   Sensors and the Hub must agree on the standard. If you introduce a new field to an event, ensure the frontend can render it without crashing if the field is missing from older events.
@@ -33,7 +33,7 @@ HoneyWire relies on strict JSON contracts to communicate across distributed comp
 All submissions must pass automated CI checks.
 
 *   **Unit Tests:** New business logic in the Go backend (`internal/services/`) requires accompanying `_test.go` files.
-*   **Test Mode Compliance:** If you submit a new sensor, it must support `HW_TEST_MODE=true`. When this flag is passed, the container must immediately fire a synthetic alert to the Hub and exit with code 0.
+*   **Test Mode Compliance:** If you submit a new sensor, it must support `TS_TEST_MODE=true`. When this flag is passed, the container must immediately fire a synthetic alert to the Hub and exit with code 0.
 *   **Security Scanning:** Your PR must pass automated CodeQL (or Semgrep) static analysis and Trivy container vulnerability scans. 
 
 ## 4. Pull Request Expectations
@@ -48,6 +48,6 @@ All submissions must pass automated CI checks.
 
 ## 5. Security Contributions
 
-If you discover a vulnerability in HoneyWire, **do not open a public issue or PR.** 
+If you discover a vulnerability in TrueSignal, **do not open a public issue or PR.** 
 
 Please use GitHub Private Vulnerability Reporting via the Security tab on the repository, as outlined in [SECURITY.md](/SECURITY.md).

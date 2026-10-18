@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -30,15 +30,15 @@ func getEnv(key, fallback string) string {
 }
 
 func Load() *Config {
-	trustProxyStr := strings.ToLower(getEnv("HW_TRUST_PROXY", "false"))
+	trustProxyStr := strings.ToLower(getEnv("TS_TRUST_PROXY", "false"))
 	isProxyTrusted := trustProxyStr == "true" || trustProxyStr == "1"
 
 	return &Config{
-		DashboardPassword: getEnv("HW_DASHBOARD_PASSWORD", ""),
-		DBPath:            getEnv("HW_DB_PATH", "honeywire.db"),
-		Port:              getEnv("HW_PORT", "8080"),
+		DashboardPassword: getEnv("TS_DASHBOARD_PASSWORD", ""),
+		DBPath:            getEnv("TS_DB_PATH", "truesignal.db"),
+		Port:              getEnv("TS_PORT", "8080"),
 		Version:           models.HubVersion,
-		Env:               getEnv("HW_ENV", "production"),
+		Env:               getEnv("TS_ENV", "production"),
 		TrustProxy:        isProxyTrusted,
 	}
 }

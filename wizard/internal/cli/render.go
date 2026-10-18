@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/honeywire/wizard/core/api"
-	"github.com/honeywire/wizard/core/discovery"
-	"github.com/honeywire/wizard/core/scanner"
+	"github.com/truesignal/wizard/core/api"
+	"github.com/truesignal/wizard/core/discovery"
+	"github.com/truesignal/wizard/core/scanner"
 )
 
 var hubInjectedVars = map[string]bool{
-	"HW_HUB_ENDPOINT": true,
-	"HW_HUB_KEY":      true,
-	"HW_SENSOR_ID":    true,
-	"HW_CONFIG_REV":   true,
-	"HW_TEST_MODE":    true,
+	"TS_HUB_ENDPOINT": true,
+	"TS_HUB_KEY":      true,
+	"TS_SENSOR_ID":    true,
+	"TS_CONFIG_REV":   true,
+	"TS_TEST_MODE":    true,
 }
 
 func PrintSectionHeader(title, color string) {

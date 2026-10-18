@@ -92,7 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_ssc_time ON sensor_status_changes(node_id, sensor
 
 // WARNING: Schema Migrations & Foreign Keys
 //
-// HoneyWire uses ON DELETE CASCADE for critical tables (e.g., deleting a node_sensor 
+// TrueSignal uses ON DELETE CASCADE for critical tables (e.g., deleting a node_sensor 
 // automatically deletes all its events).
 // 
 // When altering schemas, NEVER use the legacy SQLite workaround of creating a new table,

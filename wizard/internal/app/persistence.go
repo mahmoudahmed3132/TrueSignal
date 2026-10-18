@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/honeywire/wizard/internal/util"
+	"github.com/truesignal/wizard/internal/util"
 )
 
 func SaveConfig(path string, cfg *NodeConfig) error {

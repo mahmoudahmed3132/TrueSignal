@@ -1,8 +1,8 @@
 [![License](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
 
-# Contributing to HoneyWire
+# Contributing to TrueSignal
 
-Welcome to HoneyWire! We are building a centralized, high-fidelity security and deception ecosystem for homelabs and SMBs. 
+Welcome to TrueSignal! We are building a centralized, high-fidelity security and deception ecosystem for homelabs and SMBs. 
 
 Whether you want to build a new decoy sensor, improve the Vue.js frontend, or optimize the Go backend, your contributions are highly welcome.
 
@@ -23,10 +23,10 @@ Before contributing, please review the relevant documentation:
 
 ## Project Structure
 
-Here is a high-level overview of the HoneyWire repository:
+Here is a high-level overview of the TrueSignal repository:
 
 ```text
-honeywire/
+truesignal/
 ├── Docs/            # Comprehensive documentation (Architecture, Development, Security)
 ├── Hub/             # Central brain (Go backend + Vue 3 frontend)
 │   ├── cmd/hub/     # Main Go entrypoint
@@ -50,7 +50,7 @@ To keep the ecosystem stable, all community-submitted sensors must adhere to our
 1. **Use the Official Templates:** Start by copying either the `go-sensor` or `python-sensor` folder from [`Sensors/templates/`](./Sensors/templates/) into [`Sensors/community/`](./Sensors/community/). 
 2. **Follow the Data Contract:** Your sensor must POST a payload matching the Universal Event Standard. Using the provided SDKs handles this for you.
 3. **Strict Sandboxing:** We strongly enforce the use of minimal, hardened base images (like Distroless) running as non-root users (`UID 65532`) with all Linux kernel capabilities dropped (`cap_drop: ALL`).
-4. **Implement Test Mode:** Our CI pipeline tests your sensor by passing `HW_TEST_MODE=true`. Ensure your code handles this by securely sending a heartbeat and mock event before exiting gracefully.
+4. **Implement Test Mode:** Our CI pipeline tests your sensor by passing `TS_TEST_MODE=true`. Ensure your code handles this by securely sending a heartbeat and mock event before exiting gracefully.
 
 For step-by-step instructions, please read the **[Sensor Development Guide](./Docs/development/sensors.md)**.
 

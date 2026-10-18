@@ -1,6 +1,6 @@
-# This single line installs the official HoneyWire SDK directly from GitHub.
+# This single line installs the official TrueSignal SDK directly from GitHub.
 # It automatically fetches required libraries like 'requests' and 'aiohttp'.
-git+https://github.com/andreicscs/HoneyWire.git@main#subdirectory=SDKs/python-honeywire
+git+https://github.com/mahmoudahmed3132/TrueSignal.git@main#subdirectory=SDKs/python-truesignal
 
 # --- ADD YOUR SENSOR's SPECIFIC LIBRARIES BELOW ---
 # Example: 

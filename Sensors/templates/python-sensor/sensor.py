@@ -3,22 +3,22 @@ import sys
 import asyncio
 import traceback
 
-# Import the official HoneyWire SDK
-from honeywire import HoneyWireSensor
+# Import the official TrueSignal SDK
+from truesignal import TrueSignalSensor
 
-class MyCustomSensor(HoneyWireSensor):
+class MyCustomSensor(TrueSignalSensor):
     def __init__(self):
         # Initialize the base class. 
         super().__init__()
         
         # Custom config overrides
-        self.target = os.getenv("HW_CUSTOM_TARGET", "/tmp/honey")
+        self.target = os.getenv("TS_CUSTOM_TARGET", "/tmp/honey")
         
         # IMPORTANT LIFECYCLE NOTE:
         # If your sensor binds to a port or requires an exclusive system resource,
         # you should attempt to acquire it here (or before starting the main loop).
         # This ensures the sensor crashes cleanly on failure BEFORE reporting
-        # a false-positive "online" heartbeat to the HoneyWire Hub.
+        # a false-positive "online" heartbeat to the TrueSignal Hub.
 
     async def monitor(self):
         """

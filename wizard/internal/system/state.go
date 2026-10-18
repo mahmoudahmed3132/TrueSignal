@@ -15,19 +15,19 @@ var (
 	procLoadAvgPath = "/proc/loadavg"
 	procMemInfoPath = "/proc/meminfo"
 	dockerPath      = "/var/lib/docker"
-	composeFilePath = "honeywire-compose.yml"
+	composeFilePath = "truesignal-compose.yml"
 	statfsFunc      = syscall.Statfs
 )
 
-// SystemState represents the current honeywire deployment state.
+// SystemState represents the current truesignal deployment state.
 type SystemState struct {
-	DeployedImages []string // Images currently deployed via honeywire-compose.yml
-	ManagedPorts   []int    // Ports managed by deployed honeywire sensors
+	DeployedImages []string // Images currently deployed via truesignal-compose.yml
+	ManagedPorts   []int    // Ports managed by deployed truesignal sensors
 }
 
 func CheckRoot() (string, error) {
 	if os.Geteuid() != 0 {
-		return "⚠️ HoneyWire wizard is not running as root (UID 0). Must be run as root to continue.", nil
+		return "⚠️ TrueSignal wizard is not running as root (UID 0). Must be run as root to continue.", nil
 	}
 	return "", nil
 }

@@ -1,6 +1,6 @@
 package severity
 
-import "github.com/honeywire/hub/internal/models"
+import "github.com/truesignal/hub/internal/models"
 
 type SeverityCounts struct {
 	Total    int

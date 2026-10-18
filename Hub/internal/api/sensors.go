@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/honeywire/hub/internal/models"
-	composesvc "github.com/honeywire/hub/internal/services/compose"
-	"github.com/honeywire/hub/internal/services/sensor"
+	"github.com/truesignal/hub/internal/models"
+	composesvc "github.com/truesignal/hub/internal/services/compose"
+	"github.com/truesignal/hub/internal/services/sensor"
 )
 
 type SensorHandler struct {

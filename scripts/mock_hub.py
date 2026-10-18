@@ -5,7 +5,7 @@ import os
 
 class MockHubHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        """Handles the HoneyWire SDK synchronization handshake."""
+        """Handles the TrueSignal SDK synchronization handshake."""
         if self.path == '/api/v2/version':
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -20,7 +20,7 @@ class MockHubHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        """Handles and validates the HoneyWire V1.0 Event Contract."""
+        """Handles and validates the TrueSignal V1.0 Event Contract."""
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
         
@@ -81,7 +81,7 @@ class MockHubHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 if __name__ == '__main__':
-    print("--- HoneyWire Mock Hub (V1.1) ---")
+    print("--- TrueSignal Mock Hub (V1.1) ---")
     print("Listening on 0.0.0.0:8080...")
     print("Awaiting sensor connections for contract validation...")
     server = http.server.HTTPServer(('0.0.0.0', 8080), MockHubHandler)

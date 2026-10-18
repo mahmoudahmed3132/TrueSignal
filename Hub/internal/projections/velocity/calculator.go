@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 func BuildProjection(events []models.Event, timeframe string, now time.Time) ThreatVelocityProjection {

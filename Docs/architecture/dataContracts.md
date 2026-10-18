@@ -1,6 +1,6 @@
-# HoneyWire Data Contracts
+# TrueSignal Data Contracts
 
-This document serves as the **single source of truth** for all cross-component data shapes in the HoneyWire platform. To prevent documentation drift, these contracts are defined here and referenced by other subsystems (Hub, Wizard, Sensors, SDKs).
+This document serves as the **single source of truth** for all cross-component data shapes in the TrueSignal platform. To prevent documentation drift, these contracts are defined here and referenced by other subsystems (Hub, Wizard, Sensors, SDKs).
 
 ---
 
@@ -9,7 +9,7 @@ This document serves as the **single source of truth** for all cross-component d
 This is the standard telemetry payload that all sensors (official or community) must POST to the Hub when an intrusion is detected. The Hub's frontend dynamically parses, syntax-highlights, and renders this JSON.
 
 **Endpoint:** `POST /api/v2/event`
-**Authentication:** `Authorization: Bearer <HW_NODE_KEY>`
+**Authentication:** `Authorization: Bearer <TS_NODE_KEY>`
 
 ```json
 {
@@ -46,7 +46,7 @@ This is the standard telemetry payload that all sensors (official or community) 
 This payload is emitted continuously (typically every 30 seconds) by sensors to prove they are alive and running the expected configuration.
 
 **Endpoint:** `POST /api/v2/heartbeat`
-**Authentication:** `Authorization: Bearer <HW_NODE_KEY>`
+**Authentication:** `Authorization: Bearer <TS_NODE_KEY>`
 
 ```json
 {
@@ -67,7 +67,7 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
 
 ```json
 {
-  "id": "hw-tcp-tarpit",
+  "id": "ts-tcp-tarpit",
   "version": "1.1.0",
   "name": "TCP Tarpit",
   "category": "network",
@@ -91,7 +91,7 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
     "recommendation_reason": "High-value administrative ports are exposed."
   },
   "deployment": {
-    "image_repository": "ghcr.io/andreicscs/honeywire-tcp-tarpit",
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-tcp-tarpit",
     "image_tag": "latest",
     "image_digest": "",
     "network_mode": "host",
@@ -101,7 +101,7 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
     "security_opt": ["no-new-privileges:true"],
     "port_assignments": [
       {
-        "env_var_name": "HW_TARPIT_PORT",
+        "env_var_name": "TS_TARPIT_PORT",
         "default": 2222,
         "auto_shift": true
       }
@@ -117,7 +117,7 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
     "init_containers": [],
     "env_vars": [
       {
-        "name": "HW_TARPIT_MODE",
+        "name": "TS_TARPIT_MODE",
         "description": "Behavior mode: hold, echo, or banner",
         "default": "hold",
         "type": "string",

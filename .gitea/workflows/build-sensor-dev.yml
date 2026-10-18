@@ -71,9 +71,9 @@ jobs:
               LOWER_NAME=$(echo "$SENSOR" | tr '[:upper:]' '[:lower:]')
               LOCAL_REG="${{ vars.LOCAL_REGISTRY }}"
               if [ -z "$LOCAL_REG" ]; then
-                LOCAL_REG="ghcr.io/andreicscs/"
+                LOCAL_REG="ghcr.io/mahmoudahmed3132/"
               fi
-              TAG="${LOCAL_REG}honeywire-$LOWER_NAME:dev"
+              TAG="${LOCAL_REG}truesignal-$LOWER_NAME:dev"
 
               echo -e "\n${CYAN}========================================${RESET}"
               echo -e "${CYAN}${BOLD}STAGE 1: Go Unit Tests for $SENSOR${RESET}"
@@ -115,10 +115,10 @@ jobs:
               echo -e "${DIM}Launching test container...${RESET}"
               docker rm -f test-sensor 2>/dev/null || true
               docker run -d --name test-sensor \
-                -e HW_HUB_ENDPOINT=$HUB_ENDPOINT \
-                -e HW_HUB_KEY=ci-test-key \
-                -e HW_SENSOR_ID=ci-test-sensor \
-                -e HW_TEST_MODE=true \
+                -e TS_HUB_ENDPOINT=$HUB_ENDPOINT \
+                -e TS_HUB_KEY=ci-test-key \
+                -e TS_SENSOR_ID=ci-test-sensor \
+                -e TS_TEST_MODE=true \
                 $NET_OPT "$TAG"
 
               # 3. Poll for the success file created by MockHub

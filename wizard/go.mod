@@ -1,4 +1,4 @@
-module github.com/honeywire/wizard
+module github.com/truesignal/wizard
 
 go 1.25.0
 

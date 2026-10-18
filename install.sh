@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Honeywire Automated Installer & Provisioner
+# TrueSignal Automated Installer & Provisioner
 set -e
 
 # Pass all arguments into the function
@@ -42,12 +42,12 @@ do_install() {
     RED='\033[31m'
     MAGENTA='\033[35m'
 
-    echo -e "${CYAN}${BOLD}==> Starting Honeywire Installation...${RESET}"
+    echo -e "${CYAN}${BOLD}==> Starting TrueSignal Installation...${RESET}"
 
     # 2. Check for existing installation (Upgrade flow)
-    if command -v honeywire >/dev/null 2>&1; then
-        EXISTING_PATH=$(command -v honeywire)
-        echo -e "${YELLOW}${BOLD}==> Warning:${RESET}${YELLOW} Honeywire is already installed at ${EXISTING_PATH}${RESET}"
+    if command -v truesignal >/dev/null 2>&1; then
+        EXISTING_PATH=$(command -v truesignal)
+        echo -e "${YELLOW}${BOLD}==> Warning:${RESET}${YELLOW} TrueSignal is already installed at ${EXISTING_PATH}${RESET}"
         echo -e "${DIM}Upgrading version in 3 seconds... (Press CTRL + C to cancel)${RESET}"
         sleep 3
     fi
@@ -89,14 +89,14 @@ do_install() {
         if [ -n "$HUB_VER" ]; then
             HUB_MAJOR=$(echo "$HUB_VER" | sed -E 's/^v?([0-9]+).*/\1/')
             echo -e "${CYAN}==> Hub major version identified: ${BOLD}v$HUB_MAJOR${RESET}"
-            LATEST_TAG=$(curl -s https://api.github.com/repos/AndReicscs/HoneyWire/releases | grep -o "\"tag_name\": \"wizard/v$HUB_MAJOR\.[^\"]*" | head -n 1 | cut -d'"' -f4 || true)
+            LATEST_TAG=$(curl -s https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases | grep -o "\"tag_name\": \"wizard/v$HUB_MAJOR\.[^\"]*" | head -n 1 | cut -d'"' -f4 || true)
         fi
     fi
 
     # Fallback to latest available wizard release
     if [ -z "$LATEST_TAG" ]; then
         echo -e "${CYAN}==> Fetching latest release info from GitHub...${RESET}"
-        LATEST_TAG=$(curl -s https://api.github.com/repos/AndReicscs/HoneyWire/releases | grep -o '"tag_name": "wizard/[^"]*' | head -n 1 | cut -d'"' -f4 || true)
+        LATEST_TAG=$(curl -s https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases | grep -o '"tag_name": "wizard/[^"]*' | head -n 1 | cut -d'"' -f4 || true)
     fi
 
     if [ -z "$LATEST_TAG" ]; then
@@ -105,9 +105,9 @@ do_install() {
     fi
 
     # 6. Variables
-    BASE_URL="https://github.com/AndReicscs/HoneyWire/releases/download/$LATEST_TAG"
-    BINARY_NAME="honeywire-linux-$BIN_ARCH"
-    INSTALL_PATH="/usr/local/bin/honeywire"
+    BASE_URL="https://github.com/mahmoudahmed3132/TrueSignal/releases/download/$LATEST_TAG"
+    BINARY_NAME="truesignal-linux-$BIN_ARCH"
+    INSTALL_PATH="/usr/local/bin/truesignal"
 
     # 7. Secure Temp Dir
     TMP_DIR=$(mktemp -d)
@@ -158,7 +158,7 @@ do_install() {
         echo -e "\n${GREEN}${BOLD}==> Node Successfully Deployed!${RESET}"
     else
         echo -e "\n${GREEN}${BOLD}==> Installation Complete!${RESET}"
-        echo -e "You can now run the tool by typing: ${MAGENTA}${BOLD}honeywire${RESET}\n"
+        echo -e "You can now run the tool by typing: ${MAGENTA}${BOLD}truesignal${RESET}\n"
     fi
 }
 

@@ -151,12 +151,12 @@ type Sensor struct {
 
 func NewSensor() (*Sensor, error) {
 	s := &Sensor{
-		SensorID:    getEnv("HW_SENSOR_ID", ""),
-		Severity:    getEnv("HW_SEVERITY", "medium"),
-		HubEndpoint: getEnv("HW_HUB_ENDPOINT", ""),
-		HubKey:      getEnv("HW_HUB_KEY", ""),
-		ConfigRev:   getEnv("HW_CONFIG_REV", ""),
-		TestMode:    getEnv("HW_TEST_MODE", "false") == "true",
+		SensorID:    getEnv("TS_SENSOR_ID", ""),
+		Severity:    getEnv("TS_SEVERITY", "medium"),
+		HubEndpoint: getEnv("TS_HUB_ENDPOINT", ""),
+		HubKey:      getEnv("TS_HUB_KEY", ""),
+		ConfigRev:   getEnv("TS_CONFIG_REV", ""),
+		TestMode:    getEnv("TS_TEST_MODE", "false") == "true",
 		client:      &http.Client{Timeout: 10 * time.Second},
 		eventCh:     make(chan map[string]any, 1000),
 		stopCh:      make(chan struct{}),
@@ -166,7 +166,7 @@ func NewSensor() (*Sensor, error) {
 	}
 
 	if s.HubEndpoint == "" || s.HubKey == "" || s.SensorID == "" {
-		return nil, fmt.Errorf("missing vars: HW_HUB_ENDPOINT, HW_HUB_KEY, HW_SENSOR_ID")
+		return nil, fmt.Errorf("missing vars: TS_HUB_ENDPOINT, TS_HUB_KEY, TS_SENSOR_ID")
 	}
 
 	return s, nil

@@ -1,5 +1,5 @@
 {
-  "id": "hw-sensor-icmp-canary",
+  "id": "ts-sensor-icmp-canary",
   "version": "2.1.2",
   "name": "ICMP Canary",
   "category": "network",
@@ -22,7 +22,7 @@
         "title": "Security Architecture",
         "type": "list",
         "content": [
-          "Global Sandbox Baseline: Enforced by the HoneyWire Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
           "Execution Privilege: Runs as container root (UID 0) strictly to initialize the raw network socket.",
           "Required Capabilities: Adds 'NET_RAW' to allow direct packet inspection bypassing traditional NIDS frameworks."
         ]
@@ -41,15 +41,15 @@
     ],
     "env_vars": [
       {
-        "name": "HW_HUB_ENDPOINT",
-        "description": "The URL of your central HoneyWire Hub.",
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
         "default": "__HUB_ENDPOINT__",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_HUB_KEY",
+        "name": "TS_HUB_KEY",
         "description": "The shared Node Key.",
         "default": "__HUB_KEY__",
         "type": "string",
@@ -57,15 +57,15 @@
         "hidden": true
       },
       {
-        "name": "HW_SENSOR_ID",
+        "name": "TS_SENSOR_ID",
         "description": "Unique identifier for this specific trap.",
-        "default": "hw-sensor-icmp-canary",
+        "default": "ts-sensor-icmp-canary",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_SEVERITY",
+        "name": "TS_SEVERITY",
         "description": "Alert severity sent to the Hub.",
         "default": "info",
         "type": "string",
@@ -73,7 +73,7 @@
         "hidden": true
       },
       {
-        "name": "HW_TEST_MODE",
+        "name": "TS_TEST_MODE",
         "description": "Enable CI/CD synthetic alerts.",
         "default": "false",
         "type": "string",
@@ -81,7 +81,7 @@
         "hidden": true
       }
     ],
-    "image_repository": "ghcr.io/andreicscs/honeywire-icmpcanary",
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-icmpcanary",
     "image_tag": "dev",
     "image_digest": ""
   }

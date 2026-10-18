@@ -18,7 +18,7 @@ func AtomicWriteFile(path string, v interface{}) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	tmp, err := os.CreateTemp(dir, ".honeywire-*.tmp")
+	tmp, err := os.CreateTemp(dir, ".truesignal-*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}

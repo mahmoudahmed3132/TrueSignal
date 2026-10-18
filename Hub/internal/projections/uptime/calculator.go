@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/honeywire/hub/internal/store"
+	"github.com/truesignal/hub/internal/store"
 )
 
 // Canonical uptime block status vocabulary

@@ -3,7 +3,7 @@ package summary
 import (
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 // CalculateSummary iterates over raw events and aggregates the summary projection

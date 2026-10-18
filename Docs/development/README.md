@@ -1,6 +1,6 @@
-# HoneyWire Development Documentation
+# TrueSignal Development Documentation
 
-This directory contains the technical documentation required for developing, testing, and contributing to the HoneyWire platform.
+This directory contains the technical documentation required for developing, testing, and contributing to the TrueSignal platform.
 
 ## Getting Started
 

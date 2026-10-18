@@ -46,11 +46,11 @@ func NewService(store Store, broadcaster Broadcaster) *Service {
 				V string `json:"v"`
 			} `json:"versions"`
 		}{
-			{ID: "hw-sensor-file-canary", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.0.1"}, {V: "2.1.0"}, {V: "2.2.0"}}},
-			{ID: "hw-sensor-tcp-tarpit", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.0.2"}, {V: "2.1.0"}, {V: "2.2.0"}}},
-			{ID: "hw-sensor-icmp-canary", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
-			{ID: "hw-sensor-network-scan-detector", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
-			{ID: "hw-sensor-web-router-decoy", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
+			{ID: "ts-sensor-file-canary", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.0.1"}, {V: "2.1.0"}, {V: "2.2.0"}}},
+			{ID: "ts-sensor-tcp-tarpit", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.0.2"}, {V: "2.1.0"}, {V: "2.2.0"}}},
+			{ID: "ts-sensor-icmp-canary", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
+			{ID: "ts-sensor-network-scan-detector", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
+			{ID: "ts-sensor-web-router-decoy", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
 		},
 	}
 	return &Service{store: store, broadcaster: broadcaster, indexCache: mockIdx}
@@ -141,8 +141,8 @@ func (s *Service) GetLatestCompatibleVersion(sensorID string, currentHubVersion 
 
 	if idx != nil {
 		for _, sensor := range idx.Sensors {
-			cleanSensorID := strings.TrimPrefix(sensor.ID, "hw-sensor-")
-			cleanTargetID := strings.TrimPrefix(sensorID, "hw-sensor-")
+			cleanSensorID := strings.TrimPrefix(sensor.ID, "ts-sensor-")
+			cleanTargetID := strings.TrimPrefix(sensorID, "ts-sensor-")
 			if sensor.ID == sensorID || cleanSensorID == cleanTargetID {
 				for i := len(sensor.Versions) - 1; i >= 0; i-- {
 					reqVer := strings.TrimSpace(sensor.Versions[i].V)

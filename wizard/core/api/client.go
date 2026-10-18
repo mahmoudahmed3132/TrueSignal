@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 	
-	"github.com/honeywire/wizard/core/schema"
+	"github.com/truesignal/wizard/core/schema"
 )
 
-const wizardUserAgent = "HoneyWire-Wizard/2.0"
+const wizardUserAgent = "TrueSignal-Wizard/2.0"
 const WizardVersion = "2.0.1"
 
 type HubClient struct {
@@ -112,7 +112,7 @@ func (c *HubClient) AuthenticateDashboard(ctx context.Context, password string) 
 
 	var cookieValue string
 	for _, cookie := range resp.Cookies() {
-		if cookie.Name == "hw_auth" {
+		if cookie.Name == "ts_auth" {
 			cookieValue = cookie.Value
 			break
 		}
@@ -136,7 +136,7 @@ func (c *HubClient) CreateNode(ctx context.Context, alias string, tags []string,
 
 	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v2/nodes", bytes.NewReader(body), map[string]string{
 		"Content-Type": "application/json",
-		"Cookie":       "hw_auth=" + cookie,
+		"Cookie":       "ts_auth=" + cookie,
 	})
 	if err != nil {
 		return "", fmt.Errorf("network error: %w", err)
@@ -211,7 +211,7 @@ func (c *HubClient) AddSensor(ctx context.Context, nodeID, cookie, sensorID, cus
 	path := fmt.Sprintf("/api/v2/nodes/%s/sensors", nodeID)
 	resp, err := c.doRequest(ctx, http.MethodPost, path, bytes.NewReader(body), map[string]string{
 		"Content-Type": "application/json",
-		"Cookie":       "hw_auth=" + cookie,
+		"Cookie":       "ts_auth=" + cookie,
 	})
 	if err != nil {
 		return fmt.Errorf("network error adding sensor %s: %w", sensorID, err)

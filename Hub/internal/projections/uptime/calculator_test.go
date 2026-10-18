@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
-	"github.com/honeywire/hub/internal/store"
+	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/store"
 )
 
 func TestCalculateParams_Timeframes(t *testing.T) {

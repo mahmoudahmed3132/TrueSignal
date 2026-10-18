@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/honeywire/wizard/internal/cli"
-	"github.com/honeywire/wizard/internal/commands"
-	"github.com/honeywire/wizard/internal/system"
+	"github.com/truesignal/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/commands"
+	"github.com/truesignal/wizard/internal/system"
 )
 
 func main() {
@@ -24,7 +24,7 @@ func run() error {
 	cli.SetupUsage()
 
 	forcePtr := flag.Bool("force", false, "Bypass confirmation prompts (useful for automation)")
-	linkURL := flag.String("link", "", "Hub URL to link to (e.g., https://hub.honeywire.local)")
+	linkURL := flag.String("link", "", "Hub URL to link to (e.g., https://hub.truesignal.local)")
 	apiKeyPtr := flag.String("api-key", "", "Node API key (for linking to an existing node)")
 	aliasPtr := flag.String("alias", "", "Custom alias for this node (defaults to OS hostname)")
 	tagsPtr := flag.String("tags", "", "Comma-separated tags for this node")
@@ -32,7 +32,7 @@ func run() error {
 	flag.Parse()
 
 	if warning, _ := system.CheckRoot(); warning != "" {
-		return fmt.Errorf("HoneyWire wizard must be run as root (sudo) for system analysis and sensor deployment.")
+		return fmt.Errorf("TrueSignal wizard must be run as root (sudo) for system analysis and sensor deployment.")
 	}
 
 	if *linkURL != "" {
@@ -58,7 +58,7 @@ func run() error {
 	case "uninstall":
 		err := commands.HandleTeardown(*forcePtr)
 		if err == nil {
-			fmt.Printf("\n  Some HoneyWire sensors may have created host-side artifacts or decoy files.\n")
+			fmt.Printf("\n  Some TrueSignal sensors may have created host-side artifacts or decoy files.\n")
 			fmt.Printf("    Review your deployment configuration and remove any remaining files manually if desired.\n\n")
 		}
 		return err

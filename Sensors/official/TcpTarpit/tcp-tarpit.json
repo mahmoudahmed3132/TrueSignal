@@ -1,5 +1,5 @@
 {
-  "id": "hw-sensor-tcp-tarpit",
+  "id": "ts-sensor-tcp-tarpit",
   "version": "2.0.2",
   "name": "TCP Tarpit (Credential Trap)",
   "category": "network",
@@ -22,7 +22,7 @@
         "title": "Security Architecture",
         "type": "list",
         "content": [
-          "Global Sandbox Baseline: Enforced by the HoneyWire Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
           "Execution Privilege: Runs as container root (UID 0) strictly to bind to low-numbered decoy ports.",
           "Required Capabilities: Adds 'NET_BIND_SERVICE' to allow binding to ports below 1024 without needing full host network control."
         ]
@@ -64,15 +64,15 @@
     ],
     "env_vars": [
       {
-        "name": "HW_HUB_ENDPOINT",
-        "description": "The URL of your central HoneyWire Hub.",
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
         "default": "__HUB_ENDPOINT__",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_HUB_KEY",
+        "name": "TS_HUB_KEY",
         "description": "The shared Node Key.",
         "default": "__HUB_KEY__",
         "type": "string",
@@ -80,15 +80,15 @@
         "hidden": true
       },
       {
-        "name": "HW_SENSOR_ID",
+        "name": "TS_SENSOR_ID",
         "description": "Unique identifier for this specific trap.",
-        "default": "hw-sensor-tcp-tarpit",
+        "default": "ts-sensor-tcp-tarpit",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_SEVERITY",
+        "name": "TS_SEVERITY",
         "description": "Alert severity sent to the Hub.",
         "default": "high",
         "type": "string",
@@ -96,7 +96,7 @@
         "hidden": true
       },
       {
-        "name": "HW_TEST_MODE",
+        "name": "TS_TEST_MODE",
         "description": "Enable CI/CD synthetic alerts.",
         "default": "false",
         "type": "string",
@@ -104,7 +104,7 @@
         "hidden": true
       },
       {
-        "name": "HW_DECOY_PORTS",
+        "name": "TS_DECOY_PORTS",
         "description": "Comma-separated list of internal ports to tarpit.",
         "default": "{{ availablePort 2222 }},{{ availablePort 3306 }}",
         "type": "string",
@@ -112,7 +112,7 @@
         "hidden": false
       },
       {
-        "name": "HW_TARPIT_MODE",
+        "name": "TS_TARPIT_MODE",
         "description": "Tarpit behavior mode (hold, echo, close).",
         "default": "hold",
         "type": "string",
@@ -120,7 +120,7 @@
         "hidden": false
       },
       {
-        "name": "HW_TARPIT_BANNER",
+        "name": "TS_TARPIT_BANNER",
         "description": "Service banner to spoof.",
         "default": "SSH-2.0-OpenSSH_8.2p1\\r\\n",
         "type": "string",
@@ -128,7 +128,7 @@
         "hidden": false
       }
     ],
-    "image_repository": "ghcr.io/andreicscs/honeywire-tcptarpit",
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-tcptarpit",
     "image_tag": "dev",
     "image_digest": ""
   }

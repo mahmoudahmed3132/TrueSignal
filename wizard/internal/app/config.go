@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const ConfigPath = "/etc/honeywire/config.json"
+const ConfigPath = "/etc/truesignal/config.json"
 
 // NodeConfig stores only the permanent machine identity.
 // Dashboard auth is never persisted.

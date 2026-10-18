@@ -10,7 +10,7 @@ import (
 
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 // CreateNode initializes a new UI-first node and returns the generated credentials.
@@ -21,7 +21,7 @@ func (s *SQLiteStore) CreateNode(alias string, tagsJSON string) (string, string,
 	if _, err := rand.Read(keyBytes); err != nil {
 		return "", "", err
 	}
-	apiKey := "hw_key_" + hex.EncodeToString(keyBytes)
+	apiKey := "ts_key_" + hex.EncodeToString(keyBytes)
 
 	now := time.Now().UTC().Format(time.RFC3339)
 

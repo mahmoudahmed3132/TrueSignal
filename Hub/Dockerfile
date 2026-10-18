@@ -26,14 +26,14 @@ COPY . .
 COPY --from=frontend-builder /app/ui/dist ./ui/dist
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o honeywire-hub ./cmd/hub/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o truesignal-hub ./cmd/hub/main.go
 
 # STAGE 3: Distroless Production Image
 # The "static" image contains literally nothing except SSL certificates and a non-root user.
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 
-COPY --from=go-builder /build/honeywire-hub /app/
+COPY --from=go-builder /build/truesignal-hub /app/
 
 EXPOSE 8080
-CMD ["/app/honeywire-hub"]
+CMD ["/app/truesignal-hub"]

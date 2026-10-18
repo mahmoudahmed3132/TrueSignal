@@ -1,14 +1,14 @@
-# HoneyWire Hub — API Reference
+# TrueSignal Hub — API Reference
 
 All Hub routes are prefixed with `/api/v2` unless otherwise noted.
 
 ## Authentication
 
-HoneyWire uses two separate authentication methods.
+TrueSignal uses two separate authentication methods.
 
 ### Dashboard (UI) routes
 
-Dashboard endpoints are protected by an HTTP-only session cookie named `hw_auth`.
+Dashboard endpoints are protected by an HTTP-only session cookie named `ts_auth`.
 The cookie is issued by `POST /login` and is valid for 30 days.
 
 ### Agent (sensor) routes
@@ -16,7 +16,7 @@ The cookie is issued by `POST /login` and is valid for 30 days.
 Sensor/agent endpoints are authenticated with a node API key using the Authorization header:
 
 ```http
-Authorization: Bearer <HW_NODE_KEY>
+Authorization: Bearer <TS_NODE_KEY>
 ```
 
 ## Public Endpoints
@@ -32,7 +32,7 @@ Returns the running Hub version.
 
 ### POST /login
 
-Authenticates a dashboard user and sets the `hw_auth` cookie.
+Authenticates a dashboard user and sets the `ts_auth` cookie.
 
 **Request:**
 ```json
@@ -52,7 +52,7 @@ Invalidates the current dashboard session and redirects the client to `/`.
 ### GET /api/v2/setup/status
 
 Returns whether the Hub requires initial setup.
-When `HW_DASHBOARD_PASSWORD` is set, setup is considered locked and this endpoint returns `requires_setup: false`.
+When `TS_DASHBOARD_PASSWORD` is set, setup is considered locked and this endpoint returns `requires_setup: false`.
 
 **Response:**
 ```json
@@ -62,14 +62,14 @@ When `HW_DASHBOARD_PASSWORD` is set, setup is considered locked and this endpoin
 ### POST /api/v2/setup
 
 Completes first-time hub setup and stores the hashed admin password, hub endpoint, and hub API key.
-If `HW_DASHBOARD_PASSWORD` is set, setup is blocked.
+If `TS_DASHBOARD_PASSWORD` is set, setup is blocked.
 
 **Request:**
 ```json
 {
   "password": "super_secure_password123",
-  "hubEndpoint": "https://honeywire.my-domain.com",
-  "hubKey": "hw_sk_randomstring"
+  "hubEndpoint": "https://truesignal.my-domain.com",
+  "hubKey": "ts_sk_randomstring"
 }
 ```
 
@@ -79,7 +79,7 @@ If `HW_DASHBOARD_PASSWORD` is set, setup is blocked.
 
 ## Dashboard Endpoints (UI Cookie Required)
 
-These endpoints require a valid `hw_auth` session cookie.
+These endpoints require a valid `ts_auth` session cookie.
 
 ### GET /api/v2/ws
 
@@ -118,13 +118,13 @@ Generates a `docker-compose.yml` preview from the selected sensor manifests and 
 **Request:**
 ```json
 {
-  "hubEndpoint": "https://honeywire.my-domain.com",
+  "hubEndpoint": "https://truesignal.my-domain.com",
   "hubKey": "hub_key_abc",
   "sensors": [
     {
       "sensorId": "alpha-node-01",
       "envValues": {
-        "HW_SEVERITY": "medium"
+        "TS_SEVERITY": "medium"
       },
       "manifest": { ... }
     }
@@ -151,7 +151,7 @@ Creates a new node entry and returns the generated node credentials.
 **Response:**
 ```json
 {
-  "api_key": "hw_key_abcd1234...",
+  "api_key": "ts_key_abcd1234...",
   "alias": "production-db-node"
 }
 ```
@@ -173,7 +173,7 @@ Returns all registered nodes and their installed sensors. Each node includes cur
     "status": "online",
     "installedSensors": [
       {
-        "sensorId": "hw-tcp-tarpit",
+        "sensorId": "ts-tcp-tarpit",
         "customName": "SSH Decoy",
         "updateAvailable": true
       }
@@ -215,10 +215,10 @@ Adds a sensor to a node and flags the node as pending configuration sync.
 **Request:**
 ```json
 {
-  "sensorId": "hw-tcp-tarpit",
+  "sensorId": "ts-tcp-tarpit",
   "customName": "TCP Tarpit",
   "configValues": {
-    "HW_SEVERITY": "high"
+    "TS_SEVERITY": "high"
   }
 }
 ```
@@ -248,7 +248,7 @@ Toggles a sensor's silence state. Silenced sensors still log events but suppress
 ```json
 {
   "status": "success",
-  "sensorId": "hw-tcp-tarpit",
+  "sensorId": "ts-tcp-tarpit",
   "isSilenced": true
 }
 ```
@@ -274,7 +274,7 @@ Returns runtime configuration loaded from SQLite.
 **Response:**
 ```json
 {
-  "hubEndpoint": "https://honeywire.my-domain.com",
+  "hubEndpoint": "https://truesignal.my-domain.com",
   "autoArchiveDays": 90,
   "autoPurgeDays": 180,
   "webhookType": "none",
@@ -329,7 +329,7 @@ Sets the armed/disarmed state.
 
 #### PATCH /api/v2/system/password
 
-Changes the dashboard admin password. When `HW_DASHBOARD_PASSWORD` is set, this operation is forbidden.
+Changes the dashboard admin password. When `TS_DASHBOARD_PASSWORD` is set, this operation is forbidden.
 
 **Request:**
 ```json
@@ -353,7 +353,7 @@ Requires the current admin password.
 
 #### GET /api/v2/system/updates
 
-Returns release update states for both the Hub and the HoneyWire Wizard.
+Returns release update states for both the Hub and the TrueSignal Wizard.
 
 **Response:**
 ```json
@@ -363,7 +363,7 @@ Returns release update states for both the Hub and the HoneyWire Wizard.
   "release_notes_url": "",
   "wizard_update_available": true,
   "latest_wizard_version": "v2.1.0",
-  "wizard_release_notes_url": "https://github.com/AndReicscs/HoneyWire/releases/tag/wizard/v2.1.0",
+  "wizard_release_notes_url": "https://github.com/mahmoudahmed3132/TrueSignal/releases/tag/wizard/v2.1.0",
   "acknowledged_wizard_release": ""
 }
 ```
@@ -404,7 +404,7 @@ Returns a list of events, newest first.
 
 ### GET /api/v2/events/export
 
-Exports events as a downloadable JSON file (`honeywire_events.json`).
+Exports events as a downloadable JSON file (`truesignal_events.json`).
 
 **Query parameters:**
 - `archived` — `true` or `false` (default: `false`)
@@ -525,7 +525,7 @@ Returns uptime blocks for fleet health charts.
       "worstStatus": "degraded",
       "sensors": [
         {
-          "sensorId": "hw-tcp-tarpit",
+          "sensorId": "ts-tcp-tarpit",
           "displayName": "TCP Tarpit",
           "status": "up",
           "isSilenced": false,
@@ -536,7 +536,7 @@ Returns uptime blocks for fleet health charts.
           ]
         },
         {
-          "sensorId": "hw-file-canary",
+          "sensorId": "ts-file-canary",
           "displayName": "File Integrity Monitor",
           "status": "degraded",
           "isSilenced": false,
@@ -554,7 +554,7 @@ Returns uptime blocks for fleet health charts.
       "worstStatus": "down",
       "sensors": [
         {
-          "sensorId": "hw-network-scan",
+          "sensorId": "ts-network-scan",
           "displayName": "Network Scan Detector",
           "status": "down",
           "isSilenced": true,
@@ -576,9 +576,9 @@ Returns uptime blocks for fleet health charts.
 
 Returns a generated `docker-compose.yml` for a node based on the node's current installed sensors.
 
-**Authentication:** `Authorization: Bearer <HW_NODE_KEY>`
+**Authentication:** `Authorization: Bearer <TS_NODE_KEY>`
 
-This endpoint is read-only for node deployment: it returns the current or requested `HW_CONFIG_REV` without marking the node as synced. The node is marked synced only when its heartbeat reports the expected revision.
+This endpoint is read-only for node deployment: it returns the current or requested `TS_CONFIG_REV` without marking the node as synced. The node is marked synced only when its heartbeat reports the expected revision.
 
 ## Agent Endpoints
 

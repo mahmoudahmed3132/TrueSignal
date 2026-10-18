@@ -6,13 +6,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/honeywire/wizard/core/api"
-	"github.com/honeywire/wizard/internal/app"
-	"github.com/honeywire/wizard/internal/cli"
+	"github.com/truesignal/wizard/core/api"
+	"github.com/truesignal/wizard/internal/app"
+	"github.com/truesignal/wizard/internal/cli"
 )
 
 func HandleRelink(args []string, force bool) error {
-	cli.PrintSectionHeader("HoneyWire Relink", cli.Yellow)
+	cli.PrintSectionHeader("TrueSignal Relink", cli.Yellow)
 
 	var backupPath string
 	hasBackup := false
@@ -78,7 +78,7 @@ func executeRelink(args []string, defaultHubURL string, force bool) error {
 
 	if !cli.IsTerminal() {
 		if hubURL == "" || apiKey == "" {
-			return fmt.Errorf("Hub URL and API key are required in non-interactive mode. Provide as arguments: honeywire relink <hub_url> <api_key>")
+			return fmt.Errorf("Hub URL and API key are required in non-interactive mode. Provide as arguments: truesignal relink <hub_url> <api_key>")
 		}
 	}
 
@@ -132,7 +132,7 @@ func executeRelink(args []string, defaultHubURL string, force bool) error {
 }
 
 func linkExistingNode(hubURL, apiKey string, force bool) error {
-	cli.PrintSectionHeader("HoneyWire Node Link", cli.Cyan)
+	cli.PrintSectionHeader("TrueSignal Node Link", cli.Cyan)
 	fmt.Printf("%s[*] Verifying API key with Hub at %s...%s\n", cli.Bold, hubURL, cli.Reset)
 
 	hub := api.NewClient(hubURL)
@@ -171,29 +171,29 @@ func linkExistingNode(hubURL, apiKey string, force bool) error {
 					if cli.ConfirmAction("Trigger a firedrill to test deployed sensors", force) {
 						return HandleFiredrill()
 					}
-					fmt.Printf("\n    %sRun 'honeywire firedrill' when ready.%s\n\n", cli.Dim, cli.Reset)
+					fmt.Printf("\n    %sRun 'truesignal firedrill' when ready.%s\n\n", cli.Dim, cli.Reset)
 				} else if err != nil {
-					fmt.Printf("\n    %s[!] Apply failed, but the node remains linked. Run 'honeywire apply' to try again after fixing the Hub config.%s\n\n", cli.Yellow, cli.Reset)
+					fmt.Printf("\n    %s[!] Apply failed, but the node remains linked. Run 'truesignal apply' to try again after fixing the Hub config.%s\n\n", cli.Yellow, cli.Reset)
 				}
 				return nil
 			}
-			fmt.Printf("    %sRun 'honeywire apply' to deploy this node's sensors.%s\n\n", cli.Dim, cli.Reset)
+			fmt.Printf("    %sRun 'truesignal apply' to deploy this node's sensors.%s\n\n", cli.Dim, cli.Reset)
 			return nil
 		}
 		if cli.ConfirmAction("Run host discovery now", force) {
 			return HandleDiscover(force)
 		}
 	} else if nodeInfo.PendingConfig {
-		fmt.Printf("    %sRun 'honeywire apply' to deploy this node's sensors.%s\n\n", cli.Dim, cli.Reset)
+		fmt.Printf("    %sRun 'truesignal apply' to deploy this node's sensors.%s\n\n", cli.Dim, cli.Reset)
 		return nil
 	}
 
-	fmt.Printf("    %sRun 'honeywire discover' to audit the host and add new sensors.%s\n\n", cli.Dim, cli.Reset)
+	fmt.Printf("    %sRun 'truesignal discover' to audit the host and add new sensors.%s\n\n", cli.Dim, cli.Reset)
 	return nil
 }
 
 func provisionNewNode(hubURL, customAlias, tagsStr string, force bool) error {
-	cli.PrintSectionHeader("HoneyWire Provisioning", cli.Cyan)
+	cli.PrintSectionHeader("TrueSignal Provisioning", cli.Cyan)
 	fmt.Printf("%s[*] Connecting to Hub at %s...%s\n", cli.Bold, hubURL, cli.Reset)
 
 	hub := api.NewClient(hubURL)
@@ -263,6 +263,6 @@ func provisionNewNode(hubURL, customAlias, tagsStr string, force bool) error {
 			return HandleDiscover(force)
 		}
 	}
-	fmt.Printf("    %sRun 'honeywire discover' to audit the host and add new sensors.%s\n\n", cli.Dim, cli.Reset)
+	fmt.Printf("    %sRun 'truesignal discover' to audit the host and add new sensors.%s\n\n", cli.Dim, cli.Reset)
 	return nil
 }

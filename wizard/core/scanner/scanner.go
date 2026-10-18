@@ -1,6 +1,6 @@
 package scanner
 
-import "github.com/honeywire/wizard/internal/system"
+import "github.com/truesignal/wizard/internal/system"
 
 // Service represents a correlated process-port binding on the host.
 type Service struct {

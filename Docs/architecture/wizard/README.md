@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Wizard is HoneyWire's host-side orchestration engine.
+The Wizard is TrueSignal's host-side orchestration engine.
 
 Its responsibilities are:
 
@@ -99,7 +99,7 @@ Located in: `core/api`
 
 **Responsibilities:**
 - Fetches manifest data
-- Interacts with the HoneyWire Hub for node linking
+- Interacts with the TrueSignal Hub for node linking
 - Fetches and synchronizes node state
 
 ### Deployment Engine
@@ -147,7 +147,7 @@ graph TD
 - `docker compose up`
 - Health verification
 
-> uses specific `honeywire-compose.yml` file and `-p honeywire` flag under the hood to separate honeywire's deployment from existing services
+> uses specific `truesignal-compose.yml` file and `-p truesignal` flag under the hood to separate truesignal's deployment from existing services
 
 ---
 
@@ -197,7 +197,7 @@ graph TD
     User["commands.HandleApply() or user selects sensors"] --> Fetch["api.FetchNodeState() gets Hub Desired State"]
     Fetch --> IR["deploy.GenerateIR() creates Intermediate Representation"]
     IR --> Compose["deploy.GenerateCompose() compiles final YAML"]
-    Compose --> Docker["docker compose up -d -p honeywire applies state"]
+    Compose --> Docker["docker compose up -d -p truesignal applies state"]
 ```
 
 ### Synchronization Flow

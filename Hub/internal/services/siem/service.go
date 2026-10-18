@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 const (
@@ -333,12 +333,12 @@ func (s *Service) formatSyslog(event models.Event) string {
 	}
 
 	sd := fmt.Sprintf(
-		`[honeywire trigger="%s" source="%s" target="%s" node="%s" sensor="%s" severity="%s" details=%s]`,
+		`[truesignal trigger="%s" source="%s" target="%s" node="%s" sensor="%s" severity="%s" details=%s]`,
 		event.EventTrigger, event.Source, event.Target,
 		nodeAlias, event.SensorID, event.Severity, string(detailsJSON),
 	)
 
-	return fmt.Sprintf("<%d>1 %s honeywire honeywireSensor - - %s %s",
+	return fmt.Sprintf("<%d>1 %s truesignal truesignalSensor - - %s %s",
 		priority, timestamp, sd, event.EventTrigger)
 }
 

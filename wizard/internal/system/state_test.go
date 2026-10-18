@@ -75,23 +75,23 @@ func TestCheckDiskSpace(t *testing.T) {
 }
 
 func TestLoadCurrentState_ParsingCorrectness(t *testing.T) {
-	tmpFile := filepath.Join(t.TempDir(), "honeywire-compose.yml")
+	tmpFile := filepath.Join(t.TempDir(), "truesignal-compose.yml")
 	composeFilePath = tmpFile // Override
-	defer func() { composeFilePath = "honeywire-compose.yml" }()
+	defer func() { composeFilePath = "truesignal-compose.yml" }()
 
 	yamlData := `
 services:
   sensor-web:
-    image: honeywire/nginx:latest
+    image: truesignal/nginx:latest
     ports:
       - "8080:80"
       - "8443:443/tcp"
   sensor-db:
-    image: honeywire/postgres:13
+    image: truesignal/postgres:13
     ports:
       - "5432:5432"
   sensor-cache:
-    image: honeywire/nginx:latest # Intentional duplicate to test deduplication
+    image: truesignal/nginx:latest # Intentional duplicate to test deduplication
 `
 	os.WriteFile(tmpFile, []byte(yamlData), 0644)
 
@@ -102,5 +102,5 @@ services:
 	assert.ElementsMatch(t, []int{8080, 8443, 5432}, state.ManagedPorts)
 
 	// Assert images are deduplicated
-	assert.ElementsMatch(t, []string{"honeywire/nginx:latest", "honeywire/postgres:13"}, state.DeployedImages)
+	assert.ElementsMatch(t, []string{"truesignal/nginx:latest", "truesignal/postgres:13"}, state.DeployedImages)
 }

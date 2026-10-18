@@ -1,18 +1,18 @@
 name: "Feature Request"
-description: "Propose a new feature, workflow enhancement, or architectural improvement for HoneyWire."
+description: "Propose a new feature, workflow enhancement, or architectural improvement for TrueSignal."
 title: "[Feature]: "
 labels: ["enhancement", "needs-discussion"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for helping improve HoneyWire! Please outline your idea or proposal below.
+        Thank you for helping improve TrueSignal! Please outline your idea or proposal below.
 
   - type: dropdown
     id: component
     attributes:
       label: Target Component
-      description: Which part of the HoneyWire ecosystem does this feature target?
+      description: Which part of the TrueSignal ecosystem does this feature target?
       options:
         - "Hub Backend (API, SQLite, Projections, Services)"
         - "Hub UI (Dashboards, Settings, Visualizations)"

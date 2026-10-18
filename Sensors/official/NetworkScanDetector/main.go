@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/honeywire/sdk-go"
+	"github.com/truesignal/sdk-go"
 )
 
 type ScanState struct {
@@ -30,10 +30,10 @@ type hit struct {
 const maxTrackers = 10000
 
 var (
-	threshold   = getEnvInt("HW_SCAN_THRESHOLD", 5)
-	window      = time.Duration(getEnvInt("HW_SCAN_WINDOW", 5)) * time.Second
+	threshold   = getEnvInt("TS_SCAN_THRESHOLD", 5)
+	window      = time.Duration(getEnvInt("TS_SCAN_WINDOW", 5)) * time.Second
 	cooldown    = 60 * time.Second
-	ignorePorts = parseIgnorePorts(getEnv("HW_IGNORE_PORTS", "80,443"))
+	ignorePorts = parseIgnorePorts(getEnv("TS_IGNORE_PORTS", "80,443"))
 
 	mu          sync.Mutex
 	trackers    = make(map[string]*ScanState)
@@ -72,12 +72,12 @@ func htons(val uint16) uint16 {
 }
 
 func main() {
-	hw, err := sdk.NewSensor()
+	ts, err := sdk.NewSensor()
 	if err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
 
-	hw.SetTestPayload(
+	ts.SetTestPayload(
 		"network_scan_detected",
 		"Wizard Firedrill",
 		"Multiple Ports",
@@ -90,8 +90,8 @@ func main() {
 		},
 	)
 
-	if hw.TestMode {
-		if hw.RunTestMode() {
+	if ts.TestMode {
+		if ts.RunTestMode() {
 			os.Exit(0)
 		}
 		os.Exit(1)
@@ -115,7 +115,7 @@ func main() {
 		log.Printf("[*] Dropped root privileges and CAP_NET_RAW (Running as nobody)")
 	}
 
-	log.Printf("[*] HoneyWire Scan Detector | Threshold: %d ports | Window: %v", threshold, window)
+	log.Printf("[*] TrueSignal Scan Detector | Threshold: %d ports | Window: %v", threshold, window)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -161,7 +161,7 @@ func main() {
 		}
 	}()
 
-	ignoreLocal := getEnv("HW_IGNORE_LOCALHOST", "true") == "true"
+	ignoreLocal := getEnv("TS_IGNORE_LOCALHOST", "true") == "true"
 	loopbackIfIndex := -1
 	if lo, err := net.InterfaceByName("lo"); err == nil {
 		loopbackIfIndex = lo.Index
@@ -215,20 +215,20 @@ func main() {
 					continue
 				}
 
-				processHit(hw, srcIP, dstPort, flags, winSize)
+				processHit(ts, srcIP, dstPort, flags, winSize)
 			}
 		}
 	}()
 
-	if err := hw.Start(); err != nil {
+	if err := ts.Start(); err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
-	defer hw.Stop()
+	defer ts.Stop()
 
 	<-ctx.Done()
 }
 
-func processHit(hw *sdk.Sensor, srcIP string, dstPort uint16, flags uint8, winSize uint16) {
+func processHit(ts *sdk.Sensor, srcIP string, dstPort uint16, flags uint8, winSize uint16) {
 	now := time.Now()
 
 	mu.Lock()
@@ -313,7 +313,7 @@ func processHit(hw *sdk.Sensor, srcIP string, dstPort uint16, flags uint8, winSi
 
 		log.Printf("[!] %s detected from %s: %v | Tool: %s", scanType, srcIP, displayPorts, tool)
 
-		hw.ReportEvent(
+		ts.ReportEvent(
 			"network_scan_detected",
 			srcIP,
 			"Multiple Ports",

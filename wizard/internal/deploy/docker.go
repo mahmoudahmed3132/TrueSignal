@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/honeywire/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/cli"
 )
 
 const (
-	DeployDir      = "/opt/honeywire/sensors"
-	ComposeFile    = "honeywire-compose.yml"
-	ProjectName    = "honeywire"
+	DeployDir      = "/opt/truesignal/sensors"
+	ComposeFile    = "truesignal-compose.yml"
+	ProjectName    = "truesignal"
 	ComposeMinVer  = "5.0.0"
 	commandTimeout = 10 * time.Second
 )
@@ -85,7 +85,7 @@ func checkDaemon() error {
 			if strings.Contains(strings.ToLower(opt), "rootless") {
 				return generateRemediationError(
 					"Docker is running in Rootless mode.",
-					"HoneyWire sensors require raw network access and iptables manipulation, which cannot be done in Rootless mode. Please install a standard Rootful Docker daemon.",
+					"TrueSignal sensors require raw network access and iptables manipulation, which cannot be done in Rootless mode. Please install a standard Rootful Docker daemon.",
 					nil,
 				)
 			}
@@ -143,7 +143,7 @@ func generateRemediationError(mainReason string, details string, originalErr err
 		sb.WriteString(fmt.Sprintf("    %sSystem Error: %v%s\n", cli.Dim, originalErr, cli.Reset))
 	}
 
-	sb.WriteString(fmt.Sprintf("    %sHoneyWire requires Docker Compose v%s+ to securely orchestrate honeypot lifecycles.%s\n\n", cli.Red, ComposeMinVer, cli.Reset))
+	sb.WriteString(fmt.Sprintf("    %sTrueSignal requires Docker Compose v%s+ to securely orchestrate honeypot lifecycles.%s\n\n", cli.Red, ComposeMinVer, cli.Reset))
 
 	sb.WriteString(fmt.Sprintf("    %sPlease run the official upgrade command for your OS:%s\n", cli.Cyan, cli.Reset))
 	sb.WriteString("      Ubuntu/Debian:  sudo apt-get update && sudo apt-get install docker-compose-plugin\n")

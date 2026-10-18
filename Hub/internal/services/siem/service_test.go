@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 func TestSyslogForwardingRFC5424(t *testing.T) {

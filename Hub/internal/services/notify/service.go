@@ -11,7 +11,7 @@ import (
 	// codeql[go/insecure-randomness] Non-cryptographic use case.
 	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"math/rand"
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 	"net/http"
 	"strconv"
 	"strings"
@@ -353,7 +353,7 @@ func (s *Service) sendNtfy(payload WebhookPayload) (*http.Response, error) {
 func (s *Service) sendDiscord(payload WebhookPayload) (*http.Response, error) {
 	msg := discordMessage(payload)
 	reqPayload := map[string]interface{}{
-		"username": "HoneyWire",
+		"username": "TrueSignal",
 		"embeds": []map[string]interface{}{
 			{
 				"title":       payload.Title,
@@ -472,7 +472,7 @@ func severityColorHex(severity string) string {
 
 // ntfyTags returns a comma-separated tag string for ntfy per severity.
 func ntfyTags(severity string) string {
-	base := "rotating_light,honeywire"
+	base := "rotating_light,truesignal"
 	switch strings.ToLower(severity) {
 	case "critical", "high":
 		return base + ",warning"

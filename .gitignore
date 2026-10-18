@@ -49,7 +49,7 @@ Thumbs.db
 *.sqlite3
 *.bak
 *.swp
-*.*.bak # Catches honeywire.db.bak and any other backups
+*.*.bak # Catches truesignal.db.bak and any other backups
 
 # =========================
 # Python

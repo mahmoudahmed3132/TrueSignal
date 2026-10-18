@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/honeywire/hub/internal/services/auth"
-	"github.com/honeywire/hub/internal/services/config"
+	"github.com/truesignal/hub/internal/services/auth"
+	"github.com/truesignal/hub/internal/services/config"
 )
 
-const AuthCookieName = "hw_auth"
+const AuthCookieName = "ts_auth"
 
 type AuthHandler struct {
 	service *auth.Service

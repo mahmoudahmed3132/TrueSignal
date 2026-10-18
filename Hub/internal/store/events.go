@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 func (s *SQLiteStore) InsertEvent(e *models.Event, nowStr string, detailsStr string) (int, error) {

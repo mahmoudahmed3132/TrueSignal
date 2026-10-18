@@ -1,6 +1,6 @@
 # Project Structure Map
 
-This document is a static map of the HoneyWire monorepo. It answers the question: *"Where do I edit X?"*
+This document is a static map of the TrueSignal monorepo. It answers the question: *"Where do I edit X?"*
 
 For step-by-step guides on *how* to change these components, see `workflows.md`.
 
@@ -50,4 +50,4 @@ The containerized decoy applications.
 ## 4. SDKs (`/SDKs`)
 Language-specific libraries for building sensors.
 
-*   **`go-honeywire/`**: The official Go SDK. Handles heartbeat loops, event queuing, and strict Hub API contract adherence.
+*   **`go-truesignal/`**: The official Go SDK. Handles heartbeat loops, event queuing, and strict Hub API contract adherence.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/honeywire/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/cli"
 )
 
 func HandleStatus() error {
@@ -13,7 +13,7 @@ func HandleStatus() error {
 		return err
 	}
 
-	cli.PrintSectionHeader("HoneyWire Node Status", cli.Cyan)
+	cli.PrintSectionHeader("TrueSignal Node Status", cli.Cyan)
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()

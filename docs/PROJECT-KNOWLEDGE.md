@@ -1,6 +1,6 @@
 # TrueSignal: Project Knowledge Reference
 
-Built 2026-10-18 from a full read of commit `e2f83e9` on branch `claude/intelligent-albattani-dbxcqn`.
+Built 2026-10-18 from a full read of commit `e2f83e9` on branch `claude/intelligent-albattani-dbxcqn`. Identifiers were updated for the TrueSignal rebrand (2026-10-19).
 Every non-obvious claim cites `file:line`. Anything the repository does not support is marked **[NOT IN PROJECT]**.
 Claims based on reading code but never executed are marked **(code-read, untested)**. Nothing in this document was run.
 
@@ -16,15 +16,15 @@ Status legend used throughout:
 
 | Item | Value | Source |
 |---|---|---|
-| Upstream | HoneyWire by andreicscs, AGPLv3 | `README.md:6-14`, `LICENSE` |
+| Upstream | HoneyWire by Andrea Termine (https://github.com/andreicscs/HoneyWire), AGPLv3 | `NOTICE`, `LICENSE` |
 | Import | 3 commits on 2026-10-19 (+0300) by Mahmoud Halim: initial import, add `Hub/`, CodeQL v4 change | `git log` |
 | Hub version | `2.1.0` | `Hub/internal/models/models.go:6` |
 | Wizard version | `2.0.1` | `wizard/core/api/client.go:17` |
-| Latest CHANGELOG entry | v2.0.1 (2026-06-26) | `CHANGELOG.md:1` |
-| TrueSignal-specific code or config | none. The string "TrueSignal" appears only in the commit message | `grep -ri truesignal` |
+| Latest CHANGELOG entry | v2.0.1 (2026-06-26) | `CHANGELOG.md:20` |
+| Rebrand | 2026-10-19: names, UI/logo, Go modules, CLI/paths, protocol prefixes (`TS_`, `ts-sensor-`, `ts_key_`, `ts_auth`), syslog identity, distribution endpoints. No functional change | `NOTICE`, `CHANGELOG.md` |
 | Stated purpose | the onboarding request literally contains `{{WHAT IT IS FOR}}` | onboarding request |
 
-Upstream's own description: a "Distributed High-Signal Security Early-Warning System Builder" for internal networks. Its model is the high-fidelity tripwire: "If it trips, you have an intruder" (`README.md:39-46`).
+Upstream's own description: a "Distributed High-Signal Security Early-Warning System Builder" for internal networks. Its model is the high-fidelity tripwire: "If it trips, you have an intruder" (`README.md:33-40`).
 
 ---
 
@@ -36,13 +36,13 @@ Upstream's own description: a "Distributed High-Signal Security Early-Warning Sy
 |---|---|---|---|---|
 | 1 | Hub API + store + workers | Go 1.25, chi v5, modernc SQLite (WAL, FK on), gorilla/websocket | IMPL | `Hub/cmd/hub/main.go`, `Hub/go.mod` |
 | 2 | Hub UI | Vue 3 + Pinia + Tailwind + Chart.js, embedded via `go:embed` | IMPL | `Hub/ui/`, `Hub/ui/embed.go` |
-| 3 | Wizard CLI (`honeywire`) | Go, must run as root | IMPL | `wizard/cmd/wizard/main.go:34-36` |
+| 3 | Wizard CLI (`truesignal`) | Go, must run as root | IMPL | `wizard/cmd/wizard/main.go:34-36` |
 | 4 | Official sensors (5) | Go static binaries, distroless | IMPL | `Sensors/official/*` |
-| 5 | Go SDK | Go | IMPL | `SDKs/go-honeywire/sdk.go` |
-| 6 | Python SDK | Python + requests | IMPL, not used by any official sensor | `SDKs/python-honeywire/honeywire/__init__.py` |
+| 5 | Go SDK | Go | IMPL | `SDKs/go-truesignal/sdk.go` |
+| 6 | Python SDK | Python + requests | IMPL, not used by any official sensor | `SDKs/python-truesignal/truesignal/__init__.py` |
 | 7 | Sensor templates | Go / Python | IMPL (Python template bug, see GAPS) | `Sensors/templates/` |
 | 8 | Registry (`registry-pages` branch) | static JSON | CFG-UNTESTED. The branch is not in this checkout | `.github/workflows/publish-sensor-registry.yml`, `scripts/build-registry-index.sh` |
-| 9 | Installer | POSIX sh | IMPL, but fetches upstream binaries | `install.sh` |
+| 9 | Installer | POSIX sh | IMPL; fetches from this repo's Releases (private repo, nothing released yet) | `install.sh` |
 | 10 | Mock Hub | Python http.server | IMPL (CI contract test) | `scripts/mock_hub.py` |
 | 11 | Community sensors | none present | PLANNED | `Sensors/community/README.md` |
 
@@ -52,13 +52,13 @@ Upstream's own description: a "Distributed High-Signal Security Early-Warning Sy
  attacker / insider
    |  TCP connect | ICMP echo | SYN/FIN/NULL/XMAS | file write/open | HTTP POST /login
    v
- +------------------------- NODE (Docker, project "honeywire") --------------------------+
+ +------------------------- NODE (Docker, project "truesignal") --------------------------+
  | sensor container (host netns)                                                         |
  |   detection logic (main.go) -> sdk.ReportEvent() -> chan(1000) -> eventLoop          |
  |   heartbeatLoop every 30s ---------------------------------------------+              |
  +-----------------------------|-------------------------------------------|--------------+
                                | POST /api/v2/event                        | POST /api/v2/heartbeat
-                               | Authorization: Bearer hw_key_... (node key)| (configRev)
+                               | Authorization: Bearer ts_key_... (node key)| (configRev)
                                v                                           v
  +------------------------------- HUB (:8080, HTTP) -------------------------------------+
  | AgentAuthMiddleware: key -> nodeID (cached), rate limit 100/min/node, burst 100       |
@@ -83,15 +83,15 @@ Sources: `Hub/internal/api/router.go:111-119`, `Hub/internal/api/middleware.go:8
 
 ```
  UI: add sensor to node + env values --> node_sensors row, nodes.pending_config=1
- Node (root): honeywire apply
+ Node (root): truesignal apply
    GET /api/v2/nodes/compose (node key)
      Hub: resolve version (deployed_version or latest compatible) -> FetchSpecificManifest from registry_url
           -> ValidateManifest -> BuildEnv(defaults < user < system) -> BuildService (sandbox baseline)
-          -> YAML (HW_HUB_KEY = node key, HW_CONFIG_REV = rev_xxxxxxxx)
-   wizard: deep-diff vs /opt/honeywire/sensors/honeywire-compose.yml
+          -> YAML (TS_HUB_KEY = node key, TS_CONFIG_REV = rev_xxxxxxxx)
+   wizard: deep-diff vs /opt/truesignal/sensors/truesignal-compose.yml
           -> write -> docker compose pull (failure tolerated) -> up -d --remove-orphans
           -> after 3s, if any service is exited/restarting -> restore previous compose
- Sensors heartbeat with HW_CONFIG_REV; Hub marks the node synced when every sensor reports the desired rev
+ Sensors heartbeat with TS_CONFIG_REV; Hub marks the node synced when every sensor reports the desired rev
 ```
 Sources: `Hub/internal/services/compose/service.go:187-`, `Hub/internal/compose/builder.go`, `wizard/internal/commands/apply.go`, `wizard/internal/deploy/apply.go`, `Hub/internal/store/sensors.go:23-`.
 
@@ -109,11 +109,11 @@ There are **no deployed-instance definitions** in the repo: no node list, no hos
 
 | Sensor (ID) | Type | Placement (where it runs) | Default lure / bait | Detection source | eventTrigger | Default severity | Status |
 |---|---|---|---|---|---|---|---|
-| `hw-sensor-tcp-tarpit` v2.0.2 | network tarpit / service decoy | node, `network_mode: host`, UID 0, +NET_BIND_SERVICE | listens on `HW_DECOY_PORTS` (default `{{ availablePort 2222 }},{{ availablePort 3306 }}`; code fallback 2222,3306); banner `SSH-2.0-OpenSSH_8.2p1\r\n` on **every** port; mode hold/echo/close | accepted TCP connection (full handshake) | `tcp_connection` | high | IMPL |
-| `hw-sensor-icmp-canary` v2.1.2 | network canary | node, host netns, UID 0, +NET_RAW | none. Passive raw ICMP socket | ICMP Echo (type 8) and Timestamp (type 13) to the host | `icmp_scan_received` | info | IMPL |
-| `hw-sensor-network-scan-detector` v2.1.2 | network IDS-lite | node, host netns, UID 0, +NET_RAW, AF_PACKET/SOCK_DGRAM IPv4 | none | TCP SYN to ≥`HW_SCAN_THRESHOLD`(5) unique non-ignored ports within `HW_SCAN_WINDOW`(5s), or any single NULL/FIN/XMAS/0x2B probe | `network_scan_detected` | high | IMPL |
-| `hw-sensor-file-canary` v2.0.1 | file lure + FIM | node; init container (UID 0, +DAC_OVERRIDE, rw bind of parent dirs) creates files; main container UID 65532, ro file binds under `/canaries` | `HW_DECOY_FILES` default: web host `/var/www/html/.backup-config.php`; DB host `/var/lib/db/dump.sql.bak`; else `/opt/.env.backup`; plus `/home/admin/vpn_keys.txt` if >1 matched service. Files are created **empty** | inotify: MODIFY, CLOSE_WRITE, ATTRIB, DELETE_SELF, MOVE_SELF; OPEN/ACCESS only if `HW_ALERT_ON_OPEN=true` (default false) | `decoy_file_tampered`, `decoy_file_accessed` | critical | IMPL |
-| `hw-sensor-web-router-decoy` v2.0.1 | web credential lure | node, host netns, UID 0, +NET_BIND_SERVICE, port `HW_BIND_PORT` (default `{{ availablePort 8080 }}`) | fake "<brand> Router Login" page; brand from `HW_ROUTER_BRAND` (manifest default Netgear, code default Enterprise); footer hard-coded "Model RV340 / FW 1.0.03.20" | HTTP POST `/login` (GET `/` is **not** alerted) | `web_login_attempt` | critical | IMPL |
+| `ts-sensor-tcp-tarpit` v2.0.2 | network tarpit / service decoy | node, `network_mode: host`, UID 0, +NET_BIND_SERVICE | listens on `TS_DECOY_PORTS` (default `{{ availablePort 2222 }},{{ availablePort 3306 }}`; code fallback 2222,3306); banner `SSH-2.0-OpenSSH_8.2p1\r\n` on **every** port; mode hold/echo/close | accepted TCP connection (full handshake) | `tcp_connection` | high | IMPL |
+| `ts-sensor-icmp-canary` v2.1.2 | network canary | node, host netns, UID 0, +NET_RAW | none. Passive raw ICMP socket | ICMP Echo (type 8) and Timestamp (type 13) to the host | `icmp_scan_received` | info | IMPL |
+| `ts-sensor-network-scan-detector` v2.1.2 | network IDS-lite | node, host netns, UID 0, +NET_RAW, AF_PACKET/SOCK_DGRAM IPv4 | none | TCP SYN to ≥`TS_SCAN_THRESHOLD`(5) unique non-ignored ports within `TS_SCAN_WINDOW`(5s), or any single NULL/FIN/XMAS/0x2B probe | `network_scan_detected` | high | IMPL |
+| `ts-sensor-file-canary` v2.0.1 | file lure + FIM | node; init container (UID 0, +DAC_OVERRIDE, rw bind of parent dirs) creates files; main container UID 65532, ro file binds under `/canaries` | `TS_DECOY_FILES` default: web host `/var/www/html/.backup-config.php`; DB host `/var/lib/db/dump.sql.bak`; else `/opt/.env.backup`; plus `/home/admin/vpn_keys.txt` if >1 matched service. Files are created **empty** | inotify: MODIFY, CLOSE_WRITE, ATTRIB, DELETE_SELF, MOVE_SELF; OPEN/ACCESS only if `TS_ALERT_ON_OPEN=true` (default false) | `decoy_file_tampered`, `decoy_file_accessed` | critical | IMPL |
+| `ts-sensor-web-router-decoy` v2.0.1 | web credential lure | node, host netns, UID 0, +NET_BIND_SERVICE, port `TS_BIND_PORT` (default `{{ availablePort 8080 }}`) | fake "<brand> Router Login" page; brand from `TS_ROUTER_BRAND` (manifest default Netgear, code default Enterprise); footer hard-coded "Model RV340 / FW 1.0.03.20" | HTTP POST `/login` (GET `/` is **not** alerted) | `web_login_attempt` | critical | IMPL |
 
 Sources, in row order:
 - `Sensors/official/TcpTarpit/{tcp-tarpit.json,main.go:18-26,109-174}`
@@ -122,10 +122,10 @@ Sources, in row order:
 - `Sensors/official/FileCanary/{file-canary.json,main.go:16-157,217-246}`
 - `Sensors/official/WebRouterDecoy/{web-router-decoy.json,main.go:221-236,264-265,324-370}`
 
-**Honeytokens** (credentials, API keys, cloud keys, canary documents, DNS tokens, AD objects): **[NOT IN PROJECT]**. `README.md:65` mentions PDF canary tokens and DNS sinkholes only as examples of what a community sensor *could* be.
+**Honeytokens** (credentials, API keys, cloud keys, canary documents, DNS tokens, AD objects): **[NOT IN PROJECT]**. `README.md:51` mentions PDF canary tokens and DNS sinkholes only as examples of what a community sensor *could* be.
 The wizard defines unused lure-name generators (`randWebFile` → `wp-config.old.php`, `.env.staging`, `config.bak.php`, `aws_s3_keys.txt`; `randDBFile` → `dump_2023.sql`, `db_backup_prod.sql`, `.pgpass.old`, `migration_rollback.sql`; `TrapPath`). No manifest references them (`wizard/internal/commands/discover.go` `renderManifestTemplates`).
 
-**Templates** (not decoys): `hw-sensor-custom-template` (Go) and `hw-sensor-python-template` (Python) emit `custom_anomaly_detected` every 60s from a hard-coded source `192.168.1.100` (`Sensors/templates/go-sensor/main.go:66-95`, `python-sensor/sensor.py:23-52`).
+**Templates** (not decoys): `ts-sensor-custom-template` (Go) and `ts-sensor-python-template` (Python) emit `custom_anomaly_detected` every 60s from a hard-coded source `192.168.1.100` (`Sensors/templates/go-sensor/main.go:66-95`, `python-sensor/sensor.py:23-52`).
 
 ### 3.1 Wizard recommendation heuristics (when `discover` suggests a sensor)
 
@@ -136,7 +136,7 @@ The wizard defines unused lure-name generators (`randWebFile` → `wp-config.old
 | File Canary | python3, node, java, nginx, apache2, httpd, php-fpm, docker-proxy, ruby, perl, go | none | process only |
 | ICMP Canary, Scan Detector | none | none | "universal": always recommended |
 
-Sources: manifests; `wizard/core/discovery/engine.go:40-160`. During template rendering the wizard sets `HW_IGNORE_PORTS` to **every port in use on the host** (`discover.go` `renderManifestTemplates`).
+Sources: manifests; `wizard/core/discovery/engine.go:40-160`. During template rendering the wizard sets `TS_IGNORE_PORTS` to **every port in use on the host** (`discover.go` `renderManifestTemplates`).
 
 ---
 
@@ -150,7 +150,7 @@ There are **no SIEM detection rules, correlation searches, Sigma, KQL, LogScale 
 | ICMP `icmp_scan_received` | each ICMP echo/timestamp request to the host | raw ICMP; host netns | per packet; no dedup or rate limit at the sensor | [NOT IN PROJECT] |
 | Scan `network_scan_detected` | horizontal/vertical SYN scan per source IP; stealth NULL/FIN/XMAS; Nmap T3 OS probe (flags 0x2B); tool guess from window size 1024/2048/4096 | AF_PACKET on the host, IPv4 only; inbound and outbound frames are not distinguished | instant for stealth probes; threshold-based for SYN; 60s cooldown per source per scan type (`main.go:35,292-301`) | [NOT IN PROJECT] |
 | File `decoy_file_tampered` | modify, attribute change, delete, move of a lure file | inotify on a bind-mounted inode | instant. The sensor exits (`log.Fatalf`) after delete or move (`main.go:370-400`) | [NOT IN PROJECT] |
-| File `decoy_file_accessed` | open/read of a lure file | inotify; `HW_ALERT_ON_OPEN=true` | instant; **disabled by default** | [NOT IN PROJECT] |
+| File `decoy_file_accessed` | open/read of a lure file | inotify; `TS_ALERT_ON_OPEN=true` | instant; **disabled by default** | [NOT IN PROJECT] |
 | Web `web_login_attempt` | credential submission to the fake router panel | HTTP reachability | instant; then a 1.5s tarpit delay to the client | [NOT IN PROJECT] |
 
 The repo contains **no ATT&CK mappings**. The only mention is the `sensor_idea` issue template asking contributors for one (`.github/ISSUE_TEMPLATE/sensor_idea.yml:37`). A proposed mapping is in KNOWLEDGE-GAPS §2.3 and is marked as inference.
@@ -161,7 +161,7 @@ The repo contains **no ATT&CK mappings**. The only mention is the `sensor_idea` 
 |---|---|---|---|
 | `sensorId` | sensor body | node-key holder | must exist in `node_sensors` for that node, otherwise 500 (FK failure; code maps it to 404 only if the error contains "FOREIGN KEY") |
 | `eventTrigger` | sensor | node-key holder | free string |
-| `severity` | sensor `HW_SEVERITY` (UI can set it) | node-key holder | **not validated** by the Hub |
+| `severity` | sensor `TS_SEVERITY` (UI can set it) | node-key holder | **not validated** by the Hub |
 | `source` | sensor | node-key holder | IP string, or `"Local OS"` for File Canary (no actor attribution), or `"Wizard Firedrill"` for tests |
 | `target` | sensor | node-key holder | `Port N`, `ICMP Listener`, `Multiple Ports`, file basename, `Web Interface` |
 | `details` | sensor | node-key holder | raw JSON; Web decoy puts `attempted_password` here in cleartext |
@@ -175,7 +175,7 @@ Sources: `Hub/internal/models/models.go`, `Hub/internal/api/events.go`, `Hub/int
 
 `Hub/internal/services/siem/service.go:303-359`:
 ```
-<PRI>1 <RFC3339Nano UTC> honeywire honeywireSensor - - [honeywire trigger="…" source="…" target="…" node="<alias>" sensor="…" severity="…" details=<raw JSON>] <trigger>\n
+<PRI>1 <RFC3339Nano UTC> truesignal truesignalSensor - - [truesignal trigger="…" source="…" target="…" node="<alias>" sensor="…" severity="…" details=<raw JSON>] <trigger>\n
 ```
 - PRI uses facility local0 (16): critical=130, high=131, medium=132, low=133, other=134.
 - Transport is TCP (persistent, newline-framed) or UDP. No TLS. No octet counting.
@@ -186,8 +186,8 @@ Sources: `Hub/internal/models/models.go`, `Hub/internal/api/events.go`, `Hub/int
 The webhook carries only title `Threat detected on <alias>`, trigger, sensorId, source, target, time and severity. **`details` are not sent** (`Hub/internal/services/notify/service.go:180-194,399-439`).
 
 ### 4.4 Test / synthetic events (filter these in the SIEM)
-- `honeywire firedrill` sends SIGUSR1. Each sensor emits its `SetTestPayload`: the **same eventTrigger as real events**, `source="Wizard Firedrill"`, `details.test_message` present (`SDKs/go-honeywire/sdk.go:201-224`, each `main.go`).
-- `HW_TEST_MODE=true` sends the same payload synchronously and exits (`sdk.go:226-259`).
+- `truesignal firedrill` sends SIGUSR1. Each sensor emits its `SetTestPayload`: the **same eventTrigger as real events**, `source="Wizard Firedrill"`, `details.test_message` present (`SDKs/go-truesignal/sdk.go:201-224`, each `main.go`).
+- `TS_TEST_MODE=true` sends the same payload synchronously and exits (`sdk.go:226-259`).
 - SDK default when no test payload is set: trigger `test_mode_synthetic_alert`.
 
 ---
@@ -201,16 +201,16 @@ The webhook carries only title `Threat detected on <alias>`, trigger, sensorId, 
 - `webhook_events=critical,high,medium,low` (**info excluded, so ICMP Canary never pages by default**)
 - `auto_archive_days=0`, `auto_purge_days=0` (keep forever)
 - `siem_address=""` (SIEM off), `siem_protocol=tcp`
-- `registry_url=https://raw.githubusercontent.com/andreicscs/HoneyWire/registry-pages`
+- `registry_url=https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages`
 
 Note: if the `is_armed` row is missing, `main.go:104` falls back to `false`, while `config/service.go:260` falls back to `true` on error.
 
 ### 5.2 Auth
 | Actor | Mechanism | Details | Source |
 |---|---|---|---|
-| Human | `hw_auth` cookie, 30 days, HttpOnly, SameSite=Strict, Secure only if `HW_ENV=production` | sessions are in memory (lost on restart); 10 failures per IP → 15 min lockout; single admin, no RBAC, no MFA | `api/auth.go:26-60`, `services/auth/service.go:82-195` |
+| Human | `ts_auth` cookie, 30 days, HttpOnly, SameSite=Strict, Secure only if `TS_ENV=production` | sessions are in memory (lost on restart); 10 failures per IP → 15 min lockout; single admin, no RBAC, no MFA | `api/auth.go:26-60`, `services/auth/service.go:82-195` |
 | Node / sensor | `Authorization: Bearer` or `X-Api-Key`; `?key=` also accepted on `/manifests*` | key stored **plaintext** in `nodes.api_key`; validated keys are cached in a `sync.Map` with **no eviction** | `api/middleware.go:86-170`, `services/auth/service.go:199-215`, `store/nodes.go:20-24` |
-| Setup | `POST /api/v2/setup` is unauthenticated until the first completion | first caller sets the admin password; locked if `HW_DASHBOARD_PASSWORD` is set | `api/config.go:28-54`, `services/config/service.go` |
+| Setup | `POST /api/v2/setup` is unauthenticated until the first completion | first caller sets the admin password; locked if `TS_DASHBOARD_PASSWORD` is set | `api/config.go:28-54`, `services/config/service.go` |
 | WebSocket | cookie-protected; `CheckOrigin` always returns true | SameSite=Strict mitigates CSWSH | `services/websocket/service.go:13-17` |
 
 ### 5.3 Background workers
@@ -244,7 +244,7 @@ Tables: `nodes`, `node_sensors (PK node_id+sensor_id)`, `events`, `sensor_status
 |---|---|---|---|
 | Sensor health | heartbeat 30s; >60s → `down`; graceful `/offline` on SIGTERM; uptime heatmap (≥99% = up) | IMPL; UI-only, **no alert** | `sdk.go:373-409`, `statemonitor.go`, `Docs/architecture/hub/backend/projections.md` |
 | Config drift | `rev_` hash; "Pending" vs "Deployed" in UI | IMPL | `Docs/architecture/hub/backend/provisioning.md`, `store/sensors.go:23-` |
-| End-to-end test | `honeywire firedrill` | IMPL, manual | `wizard/internal/commands/firedrill.go:16-` |
+| End-to-end test | `truesignal firedrill` | IMPL, manual | `wizard/internal/commands/firedrill.go:16-` |
 | Hub health endpoint | `GET /api/v2/version` only; no `/healthz` | IMPL | `api/router.go:53` |
 | Hub self-monitoring / alerting | none | [NOT IN PROJECT] |  |
 | Hub backups | only automatic pre-migration `VACUUM INTO` snapshot | IMPL | `store/migrations.go:304-357` |
@@ -257,16 +257,16 @@ Tables: `nodes`, `node_sensors (PK node_id+sensor_id)`, `events`, `sensor_status
 | Scanner allow-listing | `whitelisted_sources` exact-match on `source`; drops the event entirely | IMPL | `event/service.go:63-72` |
 | Audit logging | `log.Printf` for lockouts, factory reset, event purge only; stdout | IMPL (minimal) | `auth/service.go:190`, `config/service.go`, `event/service.go:126` |
 | Incident-response runbook | none | [NOT IN PROJECT] |  |
-| On-call / ownership | none. Upstream `SECURITY.md` says "solo maintainer" | [NOT IN PROJECT] |  |
+| On-call / ownership | none. `SECURITY.md` points only to GitHub private vulnerability reporting | [NOT IN PROJECT] |  |
 
 ### 6.1 CI/CD
 
 | Workflow | Trigger | Does | Gaps | Source |
 |---|---|---|---|---|
 | GH `security.yml` | push/PR main | CodeQL go/js/python (SARIF as artifact only); Trivy fs | Trivy has no `exit-code`, so it never fails; `trivy-action@master` unpinned | `.github/workflows/security.yml` |
-| GH `publish-hub.yml` | tag `hub/v*` | build + push `ghcr.io/<repo_owner>/honeywire-hub:{vX,latest}`; GH release | no tests; no signing/SBOM | `.github/workflows/publish-hub.yml` |
+| GH `publish-hub.yml` | tag `hub/v*` | build + push `ghcr.io/<repo_owner>/truesignal-hub:{vX,latest}`; GH release | no tests; no signing/SBOM | `.github/workflows/publish-hub.yml` |
 | GH `publish-wizard.yml` | tag `wizard/v*` | linux amd64/arm64 + sha256 checksums | no tests; no signing | `.github/workflows/publish-wizard.yml` |
-| GH `publish-sensor-registry.yml` | tag `sensor/**/v*` | build + push to the manifest's `image_repository`, inject digest, write `registry-pages` | pushes to `ghcr.io/andreicscs/*` (will fail without upstream rights) | `.github/workflows/publish-sensor-registry.yml` |
+| GH `publish-sensor-registry.yml` | tag `sensor/**/v*` | build + push to the manifest's `image_repository`, inject digest, write `registry-pages` | pushes to `ghcr.io/mahmoudahmed3132/truesignal-*` (nothing published yet) | `.github/workflows/publish-sensor-registry.yml` |
 | GH `rollback-sensor-registry.yml` | manual | mark latest manifest `deprecated`, rebuild index | none | same dir |
 | GH `cleanup-ghcr.yml` | manual | delete untagged images | uses `DELETE_PACKAGES_TOKEN` | same dir |
 | Gitea `build-hub-dev.yml` | push main `Hub/**` | build UI, image `:dev` | `go test` commented out (line 69) | `.gitea/workflows/` |
@@ -280,8 +280,8 @@ Tables: `nodes`, `node_sensors (PK node_id+sensor_id)`, `events`, `sensor_status
 
 | Date | Decision / event | Source |
 |---|---|---|
-| 2026-06-22 | v2.0.0: API moved to `/api/v2`; standalone sensors deprecated in favour of the Node/fleet model; registry moved to `registry-pages`; wizard introduced; whitelist added; DisallowUnknownFields, interpolation blocking, digest pinning, rate limiting, distroless | `CHANGELOG.md:15-43` |
-| 2026-06-26 | v2.0.1: deployed sensor versions pinned until `apply`; Tarpit uses `availablePort`; JSON export | `CHANGELOG.md:1-12` |
+| 2026-06-22 | v2.0.0: API moved to `/api/v2`; standalone sensors deprecated in favour of the Node/fleet model; registry moved to `registry-pages`; wizard introduced; whitelist added; DisallowUnknownFields, interpolation blocking, digest pinning, rate limiting, distroless | `CHANGELOG.md:34-62` |
+| 2026-06-26 | v2.0.1: deployed sensor versions pinned until `apply`; Tarpit uses `availablePort`; JSON export | `CHANGELOG.md:20-31` |
 | undated | Hub 2.1.0 (code constant), README badge v2.1.0 | `models.go:6`, `README.md:10` |
 | undated | Heartbeats migrated to discrete status changes (migration v2) | `store/migrations.go` migration 2 |
 | undated | Split distribution: sensors via a custom static registry, wizard via GitHub releases | `Docs/architecture/README.md:148-151` |
@@ -289,7 +289,7 @@ Tables: `nodes`, `node_sensors (PK node_id+sensor_id)`, `events`, `sensor_status
 | undated | Wizard is ephemeral, not an agent | `Docs/architecture/wizard/README.md:15` |
 | undated | Avoid DROP/RENAME migrations due to CASCADE | `store/migrations.go:93-103` |
 | undated | Accepted risks: compose tampering, CLI key exposure | `THREATMODEL.md:100-110` |
-| undated | Planned: manifest signing, provenance, signed deployment artifacts, init-command checking; v2.2.0, v3.0.0 IaC overhaul, SIEM benchmarks | `THREATMODEL.md:47-49,78,88`, `README.md:175-177` |
+| undated | Planned: manifest signing, provenance, signed deployment artifacts, init-command checking; v2.2.0, v3.0.0 IaC overhaul, SIEM benchmarks | `THREATMODEL.md:47-49,78,88`, upstream README roadmap (removed at rebrand) |
 | 2026-10-19 (+0300) | Imported into TrueSignal; CodeQL SARIF kept as an artifact because code scanning isn't enabled on the private repo | `git log`, `.github/workflows/security.yml:36-37` |
 
 ---
@@ -299,15 +299,15 @@ Tables: `nodes`, `node_sensors (PK node_id+sensor_id)`, `events`, `sensor_status
 | Term | Meaning |
 |---|---|
 | Hub / Sentinel Hub | Central Go server: API, DB, UI, alert routing |
-| Node | A host running sensors; identified by `node-<8hex>`, authenticated by `hw_key_…` |
-| Sensor / HoneyWire | One decoy/tripwire container type, defined by a manifest |
+| Node | A host running sensors; identified by `node-<8hex>`, authenticated by `ts_key_…` |
+| Sensor | One decoy/tripwire container type, defined by a manifest |
 | Manifest | JSON definition of a sensor: metadata, heuristics, deployment, env vars |
 | Registry | Static `index.json` + `<name>-v<ver>.json` served from the `registry-pages` branch |
-| Wizard | `honeywire` root CLI: link, discover, apply, firedrill, status, relink, uninstall |
+| Wizard | `truesignal` root CLI: link, discover, apply, firedrill, status, relink, uninstall |
 | Desired state / pending config | Sensor set and config in the Hub not yet applied on the node |
 | Config revision (`rev_…`) | Hash of the node's sensor set; sensors echo it in heartbeats to prove sync |
 | Firedrill | SIGUSR1-triggered synthetic event through the real pipeline |
-| Test mode | `HW_TEST_MODE=true`: send one event synchronously, then exit |
+| Test mode | `TS_TEST_MODE=true`: send one event synchronously, then exit |
 | Armed / Disarmed | Global webhook on/off switch (does not affect SIEM or storage) |
 | Silence | Per-sensor webhook suppression (does not affect SIEM or storage) |
 | Whitelisted sources | Exact `source` strings whose events are discarded entirely |

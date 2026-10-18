@@ -1,0 +1,22 @@
+TrueSignal
+==========
+
+TrueSignal is a modified version of HoneyWire
+(https://github.com/andreicscs/HoneyWire), originally written by
+Andrea Termine and released under the GNU Affero General Public License
+version 3 (see LICENSE). All upstream copyright notices are retained.
+
+Modifications (AGPLv3 section 5(a))
+-----------------------------------
+2026-10-19  Imported from HoneyWire v2.1.0.
+2026-10-19  Rebranded to TrueSignal: product name, UI, logo, documentation,
+            Go module paths, CLI binary (`truesignal`), host paths
+            (/opt/truesignal, /etc/truesignal), container and image names,
+            syslog app-name and SD-ID, environment variable prefix
+            (HW_ -> TS_), sensor ID prefix (hw-sensor- -> ts-sensor-),
+            node key prefix (hw_key_ -> ts_key_), session cookie
+            (hw_auth -> ts_auth), and distribution endpoints (images,
+            sensor registry, installer, release checks).
+
+Source for any network-accessible deployment of TrueSignal must be made
+available to its users as required by AGPLv3 section 13.

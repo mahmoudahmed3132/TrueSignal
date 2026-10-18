@@ -3,9 +3,9 @@ import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig(({ mode }) => {
-  // Load env variables (falls back to 8080 if HW_PORT isn't set locally)
+  // Load env variables (falls back to 8080 if TS_PORT isn't set locally)
   const env = loadEnv(mode, process.cwd(), '')
-  const backendUrl = `http://localhost:${env.HW_PORT || '8080'}`
+  const backendUrl = `http://localhost:${env.TS_PORT || '8080'}`
 
   return {
     plugins: [
