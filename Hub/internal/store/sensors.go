@@ -1,0 +1,250 @@
+package store
+
+import (
+	"database/sql"
+	"time"
+)
+
+type SensorUptimeData struct {
+	NodeID    string
+	SensorID  string
+	LastSeen  time.Time
+	FirstSeen string
+}
+
+type StatusChangeData struct {
+	NodeID    string
+	SensorID  string
+	Status    string
+	Timestamp string
+}
+
+// ProcessHeartbeat safely handles node updates and config reconciliation
+func (s *SQLiteStore) ProcessHeartbeat(nodeID, sensorID, configRev, nowStr string) (bool, error) {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback() // Safely catches any uncommitted exit
+
+	// Update the Host Node's heartbeat
+	if _, err := tx.Exec("UPDATE nodes SET last_heartbeat = ? WHERE id = ?", nowStr, nodeID); err != nil {
+		return false, err
+	}
+
+	// Update the specific Sensor's heartbeat AND metadata
+	query := `
+		UPDATE node_sensors 
+		SET config_rev = ?, last_heartbeat = ?, updated_at = ? 
+		WHERE node_id = ? AND sensor_id = ?
+	`
+	if _, err := tx.Exec(query, configRev, nowStr, nowStr, nodeID, sensorID); err != nil {
+		return false, err
+	}
+
+	// Check config reconciliation
+	var activeRevision sql.NullString
+	var desiredRevision sql.NullString
+	var pendingConfig int
+	err = tx.QueryRow("SELECT active_revision, desired_revision, pending_config FROM nodes WHERE id = ?", nodeID).Scan(&activeRevision, &desiredRevision, &pendingConfig)
+
+	justSynced := false
+	if err == nil && pendingConfig == 1 {
+		targetRevision := ""
+		if desiredRevision.Valid {
+			targetRevision = desiredRevision.String
+		}
+
+		if targetRevision != "" && targetRevision == configRev {
+			rows, err := tx.Query("SELECT config_rev FROM node_sensors WHERE node_id = ?", nodeID)
+			if err == nil {
+				allMatched := true
+				for rows.Next() {
+					var rev string
+					if err := rows.Scan(&rev); err != nil {
+						allMatched = false
+						break
+					}
+					if rev != targetRevision {
+						allMatched = false
+						break
+					}
+				}
+				rows.Close()
+
+				if allMatched {
+					if _, err := tx.Exec(`UPDATE nodes SET active_revision = ?, desired_revision = NULL, pending_config = 0 WHERE id = ?`, targetRevision, nodeID); err != nil {
+						return false, err
+					}
+					justSynced = true
+				}
+			}
+		}
+	}
+
+	return justSynced, tx.Commit()
+}
+
+func (s *SQLiteStore) InsertStatusChange(nodeID, sensorID, status, timestamp string) error {
+	_, err := s.DB.Exec(
+		"INSERT INTO sensor_status_changes (node_id, sensor_id, status, timestamp) VALUES (?, ?, ?, ?)",
+		nodeID, sensorID, status, timestamp,
+	)
+	return err
+}
+
+func (s *SQLiteStore) GetSensorsForUptime(nowStr string) ([]SensorUptimeData, error) {
+	// Join nodes and node_sensors to get the creation date and the parent node's last heartbeat
+	rows, err := s.DB.Query(`
+		SELECT ns.node_id, ns.sensor_id, n.last_heartbeat, 
+		       COALESCE(
+		           NULLIF(ns.created_at, ''),
+		           NULLIF(n.created_at, ''),
+		           (SELECT timestamp FROM sensor_status_changes WHERE node_id = ns.node_id AND sensor_id = ns.sensor_id ORDER BY timestamp ASC LIMIT 1)
+		       ) as first_seen
+		FROM node_sensors ns
+		JOIN nodes n ON ns.node_id = n.id
+		ORDER BY ns.node_id, ns.sensor_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sensors []SensorUptimeData
+	for rows.Next() {
+		var sd SensorUptimeData
+		var lastSeenStr sql.NullString
+
+		if err := rows.Scan(&sd.NodeID, &sd.SensorID, &lastSeenStr, &sd.FirstSeen); err != nil {
+			return nil, err
+		}
+
+		if lastSeenStr.Valid {
+			sd.LastSeen, _ = time.Parse(time.RFC3339, lastSeenStr.String)
+		} else {
+			sd.LastSeen = time.Time{} // Never checked in
+		}
+		sensors = append(sensors, sd)
+	}
+	return sensors, nil
+}
+
+func (s *SQLiteStore) GetStatusChangesSince(cutoffStr string) ([]StatusChangeData, error) {
+	query := `
+		SELECT node_id, sensor_id, status, timestamp FROM (
+			SELECT node_id, sensor_id, status, timestamp FROM sensor_status_changes WHERE timestamp >= ?
+			UNION ALL
+			SELECT node_id, sensor_id, status, timestamp FROM (
+				SELECT node_id, sensor_id, status, timestamp,
+				       ROW_NUMBER() OVER(PARTITION BY node_id, sensor_id ORDER BY timestamp DESC) as rn
+				FROM sensor_status_changes
+				WHERE timestamp < ?
+			) WHERE rn = 1
+		) ORDER BY timestamp ASC
+	`
+	rows, err := s.DB.Query(query, cutoffStr, cutoffStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var changes []StatusChangeData
+	for rows.Next() {
+		var change StatusChangeData
+		if err := rows.Scan(&change.NodeID, &change.SensorID, &change.Status, &change.Timestamp); err != nil {
+			return nil, err
+		}
+		changes = append(changes, change)
+	}
+	return changes, nil
+}
+
+func (s *SQLiteStore) UpdateSensorSilence(nodeID, sensorID string, silenceVal int) error {
+	_, err := s.DB.Exec("UPDATE node_sensors SET is_silenced = ? WHERE node_id = ? AND sensor_id = ?", silenceVal, nodeID, sensorID)
+	return err
+}
+
+// UpdateNodeLastHeartbeat flags BOTH the parent node and the specific sensor as alive
+func (s *SQLiteStore) UpdateNodeLastHeartbeat(nodeID, sensorID, timestamp string) error {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`UPDATE nodes SET last_heartbeat = ? WHERE id = ?`, timestamp, nodeID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if _, err := tx.Exec(`UPDATE node_sensors SET last_heartbeat = ?, updated_at = ? WHERE node_id = ? AND sensor_id = ?`, timestamp, timestamp, nodeID, sensorID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// MarkSensorOffline artificially ages a sensor's heartbeat to instantly mark it as 'down'
+func (s *SQLiteStore) MarkSensorOffline(nodeID, sensorID, offlineTime string) error {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Mark the specific sensor as offline
+	if _, err := tx.Exec(`UPDATE node_sensors SET last_heartbeat = ?, updated_at = ? WHERE node_id = ? AND sensor_id = ?`, offlineTime, offlineTime, nodeID, sensorID); err != nil {
+		return err
+	}
+
+	// 2. Check if any other sensors on this node are still online
+	var onlineCount int
+	onlineCutoff := time.Now().UTC().Add(-60 * time.Second).Format(time.RFC3339)
+
+	// Count sensors that have had a heartbeat in the last 60 seconds.
+	// The sensor we just marked offline will not be included in this count.
+	err = tx.QueryRow(`SELECT COUNT(*) FROM node_sensors WHERE node_id = ? AND last_heartbeat >= ?`, nodeID, onlineCutoff).Scan(&onlineCount)
+	if err != nil {
+		return err
+	}
+
+	// 3. If no sensors are left online, mark the parent node as offline too.
+	if onlineCount == 0 {
+		if _, err := tx.Exec(`UPDATE nodes SET last_heartbeat = ? WHERE id = ?`, offlineTime, nodeID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLiteStore) GetSensorLastHeartbeat(nodeID, sensorID string) (string, error) {
+	var lastHeartbeat sql.NullString
+	err := s.DB.QueryRow("SELECT last_heartbeat FROM node_sensors WHERE node_id = ? AND sensor_id = ?", nodeID, sensorID).Scan(&lastHeartbeat)
+	if err != nil {
+		return "", err
+	}
+	if !lastHeartbeat.Valid {
+		return "", nil
+	}
+	return lastHeartbeat.String, nil
+}
+
+func (s *SQLiteStore) GetSensorLatestStatus(nodeID, sensorID string) (string, error) {
+	var status sql.NullString
+	err := s.DB.QueryRow(`
+		SELECT status 
+		FROM sensor_status_changes 
+		WHERE node_id = ? AND sensor_id = ? 
+		ORDER BY timestamp DESC, id DESC 
+		LIMIT 1
+	`, nodeID, sensorID).Scan(&status)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return status.String, nil
+}
+

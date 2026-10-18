@@ -1,0 +1,52 @@
+# =========================
+# Secrets and Config
+# =========================
+.env
+**/.env
+.env.development
+# (Note: We do NOT ignore .env.example so users have a template)
+
+# =========================
+# Database
+# =========================
+*.db.*
+*.sqlite3
+
+# =========================
+# Node & UI Build
+# =========================
+node_modules/
+ui/dist/
+npm-debug.log*
+
+.vite
+
+# =========================
+# Go & Binaries
+# =========================
+honeywire-hub
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# =========================
+# Python (If you use mock_data.py scripts)
+# =========================
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+build/
+dist/
+
+# =========================
+# OS & IDE Clutter
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+
+# (Notice: .dockerignore is intentionally NOT here. It must be tracked by Git!)
