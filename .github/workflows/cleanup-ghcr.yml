@@ -10,12 +10,12 @@ jobs:
       matrix:
         # List all your packages here
         package: 
-          - honeywire-hub
-          - honeywire-tcptarpit
-          - honeywire-networkscandetector
-          - honeywire-icmpcanary
-          - honeywire-webrouterdecoy
-          - honeywire-filecanary
+          - truesignal-hub
+          - truesignal-tcptarpit
+          - truesignal-networkscandetector
+          - truesignal-icmpcanary
+          - truesignal-webrouterdecoy
+          - truesignal-filecanary
     steps:
       - name: Delete untagged versions for ${{ matrix.package }}
         uses: actions/delete-package-versions@v5

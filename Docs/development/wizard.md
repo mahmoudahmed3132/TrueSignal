@@ -1,6 +1,6 @@
 # Wizard Extensibility Guide
 
-The Wizard is HoneyWire's ephemeral, host-side orchestration engine. This guide covers how to navigate its architecture to add new commands, modify discovery logic, or debug deployment behavior.
+The Wizard is TrueSignal's ephemeral, host-side orchestration engine. This guide covers how to navigate its architecture to add new commands, modify discovery logic, or debug deployment behavior.
 
 For a conceptual overview of how the Wizard operates, see [`Docs/architecture/wizard/README.md`](/Docs/architecture/wizard/README.md).
 
@@ -15,7 +15,7 @@ If you need to add a new command (e.g., `wizard verify`):
 1.  **Create the Command File:**
     Navigate to `internal/commands/` and create `audit.go`.
 2.  **Define the Execution Flow:**
-    Use the internal UI library (`internal/cli/`) for all terminal outputs to maintain consistent HoneyWire branding (prompts, spinners, tables).
+    Use the internal UI library (`internal/cli/`) for all terminal outputs to maintain consistent TrueSignal branding (prompts, spinners, tables).
 3.  **Register the Command:**
     Open `cmd/wizard/main.go`.
     Add your new command to the argument parsing switch statement, ensuring the help text is updated accordingly.

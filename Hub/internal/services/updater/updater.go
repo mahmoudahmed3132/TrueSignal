@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/honeywire/hub/internal/services/config"
+	"github.com/truesignal/hub/internal/services/config"
 	"golang.org/x/mod/semver"
 )
 
-var githubAPIURL = "https://api.github.com/repos/AndReicscs/HoneyWire/releases"
+var githubAPIURL = "https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases"
 
 // SetGitHubAPIURLForTest overrides GitHub API URL during testing
 func SetGitHubAPIURLForTest(url string) {
@@ -188,7 +188,7 @@ func (s *Service) CheckForUpdates() error {
 		releasesErr = fmt.Errorf("Failed to initialize update request: %w", err)
 	} else {
 		req.Header.Set("Accept", "application/vnd.github.v3+json")
-		req.Header.Set("User-Agent", "HoneyWire-Hub-Updater")
+		req.Header.Set("User-Agent", "TrueSignal-Hub-Updater")
 
 		resp, err := client.Do(req)
 		if err != nil {

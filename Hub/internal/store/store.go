@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 // DataStore defines the interface for all database operations.

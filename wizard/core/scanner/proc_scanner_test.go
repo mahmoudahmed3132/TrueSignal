@@ -60,7 +60,7 @@ func TestProcScanner_PartialProcFailure(t *testing.T) {
 	// 4. Ignored Process (PID 103) - Should be skipped
 	pid103 := filepath.Join(tmpDir, "103")
 	os.MkdirAll(filepath.Join(pid103, "fd"), 0755)
-	os.WriteFile(filepath.Join(pid103, "comm"), []byte("honeywire-hub\n"), 0644)
+	os.WriteFile(filepath.Join(pid103, "comm"), []byte("truesignal-hub\n"), 0644)
 	os.Symlink("socket:[88888]", filepath.Join(pid103, "fd", "3"))
 
 	// Mock TCP net file

@@ -1,9 +1,9 @@
 /**
- * HoneyWireWS
+ * TrueSignalWS
  * * Standalone, production-ready WebSocket service for real-time event streaming.
  * Decoupled from Vue reactivity - uses an Event-Emitter pattern to pass data to stores.
  */
-export class HoneyWireWS {
+export class TrueSignalWS {
   baseUrl: string;
   ws: WebSocket | null;
   isDestroyed: boolean;

@@ -2,14 +2,14 @@
 
 ## Purpose
 
-Sensors are the decentralized execution layer of the HoneyWire platform. They are individual, containerized decoy applications placed throughout a network. 
+Sensors are the decentralized execution layer of the TrueSignal platform. They are individual, containerized decoy applications placed throughout a network. 
 
 Their core responsibilities are:
 - Detecting malicious activity (generating telemetry and alerts)
 - Emitting continuous health heartbeats
 - Operating with total independence (no sensor-to-sensor communication)
 
-To ensure consistency, resilience, and strict adherence to the [**HoneyWire Event Standard**](/Docs/architecture/dataContracts.md#1-the-universal-event-standard), all official sensors are built using HoneyWire's Language SDKs (available in Go and Python). This document outlines the architectural contract and behavior enforced by these SDKs.
+To ensure consistency, resilience, and strict adherence to the [**TrueSignal Event Standard**](/Docs/architecture/dataContracts.md#1-the-universal-event-standard), all official sensors are built using TrueSignal's Language SDKs (available in Go and Python). This document outlines the architectural contract and behavior enforced by these SDKs.
 
 ---
 
@@ -32,7 +32,7 @@ graph TD
 
 Before a sensor begins monitoring, it must successfully establish a baseline with the Hub.
 
-1. **Environment Validation:** The sensor strictly requires `HW_HUB_ENDPOINT`, `HW_HUB_KEY`, and `HW_SENSOR_ID` to be present.
+1. **Environment Validation:** The sensor strictly requires `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, and `TS_SENSOR_ID` to be present.
 2. **Version Synchronization (`syncHubVersion`):** The sensor performs a blocking handshake with the Hub (`GET /api/v2/version`). It retrieves the Hub's contract version. If the Hub's major version does not match the SDK's agent version, the sensor refuses to start.
 3. **Pipeline Boot:** If successful, the SDK spins up the Event Loop and Heartbeat Loop as isolated background workers (Goroutines in Go, Daemon Threads in Python).
 

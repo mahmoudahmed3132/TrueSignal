@@ -155,7 +155,7 @@ const handleExport = () => {
     if (fleetStore.selectedSensorId) url.searchParams.append('sensorId', fleetStore.selectedSensorId)
     const a = document.createElement('a')
     a.href = url.toString()
-    a.download = 'honeywire_events.json'
+    a.download = 'truesignal_events.json'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

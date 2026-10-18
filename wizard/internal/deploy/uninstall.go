@@ -47,7 +47,7 @@ func Uninstall() error {
 
 	if execPath, err := os.Executable(); err == nil {
 		if err := os.Remove(execPath); err != nil {
-			fmt.Printf("⚠️  Could not remove HoneyWire binary at %s. You may need to delete it manually.\n", execPath)
+			fmt.Printf("⚠️  Could not remove TrueSignal binary at %s. You may need to delete it manually.\n", execPath)
 		}
 	}
 

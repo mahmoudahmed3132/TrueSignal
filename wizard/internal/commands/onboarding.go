@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/honeywire/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/cli"
 )
 
 func HandleLink(hubURL, apiKey, alias, tags string, force bool) error {
@@ -45,15 +45,15 @@ func HandleInteractiveMenu(force bool) error {
 		fmt.Printf("%s[!] Warning: Could not reach Hub: %v%s\n\n", cli.Yellow, err, cli.Reset)
 	}
 
-	fmt.Printf("\n%s%s=== HoneyWire Wizard ===%s\n\n", cli.Bold, cli.Cyan, cli.Reset)
+	fmt.Printf("\n%s%s=== TrueSignal Wizard ===%s\n\n", cli.Bold, cli.Cyan, cli.Reset)
 
 	if nodeInfo != nil {
-		fmt.Printf("    %sExisting HoneyWire node detected%s\n\n", cli.Bold, cli.Reset)
+		fmt.Printf("    %sExisting TrueSignal node detected%s\n\n", cli.Bold, cli.Reset)
 		fmt.Printf("    Node:  %s\n", nodeInfo.Alias)
 		fmt.Printf("    ID:    %s\n", nodeInfo.NodeID)
 		fmt.Printf("    Hub:   %s\n\n", app.Config.HubURL)
 	} else {
-		fmt.Printf("    %sExisting HoneyWire node detected%s\n\n", cli.Bold, cli.Reset)
+		fmt.Printf("    %sExisting TrueSignal node detected%s\n\n", cli.Bold, cli.Reset)
 		fmt.Printf("    ID:    %s\n", app.Config.NodeID)
 		fmt.Printf("    Hub:   %s\n\n", app.Config.HubURL)
 	}
@@ -86,7 +86,7 @@ func HandleInteractiveMenu(force bool) error {
 	case "6":
 		err := HandleTeardown(force)
 		if err == nil {
-			fmt.Printf("\n  Some HoneyWire sensors may have created host-side artifacts or decoy files.\n")
+			fmt.Printf("\n  Some TrueSignal sensors may have created host-side artifacts or decoy files.\n")
 			fmt.Printf("    Review your deployment configuration and remove any remaining files manually if desired.\n\n")
 		}
 		return err

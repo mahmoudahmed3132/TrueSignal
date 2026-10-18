@@ -1,6 +1,6 @@
 # State Management & Stores
 
-HoneyWire uses three primary Pinia stores to manage its domain state. Components delegate all business logic, filtering, and network interactions to these stores.
+TrueSignal uses three primary Pinia stores to manage its domain state. Components delegate all business logic, filtering, and network interactions to these stores.
 
 ## 1. App Store (`app.ts`)
 
@@ -35,7 +35,7 @@ HoneyWire uses three primary Pinia stores to manage its domain state. Components
 
 ## Reactive Identity Preservation
 
-A critical pattern in the HoneyWire frontend is preserving Vue 3's reactive object identity. 
+A critical pattern in the TrueSignal frontend is preserving Vue 3's reactive object identity. 
 
 **Rule:** Never reassign arrays or objects in the store. Always mutate in-place.
 
@@ -50,7 +50,7 @@ incomingNodes.forEach(n => nodes.value.push(normalizeNode(n)))
 
 ## Error Handling & Rollback
 
-Because HoneyWire relies on Optimistic Updates for a snappy UI, errors must be handled gracefully:
+Because TrueSignal relies on Optimistic Updates for a snappy UI, errors must be handled gracefully:
 
 1. **Save State:** `const previous = sensor.isSilenced`
 2. **Optimistic Update:** `sensor.isSilenced = targetState` (UI updates instantly)

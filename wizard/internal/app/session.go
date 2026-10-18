@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/honeywire/wizard/core/api"
-	"github.com/honeywire/wizard/internal/cli"
+	"github.com/truesignal/wizard/core/api"
+	"github.com/truesignal/wizard/internal/cli"
 	"golang.org/x/term"
 )
 
@@ -36,7 +36,7 @@ func NewApp(cfg *NodeConfig) *App {
 func LoadApp() (*App, error) {
 	cfg, err := LoadConfig(ConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("node not provisioned. Run 'honeywire --link <hub_url>' first")
+		return nil, fmt.Errorf("node not provisioned. Run 'truesignal --link <hub_url>' first")
 	}
 	return NewApp(cfg), nil
 }
@@ -58,19 +58,19 @@ func (a *App) RequireDashboardAuth() error {
 		return nil
 	}
 
-	if envPW := os.Getenv("HW_DASHBOARD_PASSWORD"); envPW != "" {
+	if envPW := os.Getenv("TS_DASHBOARD_PASSWORD"); envPW != "" {
 		authCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		cookie, err := a.Hub.AuthenticateDashboard(authCtx, envPW)
 		if err != nil {
-			return fmt.Errorf("authentication via HW_DASHBOARD_PASSWORD failed: %w", err)
+			return fmt.Errorf("authentication via TS_DASHBOARD_PASSWORD failed: %w", err)
 		}
 		a.dashboardCookie = cookie
 		return nil
 	}
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return fmt.Errorf("dashboard authentication required but stdin is not a terminal. Set HW_DASHBOARD_PASSWORD environment variable or run interactively")
+		return fmt.Errorf("dashboard authentication required but stdin is not a terminal. Set TS_DASHBOARD_PASSWORD environment variable or run interactively")
 	}
 
 	password, err := cli.ReadPasswordMasked("Enter dashboard password: ")

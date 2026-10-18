@@ -1,6 +1,6 @@
 # Frontend Components
 
-The HoneyWire frontend enforces a strict separation of concerns. UI rendering, layout orchestration, and ephemeral UI state belong in the component layer, while all business logic, filtering, and data normalization are pushed down to the Pinia stores.
+The TrueSignal frontend enforces a strict separation of concerns. UI rendering, layout orchestration, and ephemeral UI state belong in the component layer, while all business logic, filtering, and data normalization are pushed down to the Pinia stores.
 
 ## Component Categories
 

@@ -12,8 +12,8 @@ import (
 
 	"golang.org/x/mod/semver"
 
-	"github.com/honeywire/hub/internal/catalog"
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/catalog"
+	"github.com/truesignal/hub/internal/models"
 )
 
 // Store defines exactly what the Node service needs from internal/store

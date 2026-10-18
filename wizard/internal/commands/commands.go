@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/honeywire/wizard/internal/app"
-	"github.com/honeywire/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/app"
+	"github.com/truesignal/wizard/internal/cli"
 )
 
 const (

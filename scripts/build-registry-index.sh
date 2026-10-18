@@ -14,7 +14,7 @@
 #   "generated": "2025-06-15T12:00:00Z",
 #   "sensors": [
 #     {
-#       "id": "hw-sensor-file-canary",
+#       "id": "ts-sensor-file-canary",
 #       "name": "File Canary (FIM)",
 #       "category": "file",
 #       "icon_svg": "...",

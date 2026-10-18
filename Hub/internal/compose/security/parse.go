@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 func DecodeManifestStrict(r io.Reader) (models.SensorManifest, error) {

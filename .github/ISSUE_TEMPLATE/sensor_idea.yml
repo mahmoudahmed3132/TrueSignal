@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Have an idea for a high-impact deception sensor or canary service? HoneyWire is built around modular, containerized decoy sensors. Use this template to propose a new sensor for the ecosystem!
+        Have an idea for a high-impact deception sensor or canary service? TrueSignal is built around modular, containerized decoy sensors. Use this template to propose a new sensor for the ecosystem!
 
   - type: input
     id: sensor_name
@@ -56,7 +56,7 @@ body:
     id: sandbox_security
     attributes:
       label: Security & Sandboxing Constraints
-      description: What minimal capabilities or network privileges are required? (Remember: All HoneyWire sensors must drop all Linux capabilities and run as unprivileged user 1000:1000).
+      description: "What minimal capabilities or network privileges are required? (Remember: All TrueSignal sensors must drop all Linux capabilities and run as unprivileged user 1000:1000)."
       placeholder: "e.g., Requires NET_BIND_SERVICE to bind port 22; no host volume mounts needed; read-only root filesystem."
     validations:
       required: true
@@ -75,7 +75,7 @@ body:
     attributes:
       label: Contribution Readiness
       options:
-        - label: "I have reviewed HoneyWire sensor contribution guidelines in CONTRIBUTING.md."
+        - label: "I have reviewed TrueSignal sensor contribution guidelines in CONTRIBUTING.md."
           required: true
         - label: "I would be interested in developing or testing this sensor using the Go/Python SDK."
           required: false

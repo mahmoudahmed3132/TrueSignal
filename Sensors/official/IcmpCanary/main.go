@@ -8,18 +8,18 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/honeywire/sdk-go"
+	"github.com/truesignal/sdk-go"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 )
 
 func main() {
-	hw, err := sdk.NewSensor()
+	ts, err := sdk.NewSensor()
 	if err != nil {
 		log.Fatalf("[!] FATAL: Failed to initialize sensor: %v", err)
 	}
 
-	hw.SetTestPayload(
+	ts.SetTestPayload(
 		"icmp_scan_received",
 		"Wizard Firedrill",
 		"ICMP Listener",
@@ -32,8 +32,8 @@ func main() {
 		},
 	)
 
-	if hw.TestMode {
-		if hw.RunTestMode() {
+	if ts.TestMode {
+		if ts.RunTestMode() {
 			log.Println("✅ Test mode complete. Exiting gracefully.")
 			os.Exit(0)
 		}
@@ -47,24 +47,24 @@ func main() {
 	}
 	defer conn.Close()
 
-	log.Printf("[*] HoneyWire Ping Canary | Listening for ICMP Echo Requests...")
+	log.Printf("[*] TrueSignal Ping Canary | Listening for ICMP Echo Requests...")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go listenICMP(conn, hw)
+	go listenICMP(conn, ts)
 
-	if err := hw.Start(); err != nil {
+	if err := ts.Start(); err != nil {
 		log.Fatalf("[!] FATAL: Failed to sync with Hub: %v", err)
 	}
-	defer hw.Stop() // Clean up goroutines!
+	defer ts.Stop() // Clean up goroutines!
 
 	// Block until shutdown signal
 	<-ctx.Done()
 	log.Println("[*] Shutdown signal received. Exiting.")
 }
 
-func listenICMP(conn *icmp.PacketConn, hw *sdk.Sensor) {
+func listenICMP(conn *icmp.PacketConn, ts *sdk.Sensor) {
 	buf := make([]byte, 1500)
 	for {
 		n, addr, err := conn.ReadFrom(buf)
@@ -108,7 +108,7 @@ func listenICMP(conn *icmp.PacketConn, hw *sdk.Sensor) {
 
 		log.Printf("[+] ICMP %s from %s (seq=%d size=%d)", icmpTypeStr, sourceIP, icmpSeq, n)
 
-		hw.ReportEvent(
+		ts.ReportEvent(
 			"icmp_scan_received",
 			sourceIP,
 			"ICMP Listener",

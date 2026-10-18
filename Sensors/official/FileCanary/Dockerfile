@@ -4,7 +4,7 @@ FROM golang:1.25 AS builder
 WORKDIR /src
 
 # 1. Copy the shared SDK into the builder
-COPY SDKs/go-honeywire ./SDKs/go-honeywire
+COPY SDKs/go-truesignal ./SDKs/go-truesignal
 
 # 2. Copy the specific sensor code
 COPY Sensors/official/FileCanary ./Sensors/official/FileCanary

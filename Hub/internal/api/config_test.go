@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/honeywire/hub/internal/services/config"
-	"github.com/honeywire/hub/internal/services/updater"
+	"github.com/truesignal/hub/internal/services/config"
+	"github.com/truesignal/hub/internal/services/updater"
 	"github.com/stretchr/testify/assert"
 )
 

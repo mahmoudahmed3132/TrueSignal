@@ -8,22 +8,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/honeywire/sdk-go"
+	"github.com/truesignal/sdk-go"
 )
 
 var (
 	// Load custom configuration from environment variables
-	target   = getEnv("HW_CUSTOM_TARGET", "/tmp/honey")
+	target   = getEnv("TS_CUSTOM_TARGET", "/tmp/honey")
 )
 
 func main() {
-	// 1. Initialize the HoneyWire SDK safely
-	hw, err := sdk.NewSensor()
+	// 1. Initialize the TrueSignal SDK safely
+	ts, err := sdk.NewSensor()
 	if err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
 
-	hw.SetTestPayload(
+	ts.SetTestPayload(
 		"custom_anomaly_detected",
 		"Wizard Firedrill",
 		"Mock Custom Target",
@@ -34,8 +34,8 @@ func main() {
 	)
 
 	// 2. Handle CI/CD Test Mode
-	if hw.TestMode {
-		if hw.RunTestMode() {
+	if ts.TestMode {
+		if ts.RunTestMode() {
 			os.Exit(0)
 		}
 		os.Exit(1)
@@ -44,26 +44,26 @@ func main() {
 	log.Printf("[*] Starting Custom Go Sensor | Target: %s", target)
 
 	// 3. Setup graceful shutdown and acquire resources (e.g., net.Listen)
-	// IMPORTANT: Always acquire resources and start your background listeners BEFORE calling hw.Start().
+	// IMPORTANT: Always acquire resources and start your background listeners BEFORE calling ts.Start().
 	// This prevents the sensor from reporting a false "online" state to the Hub if it crashes immediately (e.g., port already in use).
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// Spin off your sensor logic into a non-blocking goroutine
-	go runSensor(ctx, hw)
+	go runSensor(ctx, ts)
 
 	// 4. Start the SDK (Syncs Hub version, starts heartbeats)
-	if err := hw.Start(); err != nil {
+	if err := ts.Start(); err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
-	defer hw.Stop() // Cleans up the background heartbeat goroutine
+	defer ts.Stop() // Cleans up the background heartbeat goroutine
 
 	// Block main thread until Ctrl+C is pressed
 	<-ctx.Done()
 	log.Println("[*] Shutting down Custom Sensor...")
 }
 
-func runSensor(ctx context.Context, hw *sdk.Sensor) {
+func runSensor(ctx context.Context, ts *sdk.Sensor) {
 	// Use a Ticker instead of time.Sleep so the loop can be interrupted cleanly
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
@@ -80,7 +80,7 @@ func runSensor(ctx context.Context, hw *sdk.Sensor) {
 			sourceIP := "192.168.1.100" // Replace with actual extracted data
 
 			// Send the alert to the Hub using the SDK's built-in method
-			hw.ReportEvent(
+			ts.ReportEvent(
 				"custom_anomaly_detected", // 1. Event Trigger
 				sourceIP,                  // 2. Source
 				target,                    // 3. Target

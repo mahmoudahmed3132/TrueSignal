@@ -1,7 +1,7 @@
-module github.com/honeywire/sensors/networkscandetector
+module github.com/truesignal/sensors/networkscandetector
 
 go 1.25.0
 
-replace github.com/honeywire/sdk-go => ../../../SDKs/go-honeywire
+replace github.com/truesignal/sdk-go => ../../../SDKs/go-truesignal
 
-require github.com/honeywire/sdk-go v0.0.0-00010101000000-000000000000
+require github.com/truesignal/sdk-go v0.0.0-00010101000000-000000000000

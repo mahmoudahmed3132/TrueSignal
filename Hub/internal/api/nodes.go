@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/honeywire/hub/internal/services/node"
+	"github.com/truesignal/hub/internal/services/node"
 )
 
 // CreateNode handles UI-first node creation

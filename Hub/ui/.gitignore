@@ -24,7 +24,7 @@ npm-debug.log*
 # =========================
 # Go & Binaries
 # =========================
-honeywire-hub
+truesignal-hub
 *.exe
 *.exe~
 *.dll

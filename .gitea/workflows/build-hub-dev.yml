@@ -43,11 +43,11 @@ jobs:
           # Pointing to your local Gitea/Dev registry or ghcr fallback
           LOCAL_REG="${{ vars.LOCAL_REGISTRY }}"
           if [ -z "$LOCAL_REG" ]; then
-            LOCAL_REG="ghcr.io/andreicscs/"
+            LOCAL_REG="ghcr.io/mahmoudahmed3132/"
           fi
-          TAG="${LOCAL_REG}honeywire-hub:dev"
+          TAG="${LOCAL_REG}truesignal-hub:dev"
 
-          echo -e "${BOLD}Targeting component: HoneyWire Hub${RESET}"
+          echo -e "${BOLD}Targeting component: TrueSignal Hub${RESET}"
 
           echo -e "\n${CYAN}========================================${RESET}"
           echo -e "${CYAN}${BOLD}STAGE 1: Build Vue Frontend${RESET}"

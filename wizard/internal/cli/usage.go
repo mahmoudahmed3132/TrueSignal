@@ -17,7 +17,7 @@ func SetupUsage() {
 			fmt.Fprintf(out, format, a...)
 		}
 
-		printUsage("\n%sHoneyWire Wizard — Node Management Client%s\n\n", Bold, Reset)
+		printUsage("\n%sTrueSignal Wizard — Node Management Client%s\n\n", Bold, Reset)
 		printUsage("Commands:\n")
 		printUsage("  %sapply%s      Reconcile local node against Hub's desired state\n", Cyan, Reset)
 		printUsage("  %sdiscover%s   Run host audit and produce sensor recommendations\n", Cyan, Reset)
@@ -37,6 +37,6 @@ func SetupUsage() {
 		printUsage("  %s--force%s      Bypass confirmation prompts (useful for automation)\n", Cyan, Reset)
 
 		printUsage("\nEnvironment:\n")
-		printUsage("  HW_DASHBOARD_PASSWORD  Dashboard password (non-interactive use)\n\n")
+		printUsage("  TS_DASHBOARD_PASSWORD  Dashboard password (non-interactive use)\n\n")
 	}
 }

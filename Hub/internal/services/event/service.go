@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 type Store interface {

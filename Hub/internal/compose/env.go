@@ -1,13 +1,13 @@
 package compose
 
-import "github.com/honeywire/hub/internal/models"
+import "github.com/truesignal/hub/internal/models"
 
 var forbiddenUserVars = map[string]bool{
-	"HW_HUB_ENDPOINT": true,
-	"HW_HUB_KEY":      true,
-	"HW_SENSOR_ID":    true,
-	"HW_CONFIG_REV":   true,
-	"HW_TEST_MODE":    true,
+	"TS_HUB_ENDPOINT": true,
+	"TS_HUB_KEY":      true,
+	"TS_SENSOR_ID":    true,
+	"TS_CONFIG_REV":   true,
+	"TS_TEST_MODE":    true,
 }
 
 // BuildEnv securely merges manifest defaults, user overrides, and reserved system variables.

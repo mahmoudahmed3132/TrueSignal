@@ -5,18 +5,18 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/honeywire/hub/internal/compose/security"
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/compose/security"
+	"github.com/truesignal/hub/internal/models"
 )
 
 // CoreEnvVars defines the ordered list of system-reserved environment variables.
 var CoreEnvVars = []string{
-	"HW_SENSOR_ID",
-	"HW_HUB_ENDPOINT",
-	"HW_HUB_KEY",
-	"HW_CONFIG_REV",
-	"HW_TEST_MODE",
-	"HW_SEVERITY",
+	"TS_SENSOR_ID",
+	"TS_HUB_ENDPOINT",
+	"TS_HUB_KEY",
+	"TS_CONFIG_REV",
+	"TS_TEST_MODE",
+	"TS_SEVERITY",
 }
 
 func buildImageString(repo, tag, digest string) string {
@@ -163,8 +163,8 @@ func BuildService(sensorID string, m models.SensorManifest, envMap map[string]st
 	// MAIN SENSOR SERVICE
 	// -----------------------------------------------------------------
 	containerName := sensorID
-	if !strings.HasPrefix(containerName, "hw-") {
-		containerName = "hw-" + containerName
+	if !strings.HasPrefix(containerName, "ts-") {
+		containerName = "ts-" + containerName
 	}
 
 	svc := &ComposeService{

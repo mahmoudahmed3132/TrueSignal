@@ -1,3 +1,22 @@
+# [Unreleased] - TrueSignal rebrand (2026-10-19)
+
+### ⚠️ Breaking Changes
+Complete rename from HoneyWire to TrueSignal. Nothing from a HoneyWire deployment is wire-compatible with this build:
+* **Environment variables:** `HW_*` → `TS_*` (e.g. `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, `TS_SENSOR_ID`, `TS_DB_PATH`, `TS_DASHBOARD_PASSWORD`).
+* **Identifiers:** sensor IDs `hw-sensor-*` → `ts-sensor-*`; node keys `hw_key_*` → `ts_key_*`; session cookie `hw_auth` → `ts_auth`; container prefix `hw-` → `ts-`.
+* **Host layout:** CLI `honeywire` → `truesignal`; `/opt/honeywire` → `/opt/truesignal`; `/etc/honeywire` → `/etc/truesignal`; compose project/file `honeywire`/`honeywire-compose.yml` → `truesignal`/`truesignal-compose.yml`; Hub DB `honeywire.db` → `truesignal.db`.
+* **SIEM:** syslog HOSTNAME/APP-NAME/SD-ID `honeywire`/`honeywireSensor`/`honeywire` → `truesignal`/`truesignalSensor`/`truesignal`. Update any parsers.
+* **Distribution:** images `ghcr.io/mahmoudahmed3132/truesignal-*`; sensor registry `raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages`; wizard releases and update checks from `mahmoudahmed3132/TrueSignal`; installer is `install.sh` from this repo.
+* **Go modules:** `github.com/honeywire/*` → `github.com/truesignal/*`; SDK dirs `SDKs/go-truesignal`, `SDKs/python-truesignal` (Python package `truesignal`, class `TrueSignalSensor`).
+
+### Other
+* New logo and favicon.
+* Added `NOTICE` with upstream attribution and modification record (AGPLv3 §5).
+
+---
+
+# Upstream history (HoneyWire, pre-fork)
+
 # [v2.0.1] - Hotfix & Export Features (2026-06-26)
 
 ### Bug Fixes

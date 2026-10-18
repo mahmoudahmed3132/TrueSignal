@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/honeywire/sdk-go"
+	"github.com/truesignal/sdk-go"
 )
 
 var (
 	port        string
 	routerBrand string
-	hw          *sdk.Sensor
+	ts          *sdk.Sensor
 )
 
 // The HTML template with %[1]s for the brand and %[2]s for the error block display
@@ -242,18 +242,18 @@ button:hover {
 
 func main() {
 	var err error
-	hw, err = sdk.NewSensor()
+	ts, err = sdk.NewSensor()
 	if err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
 
-	hw.SetTestPayload(
+	ts.SetTestPayload(
 		"web_login_attempt",
 		"Wizard Firedrill",
 		"Web Interface",
 		sdk.EventDetails{
 			{Key: "test_message", Value: "Wizard triggered a synthetic event firedrill."},
-			{Key: "user_agent", Value: "HoneyWire-Firedrill/1.0"},
+			{Key: "user_agent", Value: "TrueSignal-Firedrill/1.0"},
 			{Key: "attempted_username", Value: "admin"},
 			{Key: "attempted_password", Value: "password123"},
 			{Key: "action_taken", Value: "logged"},
@@ -261,11 +261,11 @@ func main() {
 	)
 
 	// Load environment variables AFTER the SDK loads the .env file
-	port = getEnv("HW_BIND_PORT", "8080")
-	routerBrand = getEnv("HW_ROUTER_BRAND", "Enterprise")
+	port = getEnv("TS_BIND_PORT", "8080")
+	routerBrand = getEnv("TS_ROUTER_BRAND", "Enterprise")
 
-	if hw.TestMode {
-		if hw.RunTestMode() {
+	if ts.TestMode {
+		if ts.RunTestMode() {
 			os.Exit(0)
 		}
 		os.Exit(1)
@@ -286,16 +286,16 @@ func main() {
 			log.Fatalf("[!] FATAL: Web server failed: %v", err)
 		}
 	}()
-    log.Printf("[*] HoneyWire Web Router Decoy | Brand: %s | Port: %s", routerBrand, port)
+    log.Printf("[*] TrueSignal Web Router Decoy | Brand: %s | Port: %s", routerBrand, port)
     
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 
-    if err := hw.Start(); err != nil {
+    if err := ts.Start(); err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
-	defer hw.Stop()
+	defer ts.Stop()
 
 	<-ctx.Done()
 
@@ -346,7 +346,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[!] Login attempt from %s (User: %s)", srcIP, username)
 
-	hw.ReportEvent(
+	ts.ReportEvent(
 		"web_login_attempt",
 		srcIP,
 		"Web Interface",

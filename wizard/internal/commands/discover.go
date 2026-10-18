@@ -19,21 +19,21 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/honeywire/wizard/core/discovery"
-	"github.com/honeywire/wizard/core/scanner"
-	"github.com/honeywire/wizard/core/schema"
-	"github.com/honeywire/wizard/internal/app"
-	"github.com/honeywire/wizard/internal/cli"
-	"github.com/honeywire/wizard/internal/deploy"
-	"github.com/honeywire/wizard/internal/system"
+	"github.com/truesignal/wizard/core/discovery"
+	"github.com/truesignal/wizard/core/scanner"
+	"github.com/truesignal/wizard/core/schema"
+	"github.com/truesignal/wizard/internal/app"
+	"github.com/truesignal/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/deploy"
+	"github.com/truesignal/wizard/internal/system"
 )
 
 var hubInjectedVars = map[string]bool{
-	"HW_HUB_ENDPOINT": true,
-	"HW_HUB_KEY":      true,
-	"HW_SENSOR_ID":    true,
-	"HW_CONFIG_REV":   true,
-	"HW_TEST_MODE":    true,
+	"TS_HUB_ENDPOINT": true,
+	"TS_HUB_KEY":      true,
+	"TS_SENSOR_ID":    true,
+	"TS_CONFIG_REV":   true,
+	"TS_TEST_MODE":    true,
 }
 
 func HandleDiscover(force bool) error {
@@ -42,7 +42,7 @@ func HandleDiscover(force bool) error {
 		return err
 	}
 
-	cli.PrintSectionHeader("HoneyWire Discover", cli.Cyan)
+	cli.PrintSectionHeader("TrueSignal Discover", cli.Cyan)
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	installed, err := app.Hub.FetchInstalledSensors(ctx, app.Config.NodeID, app.Config.APIKey)
@@ -168,7 +168,7 @@ promptLoop:
 				}
 			}
 		case "", "n", "no":
-			fmt.Printf("\n    %sSuggestions not applied. Run 'honeywire apply' when ready.%s\n\n", cli.Dim, cli.Reset)
+			fmt.Printf("\n    %sSuggestions not applied. Run 'truesignal apply' when ready.%s\n\n", cli.Dim, cli.Reset)
 			return nil
 		}
 	}
@@ -213,7 +213,7 @@ func applySuggestions(app *app.App, recs []*discovery.Recommendation, force bool
 
 	if err := deploy.Apply(reconcileCtx, composeData); err != nil {
 		fmt.Printf("\n    %s[!] The Hub saved your sensor config, but local deployment failed.%s\n", cli.Red, cli.Reset)
-		fmt.Printf("    %sThe node is now in a 'Pending Sync' state. Check Docker logs, resolve the issue, and run 'honeywire apply' to retry.%s\n\n", cli.Yellow, cli.Reset)
+		fmt.Printf("    %sThe node is now in a 'Pending Sync' state. Check Docker logs, resolve the issue, and run 'truesignal apply' to retry.%s\n\n", cli.Yellow, cli.Reset)
 		return fmt.Errorf("local reconciliation failed: %w", err)
 	}
 
@@ -223,9 +223,9 @@ func applySuggestions(app *app.App, recs []*discovery.Recommendation, force bool
 		if cli.ConfirmAction("Trigger a firedrill to test deployed sensors", force) {
 			return HandleFiredrill()
 		}
-		fmt.Printf("\n    %sRun 'honeywire firedrill' when ready.%s\n\n", cli.Dim, cli.Reset)
+		fmt.Printf("\n    %sRun 'truesignal firedrill' when ready.%s\n\n", cli.Dim, cli.Reset)
 	} else {
-		fmt.Printf("    %sRun 'honeywire firedrill' to test deployed sensors.%s\n\n", cli.Dim, cli.Reset)
+		fmt.Printf("    %sRun 'truesignal firedrill' to test deployed sensors.%s\n\n", cli.Dim, cli.Reset)
 	}
 
 	return nil
@@ -303,8 +303,8 @@ func buildStrategy(appInstance *app.App, hostState *scanner.HostState, systemSta
 	renderManifestTemplates(recommendations, dockerMap, hostState, rng)
 
 	for _, rec := range recommendations {
-		updateEnvVar(rec, "HW_HUB_ENDPOINT", appInstance.Config.HubURL)
-		updateEnvVar(rec, "HW_SENSOR_ID", rec.SensorID)
+		updateEnvVar(rec, "TS_HUB_ENDPOINT", appInstance.Config.HubURL)
+		updateEnvVar(rec, "TS_SENSOR_ID", rec.SensorID)
 	}
 
 	return recommendations, nil

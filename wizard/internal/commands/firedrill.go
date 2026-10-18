@@ -9,8 +9,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/honeywire/wizard/internal/cli"
-	"github.com/honeywire/wizard/internal/deploy"
+	"github.com/truesignal/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/deploy"
 )
 
 func HandleFiredrill() error {
@@ -19,7 +19,7 @@ func HandleFiredrill() error {
 		return err
 	}
 
-	cli.PrintSectionHeader("HoneyWire Firedrill", cli.Magenta)
+	cli.PrintSectionHeader("TrueSignal Firedrill", cli.Magenta)
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	installed, err := appInstance.Hub.FetchInstalledSensors(ctx, appInstance.Config.NodeID, appInstance.Config.APIKey)
@@ -43,7 +43,7 @@ func HandleFiredrill() error {
 	}
 	defer dockerClient.Close()
 
-	// Add strict filters to ensure we only query HoneyWire deployments (-p honeywire)
+	// Add strict filters to ensure we only query TrueSignal deployments (-p truesignal)
 	f := filters.NewArgs()
 	f.Add("label", fmt.Sprintf("com.docker.compose.project=%s", deploy.ProjectName))
 
@@ -62,12 +62,12 @@ func HandleFiredrill() error {
 		service := c.Labels["com.docker.compose.service"]
 		configFile := c.Labels["com.docker.compose.project.config_files"]
 
-		isHoneyWireProject := project == deploy.ProjectName
-		isHoneyWireConfig := strings.Contains(configFile, deploy.ComposeFile)
+		isTrueSignalProject := project == deploy.ProjectName
+		isTrueSignalConfig := strings.Contains(configFile, deploy.ComposeFile)
 
-		// Strictly verify the project matches (-p honeywire), the compose file matches honeywire-compose.yml,
+		// Strictly verify the project matches (-p truesignal), the compose file matches truesignal-compose.yml,
 		// and the service is actively registered in the Hub.
-		if isHoneyWireProject && isHoneyWireConfig && installed[service] {
+		if isTrueSignalProject && isTrueSignalConfig && installed[service] {
 			killCtx, killCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			err := dockerClient.ContainerKill(killCtx, c.ID, "SIGUSR1")
 			killCancel()
@@ -83,7 +83,7 @@ func HandleFiredrill() error {
 
 	if foundSensors == 0 {
 		fmt.Printf("\n    %s[!] No running containers found for the installed sensors.%s\n", cli.Yellow, cli.Reset)
-		fmt.Printf("    %sRun 'honeywire apply' to ensure deployments are up to date.%s\n\n", cli.Dim, cli.Reset)
+		fmt.Printf("    %sRun 'truesignal apply' to ensure deployments are up to date.%s\n\n", cli.Dim, cli.Reset)
 	} else {
 		fmt.Printf("\n    %s✅ Firedrill complete. Check your Hub dashboard for the test events!%s\n\n", cli.Green, cli.Reset)
 	}

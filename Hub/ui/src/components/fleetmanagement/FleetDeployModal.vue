@@ -91,7 +91,7 @@ watch(() => createdNodeId.value, (newId) => {
                             {{ appStore.latestWizardVersion }}
                         </span>
                     </div>
-                    <BaseButton variant="ghost" class="!py-1 !px-2 !text-xs transition-colors" :class="copiedStates['modal-cmd'] ? '!text-success-main hover:!text-success-main' : ''" @click="handleCopy('modal-cmd', `curl -fsSL https://get.honeywire.dev | bash -s -- --link ${hubUrl} --api-key ${nodeKey}`)">
+                    <BaseButton variant="ghost" class="!py-1 !px-2 !text-xs transition-colors" :class="copiedStates['modal-cmd'] ? '!text-success-main hover:!text-success-main' : ''" @click="handleCopy('modal-cmd', `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash -s -- --link ${hubUrl} --api-key ${nodeKey}`)">
                         <span class="flex items-center gap-1.5">
                             <svg v-if="!copiedStates['modal-cmd']" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                             <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -99,7 +99,7 @@ watch(() => createdNodeId.value, (newId) => {
                         </span>
                     </BaseButton>
                 </div>
-                <code class="block w-full p-4 bg-bg-inset/50 border border-border-default rounded-md text-sm font-mono text-text-h whitespace-pre-wrap break-all leading-normal select-all">curl -fsSL https://get.honeywire.dev | bash -s -- --link {{ hubUrl }} --api-key {{ nodeKey }}</code>
+                <code class="block w-full p-4 bg-bg-inset/50 border border-border-default rounded-md text-sm font-mono text-text-h whitespace-pre-wrap break-all leading-normal select-all">curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash -s -- --link {{ hubUrl }} --api-key {{ nodeKey }}</code>
             </div>
 
             <div>

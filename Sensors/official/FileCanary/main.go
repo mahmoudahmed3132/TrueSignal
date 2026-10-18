@@ -9,14 +9,14 @@ import (
 	"syscall"
 	"unsafe"
 
-	sdk "github.com/honeywire/sdk-go"
+	sdk "github.com/truesignal/sdk-go"
 	"golang.org/x/sys/unix"
 )
 
 func runInit() {
-	filesStr := os.Getenv("HW_DECOY_FILES")
+	filesStr := os.Getenv("TS_DECOY_FILES")
 	if filesStr == "" {
-		log.Println("HW_DECOY_FILES is empty, nothing to provision.")
+		log.Println("TS_DECOY_FILES is empty, nothing to provision.")
 		return
 	}
 
@@ -157,13 +157,13 @@ func runInit() {
 }
 
 func reportFileEvent(
-	hw *sdk.Sensor,
+	ts *sdk.Sensor,
 	trigger string,
 	category string,
 	action string,
 	path string,
 ) {
-	hw.ReportEvent(
+	ts.ReportEvent(
 		trigger,
 		"Local OS",
 		filepath.Base(path),
@@ -186,12 +186,12 @@ func main() {
 	}
 
 	// Initialize SDK
-	hw, err := sdk.NewSensor()
+	ts, err := sdk.NewSensor()
 	if err != nil {
 		log.Fatalf("FATAL: Failed to initialize sensor: %v", err)
 	}
 
-	hw.SetTestPayload(
+	ts.SetTestPayload(
 		"decoy_file_tampered",
 		"Wizard Firedrill",
 		"Mock Canary File",
@@ -204,8 +204,8 @@ func main() {
 	)
 
 	// Test mode
-	if hw.TestMode {
-		if hw.RunTestMode() {
+	if ts.TestMode {
+		if ts.RunTestMode() {
 			log.Println("Test mode completed successfully.")
 			os.Exit(0)
 		}
@@ -214,11 +214,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	alertOnOpen := os.Getenv("HW_ALERT_ON_OPEN") == "true"
+	alertOnOpen := os.Getenv("TS_ALERT_ON_OPEN") == "true"
 
-	decoyFilesStr := os.Getenv("HW_DECOY_FILES")
+	decoyFilesStr := os.Getenv("TS_DECOY_FILES")
 	if decoyFilesStr == "" {
-		log.Println("HW_DECOY_FILES is empty. Nothing to monitor.")
+		log.Println("TS_DECOY_FILES is empty. Nothing to monitor.")
 		select {}
 	}
 
@@ -246,7 +246,7 @@ func main() {
 	}
 
 	log.Println("")
-	log.Println("=== HoneyWire File Canary ===")
+	log.Println("=== TrueSignal File Canary ===")
 	log.Println("")
 
 	log.Println("[Detection Modes]")
@@ -339,7 +339,7 @@ func main() {
 					// Tamper events
 					if event.Mask&unix.IN_MODIFY != 0 {
 						reportFileEvent(
-							hw,
+							ts,
 							"decoy_file_tampered",
 							"tamper",
 							"Decoy file modified",
@@ -349,7 +349,7 @@ func main() {
 
 					if event.Mask&unix.IN_CLOSE_WRITE != 0 {
 						reportFileEvent(
-							hw,
+							ts,
 							"decoy_file_tampered",
 							"tamper",
 							"Decoy file modified",
@@ -359,7 +359,7 @@ func main() {
 
 					if event.Mask&unix.IN_ATTRIB != 0 {
 						reportFileEvent(
-							hw,
+							ts,
 							"decoy_file_tampered",
 							"tamper",
 							"File attributes changed",
@@ -370,7 +370,7 @@ func main() {
 					if event.Mask&unix.IN_DELETE_SELF != 0 {
 
 						reportFileEvent(
-							hw,
+							ts,
 							"decoy_file_tampered",
 							"tamper",
 							"Decoy file deleted",
@@ -386,7 +386,7 @@ func main() {
 					if event.Mask&unix.IN_MOVE_SELF != 0 {
 
 						reportFileEvent(
-							hw,
+							ts,
 							"decoy_file_tampered",
 							"tamper",
 							"Decoy file moved",
@@ -404,7 +404,7 @@ func main() {
 
 						if event.Mask&unix.IN_OPEN != 0 {
 							reportFileEvent(
-								hw,
+								ts,
 								"decoy_file_accessed",
 								"access",
 								"Decoy file opened",
@@ -414,7 +414,7 @@ func main() {
 
 						if event.Mask&unix.IN_ACCESS != 0 {
 							reportFileEvent(
-								hw,
+								ts,
 								"decoy_file_accessed",
 								"access",
 								"Decoy file read",
@@ -430,11 +430,11 @@ func main() {
 	}()
 
 	// Start sensor
-	if err := hw.Start(); err != nil {
+	if err := ts.Start(); err != nil {
 		log.Fatalf("FATAL: Failed to sync with Hub: %v", err)
 	}
 
-	defer hw.Stop()
+	defer ts.Stop()
 
 	log.Println("")
 	log.Println("File Canary active. Listening for events...")

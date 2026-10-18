@@ -2,7 +2,7 @@
 @variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================================
-   HONEYWIRE DESIGN SYSTEM
+   TRUESIGNAL DESIGN SYSTEM
    ========================================================================== */
 
 :root {
@@ -359,7 +359,7 @@
   --shadow-lg: var(--shadow-lg);
 }
 
-/* -- HoneyWire Custom Styles -- */
+/* -- TrueSignal Custom Styles -- */
 [x-cloak] { display: none !important; }
 body { font-family: 'Inter', sans-serif; }
 .mono { font-family: 'JetBrains Mono', monospace; }

@@ -10,7 +10,7 @@ import (
 	"time"
 	"strings"
 
-	"github.com/honeywire/wizard/internal/cli"
+	"github.com/truesignal/wizard/internal/cli"
 )
 
 func performRollback(reason string, hasBackup bool, backupPath, composePath string, cmdBase []string) error {

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/honeywire/hub/internal/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/truesignal/hub/internal/models"
 )
 
 func TestValidateMountPath(t *testing.T) {

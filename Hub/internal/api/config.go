@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
-	"github.com/honeywire/hub/internal/services/config"
-	"github.com/honeywire/hub/internal/services/updater"
+	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/config"
+	"github.com/truesignal/hub/internal/services/updater"
 )
 
 type ConfigHandler struct {

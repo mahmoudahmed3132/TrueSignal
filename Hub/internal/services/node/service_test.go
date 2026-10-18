@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/honeywire/hub/internal/catalog"
-	"github.com/honeywire/hub/internal/models"
-	"github.com/honeywire/hub/internal/services/node"
+	"github.com/truesignal/hub/internal/catalog"
+	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/node"
 )
 
 type MockNodeStore struct {
@@ -64,7 +64,7 @@ func TestGetNodeDetailsStrictHashMatch(t *testing.T) {
 	responseIndex := map[string]interface{}{
 		"sensors": []map[string]interface{}{
 			{
-				"id":     "hw-sensor-test",
+				"id":     "ts-sensor-test",
 				"latest": "v2.0.0", // Latest version available is v2.0.0
 				"versions": []map[string]interface{}{
 					{"v": "v2.0.0"},
@@ -88,7 +88,7 @@ func TestGetNodeDetailsStrictHashMatch(t *testing.T) {
 		ActiveRevision: "old_revision_hash",
 		InstalledSensors: []models.NodeSensor{
 			{
-				ID:              "hw-sensor-test",
+				ID:              "ts-sensor-test",
 				DeployedVersion: "v1.0.0", // Older version so it triggers UpdateAvailable
 			},
 		},
@@ -103,7 +103,7 @@ func TestGetNodeDetailsStrictHashMatch(t *testing.T) {
 	}
 
 	// Because hashes did not match, it MUST NOT auto-bump the DeployedVersion in the database
-	if val, ok := store.DeployedUpdates["node-1:hw-sensor-test"]; ok {
+	if val, ok := store.DeployedUpdates["node-1:ts-sensor-test"]; ok {
 		t.Fatalf("Expected DeployedVersion to REMAIN v1.0.0, but it aggressively auto-bumped to %s", val)
 	}
 

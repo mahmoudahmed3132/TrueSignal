@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/honeywire/hub/internal/models"
-	"github.com/honeywire/hub/internal/services/config"
-	"github.com/honeywire/hub/internal/services/event"
+	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/config"
+	"github.com/truesignal/hub/internal/services/event"
 )
 
 type EventHandler struct {
@@ -115,7 +115,7 @@ func (h *EventHandler) ExportEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Disposition", "attachment; filename=honeywire_events.json")
+	w.Header().Set("Content-Disposition", "attachment; filename=truesignal_events.json")
 	w.Header().Set("Content-Type", "application/json")
 	
 	if err := json.NewEncoder(w).Encode(events); err != nil {

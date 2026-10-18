@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 // ProjectionStore defines the minimal data access needed for velocity projections

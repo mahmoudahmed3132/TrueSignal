@@ -1,5 +1,5 @@
 {
-  "id": "hw-sensor-network-scan-detector",
+  "id": "ts-sensor-network-scan-detector",
   "version": "2.1.2",
   "name": "Network Scan Detector",
   "category": "network",
@@ -22,7 +22,7 @@
         "title": "Security Architecture",
         "type": "list",
         "content": [
-          "Global Sandbox Baseline: Enforced by the HoneyWire Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
           "Execution Privilege: Runs as container root (UID 0) strictly to initialize the raw network socket.",
           "Required Capabilities: Adds 'NET_RAW' to allow deep packet-level inspection of TCP headers."
         ]
@@ -41,15 +41,15 @@
     ],
     "env_vars": [
       {
-        "name": "HW_HUB_ENDPOINT",
-        "description": "The URL of your central HoneyWire Hub.",
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
         "default": "__HUB_ENDPOINT__",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_HUB_KEY",
+        "name": "TS_HUB_KEY",
         "description": "The shared Node Key.",
         "default": "__HUB_KEY__",
         "type": "string",
@@ -57,15 +57,15 @@
         "hidden": true
       },
       {
-        "name": "HW_SENSOR_ID",
+        "name": "TS_SENSOR_ID",
         "description": "Unique identifier for this specific trap.",
-        "default": "hw-sensor-network-scan-detector",
+        "default": "ts-sensor-network-scan-detector",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_SEVERITY",
+        "name": "TS_SEVERITY",
         "description": "Alert severity sent to the Hub.",
         "default": "high",
         "type": "string",
@@ -73,7 +73,7 @@
         "hidden": true
       },
       {
-        "name": "HW_TEST_MODE",
+        "name": "TS_TEST_MODE",
         "description": "Enable CI/CD synthetic alerts.",
         "default": "false",
         "type": "string",
@@ -81,7 +81,7 @@
         "hidden": true
       },
       {
-        "name": "HW_SCAN_THRESHOLD",
+        "name": "TS_SCAN_THRESHOLD",
         "description": "Minimum unique ports scanned to trigger an alert (stealth scans bypass this).",
         "default": "5",
         "type": "int",
@@ -89,7 +89,7 @@
         "hidden": false
       },
       {
-        "name": "HW_SCAN_WINDOW",
+        "name": "TS_SCAN_WINDOW",
         "description": "Time window in seconds for scan detection.",
         "default": "5",
         "type": "int",
@@ -97,7 +97,7 @@
         "hidden": false
       },
       {
-        "name": "HW_IGNORE_LOCALHOST",
+        "name": "TS_IGNORE_LOCALHOST",
         "description": "Ignore traffic originating from the host machine to prevent false positives.",
         "default": "true",
         "type": "boolean",
@@ -105,7 +105,7 @@
         "hidden": false
       },
       {
-        "name": "HW_IGNORE_PORTS",
+        "name": "TS_IGNORE_PORTS",
         "description": "Comma-separated list of ports to exclude from scan detection.",
         "default": "{{ if .IgnorePorts }}{{ .IgnorePorts }}{{ else }}22,80,443{{ end }}",
         "type": "string",
@@ -113,7 +113,7 @@
         "hidden": false
       }
     ],
-    "image_repository": "ghcr.io/andreicscs/honeywire-networkscandetector",
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-networkscandetector",
     "image_tag": "dev",
     "image_digest": ""
   }

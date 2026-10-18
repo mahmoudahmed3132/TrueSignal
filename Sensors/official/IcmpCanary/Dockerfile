@@ -2,7 +2,7 @@
 FROM golang:1.25 AS builder
 
 WORKDIR /src
-COPY SDKs/go-honeywire ./SDKs/go-honeywire
+COPY SDKs/go-truesignal ./SDKs/go-truesignal
 COPY Sensors/official/IcmpCanary ./Sensors/official/IcmpCanary
 
 WORKDIR /src/Sensors/official/IcmpCanary

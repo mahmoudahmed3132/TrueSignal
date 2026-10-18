@@ -3,7 +3,7 @@ package compose
 import (
 	"testing"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,11 +46,11 @@ func TestBuildService_DynamicVolumeExpansion(t *testing.T) {
 			Deployment: models.Deployment{
 				ImageRepository: "test-image",
 				VolumeMounts: []models.VolumeMount{
-					{Type: models.DynamicFileBind, SourceEnv: "HW_FILES", TargetPrefix: "/watch/"},
+					{Type: models.DynamicFileBind, SourceEnv: "TS_FILES", TargetPrefix: "/watch/"},
 				},
 			},
 		}
-		envMap := map[string]string{"HW_FILES": "/opt/z.txt, /opt/a.txt, , /opt/m.txt"}
+		envMap := map[string]string{"TS_FILES": "/opt/z.txt, /opt/a.txt, , /opt/m.txt"}
 
 		compose, err := BuildService("test-sensor", manifest, envMap)
 		require.NoError(t, err)
@@ -68,12 +68,12 @@ func TestBuildService_DynamicVolumeExpansion(t *testing.T) {
 			Deployment: models.Deployment{
 				InitContainers: []models.InitContainer{
 					{Name: "init", VolumeMounts: []models.VolumeMount{
-						{Type: models.DynamicDirBind, SourceEnv: "HW_FILES", TargetPrefix: "/watch/"},
+						{Type: models.DynamicDirBind, SourceEnv: "TS_FILES", TargetPrefix: "/watch/"},
 					}},
 				},
 			},
 		}
-		envMap := map[string]string{"HW_FILES": "/opt/z/file.txt, /opt/a/file.txt, /opt/a/another.txt"}
+		envMap := map[string]string{"TS_FILES": "/opt/z/file.txt, /opt/a/file.txt, /opt/a/another.txt"}
 
 		compose, err := BuildService("test-sensor", manifest, envMap)
 		require.NoError(t, err)
@@ -89,11 +89,11 @@ func TestBuildService_DynamicVolumeExpansion(t *testing.T) {
 		manifest := models.SensorManifest{
 			Deployment: models.Deployment{
 				VolumeMounts: []models.VolumeMount{
-					{Type: models.DynamicFileBind, SourceEnv: "HW_FILES", TargetPrefix: "/watch/"},
+					{Type: models.DynamicFileBind, SourceEnv: "TS_FILES", TargetPrefix: "/watch/"},
 				},
 			},
 		}
-		_, err := BuildService("test-sensor", manifest, map[string]string{"HW_FILES": "/etc/passwd"})
+		_, err := BuildService("test-sensor", manifest, map[string]string{"TS_FILES": "/etc/passwd"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "mount path is forbidden: /etc/passwd")
 	})
@@ -110,8 +110,8 @@ func TestBuildService_InitContainers(t *testing.T) {
 		},
 	}
 	envMap := map[string]string{
-		"HW_SENSOR_ID": "sensor123",
-		"HW_HUB_KEY":   "key123",
+		"TS_SENSOR_ID": "sensor123",
+		"TS_HUB_KEY":   "key123",
 		"CUSTOM_VAR":   "value123",
 	}
 
@@ -131,8 +131,8 @@ func TestBuildService_InitContainers(t *testing.T) {
 }
 
 func TestSortEnvKeys(t *testing.T) {
-	keys := []string{"FOO", "HW_HUB_KEY", "BAR", "HW_SENSOR_ID", "HW_SEVERITY"}
+	keys := []string{"FOO", "TS_HUB_KEY", "BAR", "TS_SENSOR_ID", "TS_SEVERITY"}
 	sortEnvKeys(keys)
-	expected := []string{"HW_SENSOR_ID", "HW_HUB_KEY", "HW_SEVERITY", "BAR", "FOO"}
+	expected := []string{"TS_SENSOR_ID", "TS_HUB_KEY", "TS_SEVERITY", "BAR", "FOO"}
 	assert.Equal(t, expected, keys)
 }

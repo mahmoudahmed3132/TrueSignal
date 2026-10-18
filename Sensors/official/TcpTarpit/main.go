@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/honeywire/sdk-go"
+	"github.com/truesignal/sdk-go"
 )
 
 var (
-	decoyPorts  = parsePorts(getEnv("HW_DECOY_PORTS", "2222,3306"))
-	tarpitMode  = strings.ToLower(getEnv("HW_TARPIT_MODE", "hold"))
-	banner      = parseBanner(getEnv("HW_TARPIT_BANNER", ""))
+	decoyPorts  = parsePorts(getEnv("TS_DECOY_PORTS", "2222,3306"))
+	tarpitMode  = strings.ToLower(getEnv("TS_TARPIT_MODE", "hold"))
+	banner      = parseBanner(getEnv("TS_TARPIT_BANNER", ""))
 	concurrency = 1000
 	maxBytes    = 50 * 1024
 	maxLines    = 10
@@ -26,12 +26,12 @@ var (
 )
 
 func main() {
-	hw, err := sdk.NewSensor()
+	ts, err := sdk.NewSensor()
 	if err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
 
-	hw.SetTestPayload(
+	ts.SetTestPayload(
 		"tcp_connection",
 		"Wizard Firedrill",
 		"Mock Tarpit Port",
@@ -43,8 +43,8 @@ func main() {
 		},
 	)
 
-	if hw.TestMode {
-		if hw.RunTestMode() {
+	if ts.TestMode {
+		if ts.RunTestMode() {
 			os.Exit(0)
 		}
 		os.Exit(1)
@@ -61,26 +61,26 @@ func main() {
 		listeners = append(listeners, l)
 	}
 
-	log.Printf("[*] HoneyWire Tarpit | Mode: %s", strings.ToUpper(tarpitMode))
+	log.Printf("[*] TrueSignal Tarpit | Mode: %s", strings.ToUpper(tarpitMode))
 
 	semaphore := make(chan struct{}, concurrency)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	for i, listener := range listeners {
-		go startListener(ctx, hw, decoyPorts[i], listener, semaphore)
+		go startListener(ctx, ts, decoyPorts[i], listener, semaphore)
 	}
 
-	if err := hw.Start(); err != nil {
+	if err := ts.Start(); err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
-	defer hw.Stop()
+	defer ts.Stop()
 
 	<-ctx.Done()
 	log.Println("[*] Tarpit shutting down.")
 }
 
-func startListener(ctx context.Context, hw *sdk.Sensor, port int, listener net.Listener, semaphore chan struct{}) {
+func startListener(ctx context.Context, ts *sdk.Sensor, port int, listener net.Listener, semaphore chan struct{}) {
 	defer listener.Close()
 
 	log.Printf("[+] Tarpit listening on port %d", port)
@@ -101,12 +101,12 @@ func startListener(ctx context.Context, hw *sdk.Sensor, port int, listener net.L
 		semaphore <- struct{}{}
 		go func(c net.Conn) {
 			defer func() { <-semaphore }()
-			handleConnection(hw, c, port)
+			handleConnection(ts, c, port)
 		}(conn)
 	}
 }
 
-func handleConnection(hw *sdk.Sensor, conn net.Conn, port int) {
+func handleConnection(ts *sdk.Sensor, conn net.Conn, port int) {
 	defer conn.Close()
 	start := time.Now()
 
@@ -161,7 +161,7 @@ func handleConnection(hw *sdk.Sensor, conn net.Conn, port int) {
 
 	duration := time.Since(start).Seconds()
 
-	hw.ReportEvent(
+	ts.ReportEvent(
 		"tcp_connection",
 		srcIP,
 		fmt.Sprintf("Port %d", port),

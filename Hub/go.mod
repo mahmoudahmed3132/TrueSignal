@@ -1,4 +1,4 @@
-module github.com/honeywire/hub
+module github.com/truesignal/hub
 
 go 1.25.0
 

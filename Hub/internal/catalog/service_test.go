@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/honeywire/hub/internal/catalog"
+	"github.com/truesignal/hub/internal/catalog"
 )
 
 type MockStore struct {
@@ -36,7 +36,7 @@ func TestRefreshIndexDeduplication(t *testing.T) {
 	responseIndex := map[string]interface{}{
 		"sensors": []map[string]interface{}{
 			{
-				"id":     "hw-sensor-test",
+				"id":     "ts-sensor-test",
 				"latest": "v1.0.0",
 				"versions": []map[string]interface{}{
 					{"v": "v1.0.0", "min_hub_version": "v1.0.0"},
@@ -88,7 +88,7 @@ func TestRefreshIndexTriggersHook(t *testing.T) {
 	responseIndex := map[string]interface{}{
 		"sensors": []map[string]interface{}{
 			{
-				"id":      "hw-sensor-test",
+				"id":      "ts-sensor-test",
 				"latest": "v1.0.0",
 			},
 		},

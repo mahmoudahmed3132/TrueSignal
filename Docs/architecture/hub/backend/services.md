@@ -1,6 +1,6 @@
 # Domain Services & Orchestration
 
-The `internal/services` layer is the brain of the HoneyWire Hub. It contains the actual "verbs" of the system and is strictly framework-agnostic. Services define their own dependencies via narrow interfaces, ensuring high testability and clear boundaries.
+The `internal/services` layer is the brain of the TrueSignal Hub. It contains the actual "verbs" of the system and is strictly framework-agnostic. Services define their own dependencies via narrow interfaces, ensuring high testability and clear boundaries.
 
 ## Background Workers
 
@@ -13,7 +13,7 @@ Workers are decoupled from the HTTP transport layer and managed exclusively via 
 | **Chart Sync** | `services/websocket` | Emits an empty payload every 30s telling the UI to tick its time-series charts forward smoothly. |
 | **Auth Sweeper** | `services/auth` | Cleans up expired sessions and brute-force IP lockout maps to prevent memory leaks. |
 | **SIEM Forwarder** | `services/siem` | Drains the in-memory event channel over TCP/UDP to external log aggregators. |
-| **Notifier** | `services/notify` | Drains the webhook channel to Slack/Discord/Gotify, preventing external API latency from blocking HoneyWire HTTP responses. |
+| **Notifier** | `services/notify` | Drains the webhook channel to Slack/Discord/Gotify, preventing external API latency from blocking TrueSignal HTTP responses. |
 
 ## Data Flow Example (Event Processing)
 

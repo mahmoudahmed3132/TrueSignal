@@ -87,7 +87,7 @@ The Uptime Projection generates historical block-based availability matrices (si
   "uptime_percentage": 100.0,
   "nodes": [
     {
-      "node_id": "hw-node-1",
+      "node_id": "ts-node-1",
       "blocks": [
         {"status": "up", "label": "Online", "timeLabel": "23 hours ago"},
         {"status": "degraded", "label": "Degraded (98.5% uptime)", "timeLabel": "22 hours ago"}

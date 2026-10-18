@@ -108,7 +108,7 @@ const handleOpenNodeDetail = (nodeId: string) => {
         <div class="flex items-center justify-between shrink-0">
              <PageHeader 
                 title="Fleet Overview" 
-                description="Monitor the health and status of your deployed HoneyWire nodes across all environments. Click on a node for detailed insights and management options."
+                description="Monitor the health and status of your deployed TrueSignal nodes across all environments. Click on a node for detailed insights and management options."
             />
             
             <BaseButton 

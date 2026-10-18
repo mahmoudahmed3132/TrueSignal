@@ -1,8 +1,8 @@
-# HoneyWire Hub Deployment Architecture
+# TrueSignal Hub Deployment Architecture
 
 ## Overview
 
-HoneyWire uses a centralized Hub to manage node provisioning, sensor configuration, deployment generation, and configuration reconciliation.
+TrueSignal uses a centralized Hub to manage node provisioning, sensor configuration, deployment generation, and configuration reconciliation.
 
 Each managed infrastructure node receives:
 
@@ -39,7 +39,7 @@ This indicates the deployed infrastructure configuration no longer matches the d
 Every generated deployment bundle receives a unique configuration revision:
 
 ```text
-HW_CONFIG_REV=rev_xxxxxxxx
+TS_CONFIG_REV=rev_xxxxxxxx
 ```
 rev_xxxxxxxx is a deterministic 12-char string for tracking config state.
 
@@ -72,7 +72,7 @@ The node is considered synchronized.
 
 ## Node Authentication
 
-HoneyWire uses API-key-based node authentication.
+TrueSignal uses API-key-based node authentication.
 
 Nodes authenticate using:
 
@@ -91,11 +91,11 @@ Sensors never provide or control their own Node ID.
 Sensors only require the following runtime variables:
 
 ```text
-HW_HUB_ENDPOINT
-HW_HUB_KEY
-HW_SENSOR_ID
-HW_CONFIG_REV
-HW_TEST_MODE
+TS_HUB_ENDPOINT
+TS_HUB_KEY
+TS_SENSOR_ID
+TS_CONFIG_REV
+TS_TEST_MODE
 ```
 
 Node identity is resolved server-side by the Hub.
@@ -127,7 +127,7 @@ The generated compose file is deployed to the target infrastructure host.
 Sensors begin sending authenticated heartbeats containing:
 
 ```text
-HW_CONFIG_REV
+TS_CONFIG_REV
 ```
 
 The Hub validates the revision and marks the node as synchronized.
@@ -144,7 +144,7 @@ The Hub distinguishes between preview generation and production deployment:
 
 # Architecture Summary
 
-HoneyWire follows a centralized reconciliation architecture:
+TrueSignal follows a centralized reconciliation architecture:
 
 - the Hub stores desired infrastructure state
 - nodes authenticate using API keys

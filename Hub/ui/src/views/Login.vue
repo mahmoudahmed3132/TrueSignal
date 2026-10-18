@@ -51,7 +51,7 @@ const doLogin = async () => {
                 <BaseLogo />
                 <PageHeader 
                     center 
-                    title="HoneyWire Sentinel" 
+                    title="TrueSignal Sentinel" 
                     description="Authorized personnel only." 
                 />
             </div>

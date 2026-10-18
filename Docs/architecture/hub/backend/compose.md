@@ -1,6 +1,6 @@
 # Hub Secure Compose Compiler Architecture
 
-The `internal/compose` package is responsible for compiling deterministic, hardened `honeywire-compose.yml` configurations served to remote edge nodes. 
+The `internal/compose` package is responsible for compiling deterministic, hardened `truesignal-compose.yml` configurations served to remote edge nodes. 
 
 To prevent privilege escalation or container escape vulnerabilities, the compiler operates on the principle of **Secure Defaults by Inversion**. Instead of attempt-filtering bad configurations out of an arbitrary map, the compiler explicitly maps specific allowed schema primitives into a locked-down, pre-configured Compose base.
 
@@ -15,7 +15,7 @@ graph TD
     C -->|BuildEnv overrides client & injects system variables| D(Secure Env Composition: env.go)
     D -->|Lazy-loads & caches historical tags| E(Dual-Manifest Version Resolution)
     E -->|Forces Read-Only, drops all capabilities, sorts arrays| F(The Builder: builder.go)
-    F -->|Outputs bit-for-bit deterministic file| G(honeywire-compose.yml)
+    F -->|Outputs bit-for-bit deterministic file| G(truesignal-compose.yml)
 ```
 
 ### 1. Strict Ingestion
@@ -31,7 +31,7 @@ The validation module acts as the security gateway for all manifests and user-pr
 The environment generation pipeline merges variables with a strict priority order:
 1. **Manifest Defaults:** Base variables defined in the sensor manifest.
 2. **User/Node Overrides:** Safe environment variables requested via the UI or Wizard (ignoring any attempting to override forbidden system environment fields).
-3. **System-Injected Constants:** Hardcoded, system-injected values (such as `HW_HUB_KEY`, `HW_SENSOR_ID`) that are unconditionally set by the Hub.
+3. **System-Injected Constants:** Hardcoded, system-injected values (such as `TS_HUB_KEY`, `TS_SENSOR_ID`) that are unconditionally set by the Hub.
 
 ### 4. Versioning and Dual-Manifest Resolution
 To support manual upgrades and historical rollbacks, nodes often run versions of a sensor other than the absolute latest catalog version. To prevent compiling incompatible or broken configurations, the compiler uses dual-manifest resolution:

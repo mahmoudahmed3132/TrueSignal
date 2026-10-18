@@ -1,11 +1,11 @@
 # Sensor Development Guide
 
-HoneyWire's architecture separates the central Hub from the deceptive traps (Sensors). This guide explains how to build a custom sensor from scratch, ensuring it complies with HoneyWire's Universal Event Standard and strict security model.
+TrueSignal's architecture separates the central Hub from the deceptive traps (Sensors). This guide explains how to build a custom sensor from scratch, ensuring it complies with TrueSignal's Universal Event Standard and strict security model.
 
 ## 1. Anatomy of a Sensor
 
-Every sensor in HoneyWire consists of three core components:
-1. **The Application Logic:** Typically a pure Go binary utilizing the HoneyWire SDK.
+Every sensor in TrueSignal consists of three core components:
+1. **The Application Logic:** Typically a pure Go binary utilizing the TrueSignal SDK.
 2. **The Security Sandbox:** A highly restricted `Dockerfile`.
 3. **The Deployment Manifest:** A `manifest.json` file that tells the Hub and Wizard how to deploy and configure it.
 
@@ -13,7 +13,7 @@ Every sensor in HoneyWire consists of three core components:
 
 ## 2. Using the Go SDK
 
-While you can technically write a sensor in any language using HTTP POST requests, the **HoneyWire Go SDK** (`SDKs/go-honeywire`) is the official standard. It handles authentication, backoff retries, heartbeats, and strict adherence to the data contract.
+While you can technically write a sensor in any language using HTTP POST requests, the **TrueSignal Go SDK** (`SDKs/go-truesignal`) is the official standard. It handles authentication, backoff retries, heartbeats, and strict adherence to the data contract.
 
 ### Basic Implementation
 
@@ -39,7 +39,7 @@ Instead of starting from scratch, base your manifest on the templates provided a
 
 ## 4. The Security Sandbox
 
-HoneyWire treats sensors as untrusted, potentially hostile execution units. **If a sensor is compromised, the blast radius must be minimal.**
+TrueSignal treats sensors as untrusted, potentially hostile execution units. **If a sensor is compromised, the blast radius must be minimal.**
 
 To ensure compliance, **always use the `Dockerfile` and `docker-compose.yml` or manifest deployment configuration provided in the templates (e.g., [`Sensors/templates/go-sensor/`](/Sensors/templates/go-sensor/))**. It is pre-configured to enforce the following baseline rules:
 
@@ -61,10 +61,10 @@ Do not boot the entire Hub to test a sensor's data payload. Use the Mock Hub scr
 2.  Run your sensor container locally:
     ```bash
     docker run --rm \
-      -e HW_HUB_ENDPOINT=http://<YOUR_LOCAL_IP>:8080 \
-      -e HW_HUB_KEY=test_key \
-      -e HW_SENSOR_ID=test_sensor \
-      -e HW_TEST_MODE=true \
+      -e TS_HUB_ENDPOINT=http://<YOUR_LOCAL_IP>:8080 \
+      -e TS_HUB_KEY=test_key \
+      -e TS_SENSOR_ID=test_sensor \
+      -e TS_TEST_MODE=true \
       your-sensor-image:latest
     ```
 
@@ -72,9 +72,9 @@ The Mock Hub will strictly validate your payload against the V1.0 Data Contract 
 
 ## 5.1. Testing Methodologies (CI/CD vs Live)
 
-HoneyWire distinguishes between two distinct ways of testing a sensor payload. Because of the strict security model (no exposed APIs, no shell access), testing relies on process state rather than direct interaction:
+TrueSignal distinguishes between two distinct ways of testing a sensor payload. Because of the strict security model (no exposed APIs, no shell access), testing relies on process state rather than direct interaction:
 
-1. **Boot-Time CI/CD Testing (`HW_TEST_MODE=true`):**
+1. **Boot-Time CI/CD Testing (`TS_TEST_MODE=true`):**
    When a sensor container boots with this flag, it acts as a short-lived execution check. It synchronously sends a test payload directly to the Hub wire (bypassing internal queues) and immediately shuts down with exit code `0`. This guarantees payload delivery before the container exits. It is strictly used for automated CI pipelines.
 
 2. **Live In-Flight Testing (`SIGUSR1`):**

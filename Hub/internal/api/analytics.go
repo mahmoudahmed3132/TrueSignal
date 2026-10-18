@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/honeywire/hub/internal/projections/severity"
-	"github.com/honeywire/hub/internal/projections/summary"
-	"github.com/honeywire/hub/internal/projections/uptime"
-	"github.com/honeywire/hub/internal/projections/velocity"
-	"github.com/honeywire/hub/internal/store"
+	"github.com/truesignal/hub/internal/projections/severity"
+	"github.com/truesignal/hub/internal/projections/summary"
+	"github.com/truesignal/hub/internal/projections/uptime"
+	"github.com/truesignal/hub/internal/projections/velocity"
+	"github.com/truesignal/hub/internal/store"
 )
 
 type AnalyticsHandler struct {

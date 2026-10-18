@@ -174,7 +174,7 @@ const removeTag = (index: number | string) => {
                             <div class="absolute bottom-full left-0 mb-2 w-max min-w-[180px] opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-fast z-dropdown bg-bg-surface border border-border-default shadow-lg rounded-md p-2 pointer-events-none">
                                 <div class="text-sm font-medium text-text-h mb-2">{{ summary.type }}</div>
                                 <div class="flex flex-col gap-2">
-                                    <div v-for="s in summary.sensors" :key="s.name" class="flex items-center gap-2 text-sm text-text-h"><BaseStatusDot :status="s.status || 'offline'" /><span class="font-mono truncate">{{ s.name.replace(/^hw-sensor-/, '') }}</span></div>
+                                    <div v-for="s in summary.sensors" :key="s.name" class="flex items-center gap-2 text-sm text-text-h"><BaseStatusDot :status="s.status || 'offline'" /><span class="font-mono truncate">{{ s.name.replace(/^ts-sensor-/, '') }}</span></div>
                                 </div>
                                 <div class="absolute top-full left-6 -mt-px border-4 border-transparent border-t-border-default"></div><div class="absolute top-full left-6 -mt-[2px] border-4 border-transparent border-t-bg-surface"></div>
                             </div>

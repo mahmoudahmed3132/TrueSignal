@@ -70,7 +70,7 @@ func initializeDefaultConfigTx(tx *sql.Tx) error {
 		"auto_purge_days":   "0",
 		"siem_address":      "",
 		"siem_protocol":     "tcp",
-		"registry_url": "https://raw.githubusercontent.com/andreicscs/HoneyWire/registry-pages",
+		"registry_url": "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages",
 		"acknowledged_wizard_release": "",
 	}
 

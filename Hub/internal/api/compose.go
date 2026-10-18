@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/honeywire/hub/internal/models"
-	composesvc "github.com/honeywire/hub/internal/services/compose"
+	"github.com/truesignal/hub/internal/models"
+	composesvc "github.com/truesignal/hub/internal/services/compose"
 )
 
 type ComposeHandler struct {

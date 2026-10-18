@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/honeywire/wizard/internal/system"
+	"github.com/truesignal/wizard/internal/system"
 )
 
 // ProcScanner implements the Scanner interface by reading from /proc.
@@ -21,15 +21,15 @@ type ProcScanner struct {
 
 // NewProcScanner creates a new proc-based scanner.
 func NewProcScanner() *ProcScanner {
-	// Ignore HoneyWire and noisy OS processes to reduce false positives
+	// Ignore TrueSignal and noisy OS processes to reduce false positives
 	ignoreList := map[string]bool{
-		"honeywire-hub":   true,
+		"truesignal-hub":  true,
 		"tcp-tarpit":      true,
 		"web-decoy":       true,
 		"file-canary":     true,
 		"icmp-canary":     true,
 		"scan-detector":   true,
-		"honeywire":       true,
+		"truesignal":      true,
 		"bash":            true,
 		"systemd":         true,
 		"init":            true,

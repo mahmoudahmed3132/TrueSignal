@@ -1,6 +1,6 @@
 # Common Development Workflows
 
-This guide provides step-by-step instructions for the most frequent development tasks in the HoneyWire monorepo.
+This guide provides step-by-step instructions for the most frequent development tasks in the TrueSignal monorepo.
 
 ## 1. Adding a New API Endpoint to the Hub
 
@@ -31,7 +31,7 @@ Add any new structs to `internal/models/`. Use appropriate JSON tags.
 
 ## 2. Modifying an Analytics Dashboard (Projections)
 
-HoneyWire uses CQRS-style projections for analytics to avoid complex front-end data crunching.
+TrueSignal uses CQRS-style projections for analytics to avoid complex front-end data crunching.
 
 **Step 1: Update the DTO**
 1. Open `internal/projections/dtos.go`.

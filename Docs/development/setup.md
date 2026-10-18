@@ -1,6 +1,6 @@
 # Local Environment Setup
 
-This guide covers how to set up HoneyWire for local development. 
+This guide covers how to set up TrueSignal for local development. 
 
 For advanced CI/CD simulation (e.g., local Gitea and private Docker registries), see [maintainer-workflow.md](/Docs/development/maintainer-workflow.md).
 
@@ -34,9 +34,9 @@ The Hub requires both the Go backend and the Vue frontend to run simultaneously.
    Open a new terminal, navigate to the Hub directory, and run the Go binary:
    ```bash
    cd Hub
-   HW_ENV=development HW_PORT=8080 go run cmd/hub/main.go
+   TS_ENV=development TS_PORT=8080 go run cmd/hub/main.go
    ```
-   *Note: `HW_ENV=development` is crucial; it disables the `Secure` flag on the authentication cookie so you can log in over `http://localhost`.*
+   *Note: `TS_ENV=development` is crucial; it disables the `Secure` flag on the authentication cookie so you can log in over `http://localhost`.*
 
 3. **Access the Application:**
    Open your browser and navigate to `http://localhost:5173`. Complete the initial setup to generate your node keys.
@@ -59,7 +59,7 @@ When developing or modifying sensors, you need to verify their interaction with 
 
 ### Mocking the Hub for Sensor Testing
 
-If you are building a sensor and only want to test its telemetry output without running the full HoneyWire Hub, use the provided Python Mock Hub script.
+If you are building a sensor and only want to test its telemetry output without running the full TrueSignal Hub, use the provided Python Mock Hub script.
 
 1. Start the Mock Hub:
    ```bash
@@ -68,10 +68,10 @@ If you are building a sensor and only want to test its telemetry output without 
 2. Start your sensor via Docker, passing the Mock Hub's address and enabling test mode:
    ```bash
    docker run --rm \
-     -e HW_HUB_ENDPOINT=http://<YOUR_LOCAL_IP>:8080 \
-     -e HW_HUB_KEY=test_key \
-     -e HW_SENSOR_ID=test_sensor \
-     -e HW_TEST_MODE=true \
+     -e TS_HUB_ENDPOINT=http://<YOUR_LOCAL_IP>:8080 \
+     -e TS_HUB_KEY=test_key \
+     -e TS_SENSOR_ID=test_sensor \
+     -e TS_TEST_MODE=true \
      your-sensor-image:latest
    ```
 

@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/honeywire/hub/internal/services/websocket"
-	"github.com/honeywire/hub/ui"
+	"github.com/truesignal/hub/internal/services/websocket"
+	"github.com/truesignal/hub/ui"
 )
 
 func ErrorOnlyLogger(next http.Handler) http.Handler {

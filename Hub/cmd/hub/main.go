@@ -10,21 +10,21 @@ import (
 	"time"
 	"sync"
 
-	"github.com/honeywire/hub/internal/api"
-	"github.com/honeywire/hub/internal/catalog"
-	"github.com/honeywire/hub/internal/models"
-	"github.com/honeywire/hub/internal/services/auth"
-	composesvc "github.com/honeywire/hub/internal/services/compose"
-	"github.com/honeywire/hub/internal/services/config"
-	"github.com/honeywire/hub/internal/services/event"
-	"github.com/honeywire/hub/internal/services/node"
-	"github.com/honeywire/hub/internal/services/notify"
-	"github.com/honeywire/hub/internal/services/sensor"
-	"github.com/honeywire/hub/internal/services/siem"
-	"github.com/honeywire/hub/internal/services/statemonitor"
-	"github.com/honeywire/hub/internal/services/updater"
-	"github.com/honeywire/hub/internal/services/websocket"
-	"github.com/honeywire/hub/internal/store"
+	"github.com/truesignal/hub/internal/api"
+	"github.com/truesignal/hub/internal/catalog"
+	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/auth"
+	composesvc "github.com/truesignal/hub/internal/services/compose"
+	"github.com/truesignal/hub/internal/services/config"
+	"github.com/truesignal/hub/internal/services/event"
+	"github.com/truesignal/hub/internal/services/node"
+	"github.com/truesignal/hub/internal/services/notify"
+	"github.com/truesignal/hub/internal/services/sensor"
+	"github.com/truesignal/hub/internal/services/siem"
+	"github.com/truesignal/hub/internal/services/statemonitor"
+	"github.com/truesignal/hub/internal/services/updater"
+	"github.com/truesignal/hub/internal/services/websocket"
+	"github.com/truesignal/hub/internal/store"
 )
 
 const HubAPIVersion = 1
@@ -39,7 +39,7 @@ func loadConfigSafe(s *store.SQLiteStore, key string, fallback string) string {
 }
 
 func main() {
-	log.Printf("Starting HoneyWire Hub v%s initialization...\n", models.HubVersion)
+	log.Printf("Starting TrueSignal Hub v%s initialization...\n", models.HubVersion)
 
 	cfg := config.Load()
 

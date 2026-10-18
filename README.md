@@ -1,31 +1,24 @@
 <p align="center">
-  <a href="https://honeywire.dev" target="_blank" rel="noopener noreferrer">
-    <img src="Hub/ui/public/favicon.svg" alt="HoneyWire Logo" width="150" />
+  <a href="https://github.com/mahmoudahmed3132/TrueSignal" target="_blank" rel="noopener noreferrer">
+    <img src="Hub/ui/public/favicon.svg" alt="TrueSignal Logo" width="150" />
   </a>
 </p>
-<h1 align="center">HoneyWire</h1>
+<h1 align="center">TrueSignal</h1>
 
 <p align="center">
-  <a href="https://github.com/andreicscs/HoneyWire/releases">
+  <a href="https://github.com/mahmoudahmed3132/TrueSignal/releases">
     <img src="https://img.shields.io/badge/release-v2.1.0-blue.svg?style=flat-square" alt="Latest Release" />
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-AGPLv3-blue.svg?style=flat-square" alt="License: GPLv3" />
-  </a>
-  <a href="https://news.risky.biz/risky-bulletin-nist-gives-up-enriching-most-cves/#:~:text=New%20tool%E2%80%94HoneyWire%3A%20Andrea%20Termine">
-    <img src="https://img.shields.io/badge/Risky%20Bulletin-New%20Tools-2E8B57?logo=RiskyBusiness&style=flat-square" alt="Risky Bulletin" />
+    <img src="https://img.shields.io/badge/license-AGPLv3-blue.svg?style=flat-square" alt="License: AGPLv3" />
   </a>
   <a href="Hub/docker-compose.yml">
     <img src="https://img.shields.io/badge/Docker-Native-2496ED.svg?style=flat-square&logo=docker&logoColor=white" alt="Docker Native" />
-  </a>
-  <a href="https://www.bestpractices.dev/projects/13523">
-    <img src="https://img.shields.io/badge/OpenSSF%20Best%20Practices-passing-2E8B57.svg?style=flat-square" alt="OpenSSF Best Practices" />
   </a>
 </p>
 
 ## 📋 Table of Contents
 - [Overview](#overview)
-- [Showcase](#showcase)
 - [The Universal Event Standard](#-the-universal-event-standard-bring-your-own-sensor)
 - [Features](#features)
 - [Architecture](#architecture)
@@ -34,33 +27,26 @@
 - [Tech Stack](#tech-stack)
 - [Roadmap & Development](#roadmap-development)
 - [Versioning and API Reference](#versioning-and-api-reference)
+- [Credits & License](#credits--license)
 
 ## Overview
-**HoneyWire** is a lightweight, Distributed High-Signal Security Early-Warning System Builder, designed for internal networks. It leverages its architecture and UX to make it incredibly easy to build a new Cyber Canary server or deploy HoneyWires on existing ones. Using deception technology, it replaces the "magnifying glass" approach of traditional SIEMs which often drown analysts in false positives by surveilling legitimate traffic with a High-Fidelity Tripwire model. 
+**TrueSignal** is a lightweight, Distributed High-Signal Security Early-Warning System Builder, designed for internal networks. It leverages its architecture and UX to make it incredibly easy to build a new Cyber Canary server or deploy TrueSignal sensors on existing ones. Using deception technology, it replaces the "magnifying glass" approach of traditional SIEMs which often drown analysts in false positives by surveilling legitimate traffic with a High-Fidelity Tripwire model. 
 
 Place a sensor exactly where you want it. If it trips, you have an intruder.
   - **Production Tripwires**: Sound the alarm when active services are being poked in ways they shouldn't be. By placing a sensor on a sensitive file that should never be read or a service port that should never be accessed, you identify intruders by their deviation from the "authorized path."
   - **Synthetic Deception**: Deploy lures like the [ICMP Canary](./Sensors/official/IcmpCanary/) or [Network Scan Detector](./Sensors/official/NetworkScanDetector/) to act as decoys. Since these sensors provide no legitimate business value, 100% of their traffic is actionable intelligence.
 
 Set up multiple and you start to have a pretty clear idea of the lateral movement of an intruder. No tuning, no noise, just instant forensics.
-If you have legitimate automated security scanners tripping HoneyWires just whitelist them from the Hub's settings.
-
-## Showcase
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/b82d3c18-9fc9-4393-84c8-4cd7046d9517" autoplay loop muted playsinline width="100%"></video>
-</div>
-
-
+If you have legitimate automated security scanners tripping TrueSignal sensors just whitelist them from the Hub's settings.
 
 ## 🔌 The Universal Event Standard (Bring Your Own Sensor)
 
 [**Community Sensors**](./Sensors/community/)
-> Note: If you build your sensor using the official HoneyWire SDKs, this JSON formatting and delivery is handled for you automatically.
+> Note: If you build your sensor using the official TrueSignal SDKs, this JSON formatting and delivery is handled for you automatically.
 
-The true power of HoneyWire is that the Hub and Wizard are **completely sensor-agnostic**. You are not limited to the included official sensors. 
+The true power of TrueSignal is that the Hub and Wizard are **completely sensor-agnostic**. You are not limited to the included official sensors. 
 
-By adhering to the **HoneyWire Event Standard V2.0**, you can write a script in *any* language (Bash, Go, Rust, Python) to monitor *anything*, and the Sentinel UI will dynamically parse, syntax-highlight, and render your forensic data. 
+By adhering to the **TrueSignal Event Standard V2.0**, you can write a script in *any* language (Bash, Go, Rust, Python) to monitor *anything*, and the Sentinel UI will dynamically parse, syntax-highlight, and render your forensic data. 
 
 Whether it is a **Deep Packet Inspection (DPI)** engine, a **DNS sinkhole**, a **Canary Token** embedded in a PDF, an **Email Honeypot**, or a simple **TCP Port Tripwire**, just POST the **Universal Event Standard** JSON payload to the Hub. 
 
@@ -72,23 +58,23 @@ Whether it is a **Deep Packet Inspection (DPI)** engine, a **DNS sinkhole**, a *
   - **Universal Push Notifications:** Native, zero-dependency integration for routing critical alerts to **Discord, Slack, Ntfy, and Gotify**.
   - **Enterprise SIEM Integration:** Native RFC5424 Syslog forwarding (TCP/UDP) for seamlessly pushing structured telemetry to Splunk, Elastic, Wazuh, or Vector.
 - **The Setup Wizard:** A deployment and testing automation tool, developed explicitly to not be a 24/7 running agent. It is simply a TUI CLI tool that automates operator tasks like applying and reconciling the Hub's desired state for a given Node, automatically handling configuration, deployment, and rollbacks on failed deployments.
-- **Suite of Official HoneyWires:** Includes native [TCP Tarpit](./Sensors/official/TcpTarpit/), [Web Router Decoy](./Sensors/official/WebRouterDecoy/), [File Canary (FIM)](./Sensors/official/FileCanary/), [ICMP Canary](./Sensors/official/IcmpCanary/), and [Network Scan Detector](./Sensors/official/NetworkScanDetector/).
+- **Suite of Official TrueSignal sensors:** Includes native [TCP Tarpit](./Sensors/official/TcpTarpit/), [Web Router Decoy](./Sensors/official/WebRouterDecoy/), [File Canary (FIM)](./Sensors/official/FileCanary/), [ICMP Canary](./Sensors/official/IcmpCanary/), and [Network Scan Detector](./Sensors/official/NetworkScanDetector/).
 
 ## Architecture
 
-HoneyWire is split into four independent microservices:
+TrueSignal is split into four independent microservices:
 
 1. `/Hub`: The central brain. A pure Go binary running an embedded SQLite database and the Vue.js dashboard. It runs as a non-root user inside a Distroless container, safely mounting data to a dedicated volume.
 2. `/Sensors`: The decoy nodes. Statically-linked Go binaries that listen on vulnerable ports, trap attackers, and securely POST intrusion data back to the Hub.
 3. `/SDKs`: Official libraries (like `sdk-go`) that handle secure Hub communication so community developers can easily build new sensors.
-4. `/wizard`: Setup wizard cli tool to automate operator tasks such as discovery, deployment and testing of HoneyWires.
+4. `/wizard`: Setup wizard cli tool to automate operator tasks such as discovery, deployment and testing of TrueSignal sensors.
 
 > **[Check out the full architecture docs](./Docs/architecture/README.md)**
 > **[Read the User Operations Guide](./Docs/operations.md)**
 
 ## 🚀 Quick Start Guide
 
-Deploying the HoneyWire Hub takes less than 60 seconds using our pre-built GitHub Container images.
+Deploying the TrueSignal Hub takes less than 60 seconds using our pre-built GitHub Container images.
 
 ### 1. Deploy the Hub
 Create a new directory on your server, create a `docker-compose.yml` file, and paste the following:
@@ -98,20 +84,20 @@ services:
   # 1. THE PERMISSION FIXER: Runs once to ensure the Hub can write to the data volume
   permission-fixer:
     image: alpine:latest
-    container_name: honeywire-permission-fixer
+    container_name: truesignal-permission-fixer
     command: sh -c "chown -R 65532:65532 /data"
     volumes:
-      - ./honeywire_data:/data
+      - ./truesignal_data:/data
 
   # 2. THE HUB: The central Go-based dashboard and API
   hub:
-    image: ghcr.io/andreicscs/honeywire-hub:latest
-    container_name: honeywire-hub
+    image: ghcr.io/mahmoudahmed3132/truesignal-hub:latest
+    container_name: truesignal-hub
     restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
-      - ./honeywire_data:/data
+      - ./truesignal_data:/data
     depends_on:
       permission-fixer:
         condition: service_completed_successfully
@@ -123,11 +109,11 @@ services:
     security_opt: ["no-new-privileges:true"]
     
     environment:
-      - HW_ENV=development # Required if not using HTTPS, or the cookie will have the secure flag set, in production it is highly recommended to remove this and run this behind a reverse proxy using https
-      - HW_PORT=8080
-      - HW_DB_PATH=/data/honeywire.db
+      - TS_ENV=development # Required if not using HTTPS, or the cookie will have the secure flag set, in production it is highly recommended to remove this and run this behind a reverse proxy using https
+      - TS_PORT=8080
+      - TS_DB_PATH=/data/truesignal.db
       # Optional: Hardcode the dashboard password (disables the UI password reset feature)
-      # - HW_DASHBOARD_PASSWORD=admin
+      # - TS_DASHBOARD_PASSWORD=admin
 ```
 
 Start the Hub:
@@ -136,19 +122,19 @@ docker compose up -d
 ```
 
 ### 2. Initialize the System
-Navigate to `http://<your-server-ip>:HW_PORT` in your browser. You will be greeted by the **Initialize Sentinel** screen.
+Navigate to `http://<your-server-ip>:TS_PORT` in your browser. You will be greeted by the **Initialize Sentinel** screen.
 1. Create your Master Password.
 2. Verify your Hub Endpoint URL (the IP/URL where sensors will reach the Hub).
 3. Click "Initialize Hub".
 
 ### 3. Deploy Sensors
 1. Create a new Node and paste the provided command to install and link the Setup Wizard to the hub
-2. Install sensors directly from the Hub and then run `honeywire apply` on the node to reconcile desired state or run `honeywire discover` to let the Setup wizard automatically scan and suggest HoneyWires based on environment.
+2. Install sensors directly from the Hub and then run `truesignal apply` on the node to reconcile desired state or run `truesignal discover` to let the Setup wizard automatically scan and suggest TrueSignal sensors based on environment.
 
-### 4. Testing the HoneyWires
+### 4. Testing the TrueSignal sensors
 
 Once your containers are up, the Tarpit sensor should appear as `ONLINE` within 30 seconds.
-Run `honeywire firedrill` to make the HoneyWires send a mock event to the hub to test connectivity.
+Run `truesignal firedrill` to make the TrueSignal sensors send a mock event to the hub to test connectivity.
 
 > **Note:** For a deeper dive into managing nodes, updating sensors, and handling rollbacks, see the **[User Operations Guide](./Docs/operations.md)**.
 
@@ -158,7 +144,7 @@ Run `honeywire firedrill` to make the HoneyWires send a mock event to the hub to
 * **Threat Model:** For a deep dive into trust boundaries, architecture risks, and sandboxing rules, see the **[THREATMODEL.md](./THREATMODEL.md)**.
 * **Node Keys:** Ensure your sensors use their unique `Node Key` to communicate with the Hub. The Hub will reject any payloads with mismatched or invalid keys.
 * **System Arming:** You can toggle the "System Armed" button in the Hub UI to temporarily disable push notifications while doing internal network maintenance or vulnerability scanning.
-* **Container Hardening:** HoneyWire utilizes `gcr.io/distroless/static-debian12:nonroot`. We follow the principle of least privilege to make sure that if a container is compromised, the blast is contained.
+* **Container Hardening:** TrueSignal utilizes `gcr.io/distroless/static-debian12:nonroot`. We follow the principle of least privilege to make sure that if a container is compromised, the blast is contained.
 * **Distributed Deployment:** It is highly recommended to run the Hub and its Sensors on separate physical or virtual machines. If an attacker compromises a sensor node, they should not have immediate local access to the centralized Hub.
 * ⚠️ **Encryption (HTTPS):** Always serve the Hub Web UI and API over HTTPS using a reverse proxy (like Nginx, Caddy, or Traefik) in production. Failure to do so exposes your Dashboard password and Node Keys to network sniffing.
 
@@ -172,15 +158,18 @@ Run `honeywire firedrill` to make the HoneyWires send a mock event to the hub to
 <a id="roadmap-development"></a>
 ## Roadmap & Development
 
-HoneyWire is actively evolving towards a complete GitOps-driven enterprise deception platform. 
-
-* **[View the Public Roadmap](https://github.com/users/andreicscs/projects/5)** to see what we are currently building (v2.2.0 features, v3.0.0 IaC overhaul, and upcoming SIEM benchmarks).
-* **Want to influence the roadmap?** We rely heavily on community feedback. Head over to our **[GitHub Discussions](https://github.com/andreicscs/HoneyWire/discussions/14)** to vote on upcoming features, propose new decoy types, or share how you use HoneyWire in your lab.
+Planned work and known gaps are tracked in [`docs/KNOWLEDGE-GAPS.md`](./docs/KNOWLEDGE-GAPS.md). Development guides live in [`Docs/development/`](./Docs/development/README.md).
 
 
 ## Versioning and API Reference
 
-- HoneyWire versions are managed via Git Tags.
+- TrueSignal versions are managed via Git Tags.
 - `Hub` endpoint:
   - `GET /api/v2/version` → returns `{ "version": "v2.x.x" }`
 - API docs file: [API.md](./Docs/architecture/hub/backend/API.md) with full backend route reference and sample payloads.
+
+## Credits & License
+
+TrueSignal is a fork of [HoneyWire](https://github.com/andreicscs/HoneyWire) by Andrea Termine, rebranded and maintained independently. Upstream copyright is retained. See [`NOTICE`](./NOTICE).
+
+Licensed under the GNU Affero General Public License v3.0 ([`LICENSE`](./LICENSE)). If you run a modified TrueSignal Hub as a network service, AGPLv3 §13 requires offering its source to users of that service.

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/honeywire/hub/internal/services/auth"
-	"github.com/honeywire/hub/internal/services/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/truesignal/hub/internal/services/auth"
+	"github.com/truesignal/hub/internal/services/config"
 )
 
 // We use a mock auth store strictly for the handler injection

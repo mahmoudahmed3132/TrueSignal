@@ -1,5 +1,5 @@
 {
-  "id": "hw-sensor-web-router-decoy",
+  "id": "ts-sensor-web-router-decoy",
   "version": "2.0.1",
   "name": "Web Router Decoy",
   "category": "web",
@@ -22,7 +22,7 @@
         "title": "Security Architecture",
         "type": "list",
         "content": [
-          "Global Sandbox Baseline: Enforced by the HoneyWire Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
           "Execution Privilege: Runs as container root (UID 0) to allow bridging network modes.",
           "Required Capabilities: Adds 'NET_BIND_SERVICE' to allow binding to ports below 1024 without needing full host network control."
         ]
@@ -60,15 +60,15 @@
     ],
     "env_vars": [
       {
-        "name": "HW_HUB_ENDPOINT",
-        "description": "The URL of your central HoneyWire Hub.",
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
         "default": "__HUB_ENDPOINT__",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_HUB_KEY",
+        "name": "TS_HUB_KEY",
         "description": "The shared Node Key.",
         "default": "__HUB_KEY__",
         "type": "string",
@@ -76,15 +76,15 @@
         "hidden": true
       },
       {
-        "name": "HW_SENSOR_ID",
+        "name": "TS_SENSOR_ID",
         "description": "Unique identifier for this specific trap.",
-        "default": "hw-sensor-web-router-decoy",
+        "default": "ts-sensor-web-router-decoy",
         "type": "string",
         "required": true,
         "hidden": true
       },
       {
-        "name": "HW_SEVERITY",
+        "name": "TS_SEVERITY",
         "description": "Alert severity sent to the Hub.",
         "default": "critical",
         "type": "string",
@@ -92,7 +92,7 @@
         "hidden": true
       },
       {
-        "name": "HW_TEST_MODE",
+        "name": "TS_TEST_MODE",
         "description": "Enable CI/CD synthetic alerts.",
         "default": "false",
         "type": "string",
@@ -100,7 +100,7 @@
         "hidden": true
       },
       {
-        "name": "HW_BIND_PORT",
+        "name": "TS_BIND_PORT",
         "description": "Port to bind the decoy web server.",
         "default": "{{ availablePort 8080 }}",
         "type": "int",
@@ -108,7 +108,7 @@
         "hidden": false
       },
       {
-        "name": "HW_ROUTER_BRAND",
+        "name": "TS_ROUTER_BRAND",
         "description": "Router brand to simulate.",
         "default": "Netgear",
         "type": "string",
@@ -116,7 +116,7 @@
         "hidden": false
       }
     ],
-    "image_repository": "ghcr.io/andreicscs/honeywire-webrouterdecoy",
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-webrouterdecoy",
     "image_tag": "dev",
     "image_digest": ""
   }

@@ -11,11 +11,11 @@ import (
 
 	"golang.org/x/mod/semver"
 
-	"github.com/honeywire/hub/internal/catalog"
-	composeEngine "github.com/honeywire/hub/internal/compose"
-	"github.com/honeywire/hub/internal/compose/security"
-	"github.com/honeywire/hub/internal/models"
-	"github.com/honeywire/hub/internal/services/node"
+	"github.com/truesignal/hub/internal/catalog"
+	composeEngine "github.com/truesignal/hub/internal/compose"
+	"github.com/truesignal/hub/internal/compose/security"
+	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/node"
 	"gopkg.in/yaml.v3"
 )
 
@@ -104,7 +104,7 @@ func (s *Service) fetchStrictCatalogManifests(currentHubVersion string) ([]model
 			continue
 		}
 
-		sensorName := strings.TrimPrefix(sensor.ID, "hw-sensor-")
+		sensorName := strings.TrimPrefix(sensor.ID, "ts-sensor-")
 		manifestURL := fmt.Sprintf("%s/%s-v%s.json", strings.TrimRight(registryURL, "/"), sensorName, targetVersion)
 
 		client := &http.Client{Timeout: 10 * time.Second}
@@ -144,7 +144,7 @@ func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models
 		return nil, fmt.Errorf("registry_url is not configured in database")
 	}
 
-	sensorName := strings.TrimPrefix(sensorID, "hw-sensor-")
+	sensorName := strings.TrimPrefix(sensorID, "ts-sensor-")
 	manifestURL := fmt.Sprintf("%s/%s-v%s.json", strings.TrimRight(registryURL, "/"), sensorName, cleanVersion)
 
 	cacheKey := sensorID + "-v" + cleanVersion
@@ -257,13 +257,13 @@ func (s *Service) GetNodeCompose(token, hostFallback string, currentHubVersion s
 		}
 
 		sysVars := map[string]string{
-			"HW_HUB_ENDPOINT": hubEndpoint,
-			"HW_HUB_KEY":      token,
-			"HW_SENSOR_ID":    sensor.ID,
-			"HW_TEST_MODE":    "false",
+			"TS_HUB_ENDPOINT": hubEndpoint,
+			"TS_HUB_KEY":      token,
+			"TS_SENSOR_ID":    sensor.ID,
+			"TS_TEST_MODE":    "false",
 		}
 		if effectiveRevision != "" {
-			sysVars["HW_CONFIG_REV"] = effectiveRevision
+			sysVars["TS_CONFIG_REV"] = effectiveRevision
 		}
 
 		envMap := composeEngine.BuildEnv(manifest, userVars, sysVars)
@@ -294,10 +294,10 @@ func (s *Service) GeneratePreviewCompose(req PreviewRequest) ([]byte, error) {
 		for k, v := range sensor.EnvValues {
 			envMap[k] = v
 		}
-		envMap["HW_HUB_ENDPOINT"] = req.HubEndpoint
-		envMap["HW_HUB_KEY"] = req.HubKey
-		envMap["HW_SENSOR_ID"] = sensor.SensorID
-		envMap["HW_TEST_MODE"] = "false"
+		envMap["TS_HUB_ENDPOINT"] = req.HubEndpoint
+		envMap["TS_HUB_KEY"] = req.HubKey
+		envMap["TS_SENSOR_ID"] = sensor.SensorID
+		envMap["TS_TEST_MODE"] = "false"
 
 		svcCompose, err := composeEngine.BuildService(sensor.SensorID, sensor.Manifest, envMap)
 		if err != nil {

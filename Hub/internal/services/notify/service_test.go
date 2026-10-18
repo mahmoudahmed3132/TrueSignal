@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/honeywire/hub/internal/models"
+	"github.com/truesignal/hub/internal/models"
 )
 
 type mockNodeService struct{}
@@ -42,7 +42,7 @@ func TestNotify_NtfyFormatting(t *testing.T) {
 
 	evt := models.Event{
 		NodeID:       "node1",
-		SensorID:     "hw-sensor-file-canary",
+		SensorID:     "ts-sensor-file-canary",
 		EventTrigger: "file_tamper",
 		Severity:     "critical",
 		Source:       "192.168.1.100",
@@ -104,7 +104,7 @@ func TestNotify_DiscordFormatting(t *testing.T) {
 		URL:      ts.URL,
 		Title:    "Threat detected on Production-Server",
 		Trigger:  "port_scan",
-		SensorID: "hw-sensor-network-scan-detector",
+		SensorID: "ts-sensor-network-scan-detector",
 		Severity: "high",
 		Time:     "2026-08-28 15:00:00 UTC",
 	}
@@ -142,7 +142,7 @@ func TestNotify_SlackFormatting(t *testing.T) {
 		URL:      ts.URL,
 		Title:    "Threat detected on Production-Server",
 		Trigger:  "credential_trap",
-		SensorID: "hw-sensor-tcp-tarpit",
+		SensorID: "ts-sensor-tcp-tarpit",
 		Severity: "critical",
 		Time:     "2026-08-28 15:00:00 UTC",
 	}

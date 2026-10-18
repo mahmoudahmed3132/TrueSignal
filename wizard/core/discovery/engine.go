@@ -1,9 +1,9 @@
 package discovery
 
 import (
-	"github.com/honeywire/wizard/core/scanner"
-	"github.com/honeywire/wizard/core/schema"
-	"github.com/honeywire/wizard/internal/system"
+	"github.com/truesignal/wizard/core/scanner"
+	"github.com/truesignal/wizard/core/schema"
+	"github.com/truesignal/wizard/internal/system"
 )
 
 type MatchedService struct {

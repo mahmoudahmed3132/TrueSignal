@@ -28,8 +28,8 @@ jobs:
 
       - name: Checkout registry-pages branch
         run: |
-          git config user.name "HoneyWire CI"
-          git config user.email "ci@honeywire.dev"
+          git config user.name "TrueSignal CI"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin registry-pages
           git checkout registry-pages
 
@@ -47,8 +47,8 @@ jobs:
 
           SENSORS=()
           if [ "$SENSOR_TARGET" = "all" ]; then
-            # Extract sensor names from index.json (stripping the "hw-sensor-" prefix)
-            mapfile -t SENSORS < <(jq -r '.sensors[] | .id | sub("^hw-sensor-"; "")' index.json)
+            # Extract sensor names from index.json (stripping the "ts-sensor-" prefix)
+            mapfile -t SENSORS < <(jq -r '.sensors[] | .id | sub("^ts-sensor-"; "")' index.json)
           else
             SENSORS=("$SENSOR_TARGET")
           fi
@@ -59,7 +59,7 @@ jobs:
 
           for SENSOR in "${SENSORS[@]}"; do
              # Find the highest version currently in the index for this sensor
-             LATEST_VERSION=$(jq -r --arg id "hw-sensor-$SENSOR" '.sensors[] | select(.id == $id) | .versions | map(.v) | sort_by(split(".") | map(tonumber)) | last' index.json)
+             LATEST_VERSION=$(jq -r --arg id "ts-sensor-$SENSOR" '.sensors[] | select(.id == $id) | .versions | map(.v) | sort_by(split(".") | map(tonumber)) | last' index.json)
              
              if [ -z "$LATEST_VERSION" ] || [ "$LATEST_VERSION" = "null" ]; then
                 echo "⚠️ No versions found for sensor $SENSOR, skipping."

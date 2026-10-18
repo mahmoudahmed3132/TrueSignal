@@ -12,7 +12,7 @@ import { useConfigStore } from './stores/Config/config'
 import { useAppStore } from './stores/System/app'
 import { useFleetStore } from './stores/Fleet/fleet'
 import { useEventsStore } from './stores/Events/events'
-import { HoneyWireWS } from './services/ws'
+import { TrueSignalWS } from './services/ws'
 
 const configStore = useConfigStore()
 const appStore = useAppStore()
@@ -33,7 +33,7 @@ watch(() => fleetStore.activeTimeframe, (newTimeframe) => {
     fleetStore.fetchUptime(newTimeframe)
 })
 
-const wsService = new HoneyWireWS()
+const wsService = new TrueSignalWS()
 
 const isDataLoaded = ref(false)
 

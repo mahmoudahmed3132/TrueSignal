@@ -1,10 +1,10 @@
 # Hub Frontend Architecture & Design
 
-The HoneyWire Hub frontend is a Vue 3 application built on a strict, layered architecture. It prioritizes predictable state management, real-time synchronization, and deterministic rendering. It strictly separates raw operational state from analytical dashboards.
+The TrueSignal Hub frontend is a Vue 3 application built on a strict, layered architecture. It prioritizes predictable state management, real-time synchronization, and deterministic rendering. It strictly separates raw operational state from analytical dashboards.
 
 ## Technology Stack
 
-The HoneyWire frontend leverages a modern, highly reactive stack optimized for real-time telemetry and predictable state management:
+The TrueSignal frontend leverages a modern, highly reactive stack optimized for real-time telemetry and predictable state management:
 - **Vue 3 (Composition API):** Chosen for its lightweight and granular reactivity system, which is crucial for handling high-frequency WebSocket deltas without triggering unnecessary component re-renders.
 - **TypeScript:** Adopted to ensure type safety across complex Domain objects (Events, Nodes, Sensors) and to prevent runtime errors when consuming dynamic backend schemas.
 - **Pinia:** The official Vue state management library. It provides central, deterministic state ownership and robust support for TypeScript, making it ideal for managing our dual state models (Entity vs. Projection).
@@ -83,7 +83,7 @@ graph LR
 The system balances authoritative REST API data with real-time WebSocket deltas:
 
 - **API Data (Authoritative):** Represents the complete backend state at fetch time. It is used for cold boots, manual refreshes, and critical mutations.
-- **WebSocket Data (Realtime Delta):** Incremental and event-driven. The WebSocket layer is entirely decoupled from Vue/Pinia via the `HoneyWireWS` class. `App.vue` registers handlers that route parsed messages into the respective Pinia store (`handleWsEvent` or `handleWsUpdate`).
+- **WebSocket Data (Realtime Delta):** Incremental and event-driven. The WebSocket layer is entirely decoupled from Vue/Pinia via the `TrueSignalWS` class. `App.vue` registers handlers that route parsed messages into the respective Pinia store (`handleWsEvent` or `handleWsUpdate`).
 
 ### Projection Invalidation Strategy
 Because projections are immutable snapshots, they cannot be updated incrementally via WebSocket deltas like entity arrays. When a `NEW_EVENT` arrives via WebSocket:
@@ -103,14 +103,14 @@ To understand state durability:
 
 ## Known Architectural Exception: Event Pagination
 
-HoneyWire adheres to the principle of **Backend-Owned Analytics**, meaning heavy filtering and aggregation should always occur server-side (as seen with our immutable Projection DTOs).
+TrueSignal adheres to the principle of **Backend-Owned Analytics**, meaning heavy filtering and aggregation should always occur server-side (as seen with our immutable Projection DTOs).
 
 **Exception:** Currently, **event pagination is handled entirely on the frontend**. 
 
 This decision was explicitly chosen to prioritize initial simplicity and speed of development. By pulling events and paginating them in the Vue layer, we avoided writing complex cursor or offset-based pagination in the initial iteration of the SQLite persistence layer.
 
 **Future Migration Path:**
-This is considered technical debt. If frontend performance bottlenecks arise due to memory overhead (e.g., traversing thousands of events in the browser), or if HoneyWire adopters request it for scale, the event pagination logic will be migrated to the backend to match the architecture of our dashboard projections.
+This is considered technical debt. If frontend performance bottlenecks arise due to memory overhead (e.g., traversing thousands of events in the browser), or if TrueSignal adopters request it for scale, the event pagination logic will be migrated to the backend to match the architecture of our dashboard projections.
 # Bootstrap & Lifecycle
 
 ## Cold Boot Sequence

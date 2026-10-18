@@ -2,7 +2,7 @@
 FROM golang:1.25 AS builder
 
 WORKDIR /src
-COPY SDKs/go-honeywire ./SDKs/go-honeywire
+COPY SDKs/go-truesignal ./SDKs/go-truesignal
 COPY Sensors/official/NetworkScanDetector ./Sensors/official/NetworkScanDetector
 
 WORKDIR /src/Sensors/official/NetworkScanDetector

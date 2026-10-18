@@ -1,8 +1,8 @@
-# HoneyWire Architecture Overview
+# TrueSignal Architecture Overview
 
 ## Purpose
 
-HoneyWire is a distributed deception platform composed of:
+TrueSignal is a distributed deception platform composed of:
 
 - A central management Hub
 - A deployment and discovery Wizard
@@ -15,14 +15,14 @@ The system is designed around **centralized visibility and decentralized executi
 
 ## Major Components
 
-HoneyWire is separated into four primary components. 
+TrueSignal is separated into four primary components. 
 
 ```mermaid
 graph TD
-    HW[HoneyWire] --> Hub
-    HW --> Wizard
-    HW --> Sensors
-    HW --> SDKs
+    TS[TrueSignal] --> Hub
+    TS --> Wizard
+    TS --> Sensors
+    TS --> SDKs
 ```
 
 ### [Hub](/Docs/architecture/hub/)
@@ -82,19 +82,19 @@ graph TD
 
 ## Deployment Models
 
-HoneyWire supports two distinct methods for deploying sensors, both resulting in the same containerized execution but offering different levels of control and automation:
+TrueSignal supports two distinct methods for deploying sensors, both resulting in the same containerized execution but offering different levels of control and automation:
 
 ### Wizard Deployment (Automated)
 The Wizard CLI runs directly on the target host. It performs point-in-time discovery of running services, evaluates sensor heuristics, and communicates with the Hub to automatically generate and apply a customized Docker Compose deployment. This model is ideal for dynamic environments, rapid provisioning, and maximizing deception coverage without manual configuration.
 
 ### Manual Deployment (Static)
-Users can bypass the Wizard entirely via the Hub UI. The dashboard allows users to browse the Sensor Store, select a specific decoy, and instantly generate a pre-configured `honeywire-compose.yml` snippet (injected with the correct Hub endpoint and Node keys). The user then manually drops this file onto the target host and runs `docker compose -f /opt/honeywire/sensors/honeywire-compose.yml -p honeywire up -d` (the wizard runs the same command under the hood). This model is ideal for strict change-control environments, highly customized deployments, or isolated networks where running an automated discovery tool is undesirable.
+Users can bypass the Wizard entirely via the Hub UI. The dashboard allows users to browse the Sensor Store, select a specific decoy, and instantly generate a pre-configured `truesignal-compose.yml` snippet (injected with the correct Hub endpoint and Node keys). The user then manually drops this file onto the target host and runs `docker compose -f /opt/truesignal/sensors/truesignal-compose.yml -p truesignal up -d` (the wizard runs the same command under the hood). This model is ideal for strict change-control environments, highly customized deployments, or isolated networks where running an automated discovery tool is undesirable.
 
 ---
 
 ## Runtime Data Flows
 
-Understanding the data flow across component boundaries is crucial for contributing to HoneyWire.
+Understanding the data flow across component boundaries is crucial for contributing to TrueSignal.
 
 ### Deployment Flow
 ```mermaid
@@ -143,12 +143,12 @@ The Wizard performs discovery using point-in-time host inspection. No resident d
 
 ## Versioning & Registry
 
-HoneyWire uses a **git-tag-driven static registry** for sensor versioning, enabling sensor updates independent of Hub releases.
+TrueSignal uses a **git-tag-driven static registry** for sensor versioning, enabling sensor updates independent of Hub releases.
 
 ### Split Architecture Philosophy
-HoneyWire intentionally decouples component distribution to match their structural requirements:
+TrueSignal intentionally decouples component distribution to match their structural requirements:
 - **Sensors (Custom Registry):** Sensors require a dynamic JSON schema (`index.json` + versioned manifests) so the Hub can instantly render dynamic configuration UI forms and support isolated offline air-gapping.
-- **Wizard (GitHub Releases):** The Wizard is a compiled CLI binary with no dynamic UI configuration schema. It is distributed natively via GitHub/Gitea releases to keep the `get.honeywire.dev` install scripts dead-simple.
+- **Wizard (GitHub Releases):** The Wizard is a compiled CLI binary with no dynamic UI configuration schema. It is distributed natively via GitHub/Gitea releases to keep the `install.sh` bootstrap script dead-simple.
 
 ### Tagging Convention
 - **Hub releases:** `hub/v{semver}` (e.g., `hub/v2.0.0`)
@@ -156,7 +156,7 @@ HoneyWire intentionally decouples component distribution to match their structur
 - **Sensor releases:** `sensor/{sensor-name}/v{semver}` (e.g., `sensor/file-canary/v1.2.0`)
 
 ### Compatibility Mechanism
-HoneyWire strictly uses Semantic Versioning (`vMAJOR.MINOR.PATCH`). 
+TrueSignal strictly uses Semantic Versioning (`vMAJOR.MINOR.PATCH`). 
 - **Sensors vs Hub:** The Hub natively checks if the sensor's major version exactly matches its own major version. If they match, they are compatible.
 - **Wizard vs Hub:** The Hub enforces a rigid `X-Wizard-Version` header check. If the Wizard's major version differs from the Hub, the Hub explicitly blocks the connection (`HTTP 426 Upgrade Required`).
 
@@ -179,7 +179,7 @@ The monorepo structure reflects the major components and clear ownership boundar
 
 ```mermaid
 graph LR
-    Repo[HoneyWire/]
+    Repo[TrueSignal/]
     Repo --> Hub[Hub/ <br/> The central API, database, and Vue UI]
     Repo --> Wizard[wizard/ <br/> The Go-based CLI for discovery and provisioning]
     Repo --> Sensors[Sensors/ <br/> Official decoys and templates]

@@ -30,12 +30,12 @@ func ReadPasswordMasked(prompt string) (string, error) {
 }
 
 func ResolveDashboardPassword() (string, error) {
-	if envPW := os.Getenv("HW_DASHBOARD_PASSWORD"); envPW != "" {
+	if envPW := os.Getenv("TS_DASHBOARD_PASSWORD"); envPW != "" {
 		return envPW, nil
 	}
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return "", fmt.Errorf("dashboard password required but stdin is not a terminal. Set HW_DASHBOARD_PASSWORD environment variable")
+		return "", fmt.Errorf("dashboard password required but stdin is not a terminal. Set TS_DASHBOARD_PASSWORD environment variable")
 	}
 
 	return ReadPasswordMasked("Enter dashboard password: ")

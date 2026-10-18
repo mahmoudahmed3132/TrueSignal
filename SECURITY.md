@@ -15,8 +15,6 @@ For security and trust boundaries insights, see the **[THREATMODEL.md](./THREATM
    - The potential impact (e.g., DoS, Remote Code Execution, Authentication Bypass).
    - Any potential mitigation or fix you might suggest.
 
-Optionally you can send an email at info@honeywire.dev.
+The TrueSignal maintainers will acknowledge receipt of your report and work with you to patch the issue before any public advisory is published. 
 
-As a solo maintainer, I will do my best to acknowledge receipt of your vulnerability report and will work with you to patch the issue before a public CVE or advisory is published. 
-
-Thank you for helping keep HoneyWire secure!
+Thank you for helping keep TrueSignal secure!
