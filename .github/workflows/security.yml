@@ -26,15 +26,29 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
+      uses: github/codeql-action/autobuild@v4
 
+    # Code scanning isn't enabled on this private repo (no GitHub Code Security),
+    # so keep SARIF as a run artifact instead of uploading to the Security tab.
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{ matrix.language }}"
+        upload: never
+        output: sarif-results
+
+    - name: Upload SARIF artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeql-sarif-${{ matrix.language }}
+        path: sarif-results
+        if-no-files-found: warn
 
   trivy:
     name: Trivy FS Scan
