@@ -18,7 +18,7 @@ Run the Hub behind an HTTPS reverse proxy. Leave `TS_ENV` unset (`production`) s
 
 A **Node** is any physical or virtual machine where you want to deploy deceptive sensors. 
 
-1. **Create the Node:** In the Sentinel Hub UI, navigate to the **Nodes** page and click "New Node". Give it a descriptive name (e.g., `DMZ-Web-Server`).
+1. **Create the Node:** In the TrueSignal Hub UI, navigate to the **Nodes** page and click "New Node". Give it a descriptive name (e.g., `DMZ-Web-Server`).
 2. **Provisioning:** Once created, the Hub will generate a unique Node API Key and a setup command. **The key is shown only once.** The Hub stores only its SHA-256 hash, so it cannot show it again; if you lose it, rotate it (see §8).
 3. **Link the Node:** SSH into your target machine and run the provided command. This command is an all-in-one script that installs the Setup Wizard on the host and immediately links the node to the Hub, establishing trust for its first deployment and all future deployment updates:
    ```bash

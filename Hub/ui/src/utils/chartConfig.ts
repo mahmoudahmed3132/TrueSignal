@@ -8,8 +8,8 @@ export const baseTooltipConfig: Record<string, any> = {
     usePointStyle: true, 
     boxWidth: 8, 
     boxHeight: 8, 
-    titleFont: { size: 11, family: 'ui-monospace, monospace', weight: 'normal' }, 
-    bodyFont: { size: 12, family: 'Inter, sans-serif', weight: 'bold' }
+    titleFont: { size: 11, family: "'IBM Plex Mono', ui-monospace, monospace", weight: 'normal' }, 
+    bodyFont: { size: 12, family: "'Instrument Sans Variable', system-ui, sans-serif", weight: 'bold' }
 }
 
 export const applyChartTheme = (chartInstance: any): void => {

@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/System/app'
 import { useEventsStore } from '../../stores/Events/events'
 import { useClipboard } from '../../utils/useClipboard.js'
+import BrandMark from '../ui/branding/BrandMark.vue'
 
 const appStore = useAppStore()
 const eventsStore = useEventsStore()
@@ -38,11 +39,8 @@ const handleMarkAllRead = async () => {
         
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2 pr-4 mr-2 border-r border-border-default">
-                <svg class="w-10 h-10 text-text-h shrink-0" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TrueSignal">
-                    <!-- TrueSignal mark: one clear spike over a flat baseline -->
-                    <circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="4"/><path d="M10 34H22L27 24L32 46L37 14L42 34H54" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            <span class="text-h1 font-medium text-text-h leading-none tracking-wide">TrueSignal</span>
+                <BrandMark class="w-9 h-9 text-text-h shrink-0" />
+            <span class="text-h1 font-bold text-text-h leading-none tracking-tight">TrueSignal</span>
         </div>
         
         <h2 class="text-base  text-text-m font-medium capitalize hidden sm:block">{{ String(route.name || '')?.replace('-', ' ') }}</h2>
