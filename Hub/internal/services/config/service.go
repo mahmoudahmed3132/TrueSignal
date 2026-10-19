@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/url"
@@ -302,6 +303,24 @@ func validateConfigUpdate(req map[string]interface{}) error {
 			}
 		}
 	}
+	if err := validateEnum(req, "webhookType", "ntfy", "gotify", "discord", "slack", "none"); err != nil {
+		return err
+	}
+	if err := validateEnum(req, "siemProtocol", "tcp", "udp", "tls"); err != nil {
+		return err
+	}
+	if v, ok := req["webhookEvents"]; ok {
+		list, isList := v.([]interface{})
+		if !isList {
+			return &ValidationError{"webhookEvents must be a list of severities"}
+		}
+		for _, item := range list {
+			sev, isStr := item.(string)
+			if _, valid := models.NormalizeSeverity(sev); !isStr || !valid {
+				return &ValidationError{fmt.Sprintf("webhookEvents contains an unknown severity: %v", item)}
+			}
+		}
+	}
 	for _, f := range []string{"autoArchiveDays", "autoPurgeDays", "autoPurgeHeartbeatsDays", "updateCheckIntervalHours"} {
 		if v, ok := req[f]; ok {
 			n, isNum := v.(float64)
@@ -311,6 +330,24 @@ func validateConfigUpdate(req map[string]interface{}) error {
 		}
 	}
 	return nil
+}
+
+// validateEnum rejects a present field whose value is not one of allowed
+// (case-insensitive). The store would otherwise drop it silently.
+func validateEnum(req map[string]interface{}, field string, allowed ...string) error {
+	v, ok := req[field]
+	if !ok {
+		return nil
+	}
+	str, isStr := v.(string)
+	if isStr {
+		for _, a := range allowed {
+			if strings.EqualFold(str, a) {
+				return nil
+			}
+		}
+	}
+	return &ValidationError{fmt.Sprintf("%s must be one of: %s", field, strings.Join(allowed, ", "))}
 }
 
 func (s *Service) UpdateConfig(req map[string]interface{}) error {
@@ -351,7 +388,7 @@ func (s *Service) UpdateConfig(req map[string]interface{}) error {
 		siemAddress, _ = s.store.GetConfigValue("siem_address")
 	}
 	if val, ok := req["siemProtocol"].(string); ok {
-		siemProtocol = val
+		siemProtocol = strings.ToLower(val)
 	} else {
 		siemProtocol, _ = s.store.GetConfigValue("siem_protocol")
 	}

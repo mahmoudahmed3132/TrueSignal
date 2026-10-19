@@ -41,10 +41,6 @@ func (h *EventHandler) ReceiveEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.ProcessEvent(&e, nodeID); err != nil {
-		if err.Error() == "upgrade required" {
-			RespondError(w, "Upgrade Required", http.StatusUpgradeRequired)
-			return
-		}
 		if errors.Is(err, event.ErrSensorNotRegistered) {
 			RespondError(w, "Sensor is not registered", http.StatusNotFound)
 			return
