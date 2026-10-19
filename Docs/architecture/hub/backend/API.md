@@ -8,8 +8,8 @@ TrueSignal uses two separate authentication methods.
 
 ### Dashboard (UI) routes
 
-Dashboard endpoints are protected by an HTTP-only session cookie named `ts_auth`.
-The cookie is issued by `POST /login` and is valid for 30 days.
+Dashboard endpoints are protected by an HTTP-only, `SameSite=Strict` session cookie named `ts_auth` (`Secure` unless `TS_ENV` is not `production`).
+The cookie is issued by `POST /login`. Sessions expire after an absolute lifetime of 12 hours (`TS_SESSION_TTL`) or 15 minutes without a request (`TS_SESSION_IDLE_TIMEOUT`), whichever comes first. Both take Go durations (e.g. `8h`, `10m`). `TS_SESSION_IDLE_TIMEOUT=0` disables the idle timeout; the absolute lifetime cannot be disabled.
 
 ### Agent (sensor) routes
 
@@ -19,6 +19,17 @@ Sensor/agent endpoints are authenticated with a node API key using the Authoriza
 Authorization: Bearer <TS_NODE_KEY>
 ```
 
+`X-Api-Key: <TS_NODE_KEY>` is also accepted. Keys in the query string (`?key=`) are **not** accepted: they end up in proxy and access logs.
+
+Node keys are stored as SHA-256 hashes (`sha256:<hex>`). The plaintext key is shown only when a node is created or its key is rotated.
+
+### Request limits
+
+Request bodies are capped at 1 MB on dashboard routes and 256 KB on agent routes. Larger bodies fail JSON decoding with `400 Bad Request`.
+
+### Audit trail
+
+Every non-GET request to `/login`, `/logout`, `/api/v2/setup` and the dashboard routes is logged as `[AUDIT] <METHOD> <route> status=<code> ip=<addr>`. When a SIEM is configured it is also forwarded as an RFC 5424 `AUDIT` record (see [Data Contracts](/Docs/architecture/dataContracts.md)). Audit records are not stored in the database.
 ## Public Endpoints
 
 ### GET /api/v2/version
@@ -27,7 +38,7 @@ Returns the running Hub version.
 
 **Response:**
 ```json
-{ "version": "2.0.0" }
+{ "version": "2.1.0" }
 ```
 
 ### POST /login
@@ -45,14 +56,14 @@ Authenticates a dashboard user and sets the `ts_auth` cookie.
 
 ### POST /logout
 
-Invalidates the current dashboard session and redirects the client to `/`.
+Invalidates the current dashboard session, clears the cookie and redirects the client to `/`.
 
 **Response:** `303 See Other`
 
 ### GET /api/v2/setup/status
 
 Returns whether the Hub requires initial setup.
-When `TS_DASHBOARD_PASSWORD` is set, setup is considered locked and this endpoint returns `requires_setup: false`.
+When `TS_DASHBOARD_PASSWORD` is set, setup is considered locked and this endpoint returns `requiresSetup: false`.
 
 **Response:**
 ```json
@@ -61,21 +72,31 @@ When `TS_DASHBOARD_PASSWORD` is set, setup is considered locked and this endpoin
 
 ### POST /api/v2/setup
 
-Completes first-time hub setup and stores the hashed admin password, hub endpoint, and hub API key.
+Completes first-time hub setup and stores the bcrypt-hashed admin password and the hub endpoint.
 If `TS_DASHBOARD_PASSWORD` is set, setup is blocked.
+
+The caller must present the one-time **setup token**. While setup is pending, the Hub prints it on startup:
+
+```text
+[SETUP] Hub is not initialised. One-time setup token: <token>
+```
+
+Set `TS_SETUP_TOKEN` to choose the token yourself (for automated installs). Without the token, whoever reaches the Hub first could claim it.
 
 **Request:**
 ```json
 {
-  "password": "super_secure_password123",
+  "password": "at-least-12-characters",
   "hubEndpoint": "https://truesignal.my-domain.com",
-  "hubKey": "ts_sk_randomstring"
+  "setupToken": "<token from the Hub log>"
 }
 ```
 
 **Response:** `200 OK`
 
-**Errors:** `403 Forbidden` if setup is locked or already complete.
+**Errors:**
+- `400 Bad Request` if a field is missing, or the password is shorter than 12 characters.
+- `403 Forbidden` if the setup token is wrong, setup is locked by `TS_DASHBOARD_PASSWORD`, or setup is already complete.
 
 ## Dashboard Endpoints (UI Cookie Required)
 
@@ -84,6 +105,8 @@ These endpoints require a valid `ts_auth` session cookie.
 ### GET /api/v2/ws
 
 Upgrades the connection to a WebSocket for realtime dashboard updates.
+
+In production the handshake `Origin` must match the request `Host`, the configured `hubEndpoint` host, or (with `TS_TRUST_PROXY=true`) `X-Forwarded-Host`. Requests without an `Origin` header (non-browser clients) are allowed, since they still need the session cookie. When `TS_ENV` is not `production`, any origin is accepted.
 
 All messages use the envelope:
 
@@ -138,7 +161,7 @@ Generates a `docker-compose.yml` preview from the selected sensor manifests and 
 
 #### POST /api/v2/nodes
 
-Creates a new node entry and returns the generated node credentials.
+Creates a new node entry and returns the generated node credentials. The plaintext `apiKey` is returned **only here** (and by `rotate-key`); the Hub keeps just its hash.
 
 **Request:**
 ```json
@@ -149,9 +172,11 @@ Creates a new node entry and returns the generated node credentials.
 ```
 
 **Response:**
+`201 Created`
 ```json
 {
-  "api_key": "ts_key_abcd1234...",
+  "nodeId": "node-1a2b3c4d",
+  "apiKey": "ts_key_abcd1234...",
   "alias": "production-db-node"
 }
 ```
@@ -184,7 +209,7 @@ Returns all registered nodes and their installed sensors. Each node includes cur
 
 #### GET /api/v2/nodes/{nodeId}
 
-Returns details for a single node, including installed sensors and per-sensor event counts.
+Returns details for a single node, including installed sensors and per-sensor event counts. Neither this endpoint nor `GET /api/v2/nodes` returns the node API key.
 
 #### PATCH /api/v2/nodes/{nodeId}
 
@@ -202,11 +227,33 @@ Updates a node's alias, tags, public IP, or private IP.
 
 #### POST /api/v2/nodes/{nodeId}/upgrade
 
-Triggers a fleet-wide sync command over WebSockets to force the node to pull the newest compose definitions and automatically pull the latest manifest versions for all of its installed sensors.
+Bumps every installed sensor on the node to the latest compatible manifest version in the catalog and marks the node pending sync. Nothing is pushed to the node: nodes have no listener, so the change takes effect the next time `truesignal apply` runs on the node.
+
+#### POST /api/v2/nodes/{nodeId}/rotate-key
+
+Issues a new node API key and invalidates the previous one immediately (including the Hub's auth cache). The new key is returned once.
+
+**Response:**
+```json
+{
+  "nodeId": "node-1a2b3c4d",
+  "apiKey": "ts_key_..."
+}
+```
+
+**Errors:** `404 Not Found` if the node does not exist.
+
+After rotating, run `sudo truesignal relink` on the node, choose "Link to existing node" and paste the new key, then run `sudo truesignal apply` so the sensors' `TS_HUB_KEY` is updated. Until then the node's sensors are rejected with `401`.
+
+#### GET /api/v2/nodes/{nodeId}/compose
+
+Returns the node's generated `docker-compose.yml` for review in the dashboard (`application/x-yaml`). `TS_HUB_KEY` is replaced with the placeholder `__REPLACE_WITH_NODE_API_KEY__`, because the Hub no longer holds the plaintext key.
+
+**Errors:** `404 Not Found` for an unknown node; `422 Unprocessable Entity` for the compose failures listed under [Node Compose](#node-compose).
 
 #### DELETE /api/v2/nodes/{nodeId}
 
-Deletes a node and cascades to remove its sensors, event history, and heartbeat records.
+Deletes a node, its sensor assignments and heartbeat/status records, and revokes its API key immediately. **Events are retained** (the events table has no foreign key to nodes or sensors), so evidence survives decommissioning.
 
 #### POST /api/v2/nodes/{nodeId}/sensors
 
@@ -229,7 +276,7 @@ Updates a sensor's custom name and config values and marks the parent node pendi
 
 #### DELETE /api/v2/nodes/{nodeId}/sensors/{sensorId}
 
-Removes a sensor from the node and marks the node pending sync.
+Removes a sensor from the node and marks the node pending sync. The sensor's past events are retained.
 
 #### POST /api/v2/nodes/{nodeId}/sensors/{sensorId}/upgrade
 
@@ -237,7 +284,7 @@ Upgrades a specific sensor to the latest available manifest version listed in th
 
 #### PATCH /api/v2/nodes/{nodeId}/sensors/{sensorId}/silence
 
-Toggles a sensor's silence state. Silenced sensors still log events but suppress push notifications.
+Toggles a sensor's silence state. Silenced sensors still log events and still forward to the SIEM, but suppress webhook notifications.
 
 **Request:**
 ```json
@@ -269,7 +316,11 @@ Returns runtime configuration loaded from SQLite.
 | `webhookUrl` | `string` | The target URL for the selected webhook provider. |
 | `webhookEvents` | `string[]` | Array of severity levels that trigger a notification (e.g., `["critical", "high"]`). |
 | `siemAddress` | `string` | Address for RFC5424 syslog forwarding (e.g., `10.0.0.50:514`). Empty if disabled. |
-| `siemProtocol` | `string` | Protocol for SIEM forwarding (`tcp`, `udp`). |
+| `siemProtocol` | `string` | Protocol for SIEM forwarding (`tcp`, `udp`, `tls`). |
+| `registryUrl` | `string` | Base URL of the sensor registry (`index.json` and `<sensor>-v<version>.json`). |
+| `whitelistedSources` | `string` | Comma-separated exact `source` values. Matching events are stored archived and forwarded to the SIEM with `whitelisted=true`, but raise no webhook or UI alert. |
+| `autoPurgeHeartbeatsDays` | `integer` | Days to keep heartbeat/status history. |
+| `updateCheckIntervalHours` | `integer` | Hours between Hub/Wizard release checks. |
 
 **Response:**
 ```json
@@ -289,15 +340,23 @@ Returns runtime configuration loaded from SQLite.
 
 Updates runtime settings. Only supported fields are applied. This endpoint also hot-reloads webhook and SIEM configuration.
 
+`webhookType: "none"` disables webhook delivery.
+
 **Accepted Fields:**
 - `hubEndpoint`
 - `autoArchiveDays`
 - `autoPurgeDays`
 - `webhookType` (`ntfy`, `gotify`, `discord`, `slack`, `none`)
 - `webhookUrl`
-- `webhookEvents`
+- `webhookEvents` (list of `info`, `low`, `medium`, `high`, `critical`)
 - `siemAddress`
-- `siemProtocol` (`tcp`, `udp`)
+- `siemProtocol` (`tcp`, `udp`, `tls`). For `tls`, the Hub verifies the receiver certificate against the system roots, or against the PEM bundle in `TS_SIEM_CA_FILE` if set (TLS 1.2+).
+- `registryUrl`
+- `whitelistedSources`
+- `autoPurgeHeartbeatsDays`
+- `updateCheckIntervalHours`
+
+**Errors:** `400 Bad Request` if `hubEndpoint`, `webhookUrl` or `registryUrl` is not an `http(s)` URL, `siemAddress` is not `host:port`, `webhookType` / `siemProtocol` is not one of the listed values (case-insensitive), `webhookEvents` contains an unknown severity, or a day/hour field is not a non-negative integer. A rejected request changes nothing.
 
 **Request example:**
 ```json
@@ -329,7 +388,9 @@ Sets the armed/disarmed state.
 
 #### PATCH /api/v2/system/password
 
-Changes the dashboard admin password. When `TS_DASHBOARD_PASSWORD` is set, this operation is forbidden.
+Changes the dashboard admin password. When `TS_DASHBOARD_PASSWORD` is set, this operation is forbidden (`403`).
+
+**Errors:** `401 Unauthorized` if `currentPassword` is wrong; `400 Bad Request` if `newPassword` is shorter than 12 characters.
 
 **Request:**
 ```json
@@ -580,13 +641,27 @@ Returns a generated `docker-compose.yml` for a node based on the node's current 
 
 This endpoint is read-only for node deployment: it returns the current or requested `TS_CONFIG_REV` without marking the node as synced. The node is marked synced only when its heartbeat reports the expected revision.
 
+The compiler **fails closed**: if any installed sensor's manifest cannot be fetched or validated, no compose is returned (rather than a compose missing that decoy, which `apply --remove-orphans` would then tear down).
+
+**Errors:**
+- `401 Unauthorized` for an unknown or revoked key.
+- `422 Unprocessable Entity` with a reason prefix in the error message:
+  - `manifest_unavailable` — the manifest for an installed sensor/version could not be fetched, failed strict decoding, or its `id`/`version` did not match the request.
+  - `invalid_manifest` — the manifest failed the security validator (e.g. forbidden mount, capability or network mode) or an image is not digest-pinned.
+  - `incompatible_sensor` — the sensor's major version does not match the Hub.
+  - `build_failed` — compose rendering failed.
+
+### GET /api/v2/nodes/me
+
+Returns the node record for the presented node key (used by the Wizard to verify linking).
+
 ## Agent Endpoints
 
 These endpoints are used by sensor agents and require the node API key bearer token.
 
 ### POST /api/v2/heartbeat
 
-Reports a sensor heartbeat and updates its versioning state.
+Reports a sensor heartbeat and updates its versioning state. A heartbeat that follows an `offline` state raises a `sensor_recovered` event.
 
 **Request:**
 ```json
@@ -601,6 +676,22 @@ Reports a sensor heartbeat and updates its versioning state.
 { "status": "alive" }
 ```
 
+**Errors:** `404 Not Found` if `sensorId` is not registered on the authenticated node.
+
+### POST /api/v2/offline
+
+Reports a graceful sensor shutdown (sent by the SDK on SIGTERM). The Hub records the offline state and raises a `sensor_stopped` event (severity `low`). If the sensor does not come back within 5 minutes, the state monitor escalates with `sensor_heartbeat_lost` (`high`).
+
+**Request:**
+```json
+{ "sensorId": "ts-sensor-tcp-tarpit", "reason": "graceful_shutdown" }
+```
+
+**Response:**
+```json
+{ "status": "offline_acknowledged" }
+```
+
 ### POST /api/v2/event
 
 Reports an intrusion event to the Hub.
@@ -608,7 +699,9 @@ Reports an intrusion event to the Hub.
 **Request:**
 > 📖 **[View the Universal Event Standard Contract](/Docs/architecture/dataContracts.md#1-the-universal-event-standard)**
 
-**Severity values:** `info`, `low`, `medium`, `high`, `critical`
+**Severity values:** `info`, `low`, `medium`, `high`, `critical`. Matching is case-insensitive; any other value is stored as `medium` and logged.
+
+The Hub sets `nodeId` (from the key), `timestamp`, `id`, `isRead` and `isArchived` itself and ignores any values sent for them. `sensorId`, `eventTrigger`, `source` and `target` are truncated to 256 characters. `details` must be a JSON object up to 64 KB; anything else is wrapped or replaced so the stored value is always an object.
 
 **Response:**
 ```json
@@ -616,5 +709,8 @@ Reports an intrusion event to the Hub.
 ```
 
 **Errors:**
-- `400 Bad Request` for invalid JSON or missing required fields.
-- `426 Upgrade Required` if the sensor major version does not match the Hub.
+- `400 Bad Request` for invalid JSON or a missing `sensorId`.
+- `401 Unauthorized` for an unknown or revoked node key.
+- `404 Not Found` if `sensorId` is not registered on the authenticated node.
+
+There is no version check on events; the only `426 Upgrade Required` in the API comes from the `X-Wizard-Version` header check on Wizard requests.

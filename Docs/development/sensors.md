@@ -7,7 +7,7 @@ TrueSignal's architecture separates the central Hub from the deceptive traps (Se
 Every sensor in TrueSignal consists of three core components:
 1. **The Application Logic:** Typically a pure Go binary utilizing the TrueSignal SDK.
 2. **The Security Sandbox:** A highly restricted `Dockerfile`.
-3. **The Deployment Manifest:** A `manifest.json` file that tells the Hub and Wizard how to deploy and configure it.
+3. **The Deployment Manifest:** A JSON manifest (`<sensor-name>.json`, e.g. `Sensors/official/TcpTarpit/tcp-tarpit.json`) that tells the Hub and Wizard how to deploy and configure it.
 
 ---
 
@@ -18,20 +18,20 @@ While you can technically write a sensor in any language using HTTP POST request
 ### Basic Implementation
 
 Instead of starting from scratch, always use the official templates located at [`Sensors/templates/`](/Sensors/templates/). 
-See the [Templates README](/Sensors/templates/README.md) and the [Community Sensors README](/Sensors/community/README.md) for more details. These directories contain pre-configured `main.go` and `sensor.py` files with detailed comments, hardened `Dockerfile`s, and `docker-compose.yml` files that orchestrate the required security capabilities out-of-the-box.
+See the [Templates README](/Sensors/templates/README.md) and the [Community Sensors README](/Sensors/community/README.md) for more details. These directories contain pre-configured `main.go` and `sensor.py` files with detailed comments, hardened `Dockerfile`s, and example manifests (`manifest.example.json`) that declare the required security capabilities.
 
 ---
 
-## 3. The Deployment Manifest (`manifest.json`)
+## 3. The Deployment Manifest
 
 The manifest is the single source of truth for your sensor. It defines how the Hub renders its UI card, how the Wizard deploys it, and what heuristics trigger a recommendation.
 
-Instead of starting from scratch, base your manifest on the templates provided at [`Sensors/templates/go-sensor/manifest.json`](/Sensors/templates/go-sensor/manifest.json) or [`Sensors/templates/python-sensor/manifest.json`](/Sensors/templates/python-sensor/manifest.json).
+Instead of starting from scratch, base your manifest on the templates provided at [`Sensors/templates/go-sensor/manifest.example.json`](/Sensors/templates/go-sensor/manifest.example.json) or [`Sensors/templates/python-sensor/manifest.example.json`](/Sensors/templates/python-sensor/manifest.example.json).
 
 ### Key Sections
 *   **`heuristics`:** Instructs the Wizard when to recommend this sensor. For example, if you build an Nginx honeypot, you would set `"processes": ["nginx"]` and `"ports": [80, 443]`.
 *   **`deployment.env_vars`:** Defines configurable parameters that the Hub UI will generate forms for. If your sensor needs a custom configurable port, define it here.
-*   **`deployment.image`:** The Docker image to pull.
+*   **`deployment.image_repository` / `image_tag` / `image_digest`:** The Docker image to pull. Leave `image_digest` empty in source; the publish workflow fills it in, and the Hub refuses to deploy an image without one.
 
 *(See [`Docs/architecture/dataContracts.md`](/Docs/architecture/dataContracts.md) for the full manifest schema and required fields).*
 
@@ -41,11 +41,11 @@ Instead of starting from scratch, base your manifest on the templates provided a
 
 TrueSignal treats sensors as untrusted, potentially hostile execution units. **If a sensor is compromised, the blast radius must be minimal.**
 
-To ensure compliance, **always use the `Dockerfile` and `docker-compose.yml` or manifest deployment configuration provided in the templates (e.g., [`Sensors/templates/go-sensor/`](/Sensors/templates/go-sensor/))**. It is pre-configured to enforce the following baseline rules:
+To ensure compliance, **always use the `Dockerfile` and manifest deployment configuration provided in the templates (e.g., [`Sensors/templates/go-sensor/`](/Sensors/templates/go-sensor/))**. It is pre-configured to enforce the following baseline rules:
 
 1.  **Distroless Base:** The Dockerfile must use a minimal base image like `gcr.io/distroless/static-debian12`. No shells (`/bin/sh`), no package managers, no utilities.
-2.  **Prefer unprivileged Execution:** It is better for the to container run as a non-root user (e.g., `USER 65532:65532`).
-3.  **Capability Stripping:** The deployment must drop all Linux capabilities. The Hub will automatically append `cap_drop: ["ALL"]` to the Compose output. If your sensor strictly requires a capability, it must be explicitly requested in the manifest and approved by the Hub compiler.
+2.  **Prefer unprivileged Execution:** It is better for the container to run as a non-root user (e.g., `USER 65532:65532`). If the manifest sets no `user`, the Hub defaults it to `65532:65532`.
+3.  **Capability Stripping:** The deployment must drop all Linux capabilities. The Hub will automatically append `cap_drop: ["ALL"]` to the Compose output. If your sensor strictly requires a capability, it must be explicitly requested in the manifest and be one of the Hub's allowed capabilities: `NET_RAW`, `NET_BIND_SERVICE`, `DAC_OVERRIDE`.
 4.  **No New Privileges:** The Hub enforces `security_opt: ["no-new-privileges:true"]` automatically.
 
 ---
@@ -68,7 +68,7 @@ Do not boot the entire Hub to test a sensor's data payload. Use the Mock Hub scr
       your-sensor-image:latest
     ```
 
-The Mock Hub will strictly validate your payload against the V1.0 Data Contract and print `[EVENT] OK` or provide specific failure reasons.
+The Mock Hub validates your event against the [Universal Event Standard](/Docs/architecture/dataContracts.md#1-the-universal-event-standard) (all six keys present, a valid severity, `details` a JSON object) and prints `[EVENT] OK` or the specific failure reason. Only a valid event writes the CI success flag `/tmp/test_passed`; heartbeats and offline notices do not. It does not check node keys or sensor registration, so also run against a real Hub before release.
 
 ## 5.1. Testing Methodologies (CI/CD vs Live)
 

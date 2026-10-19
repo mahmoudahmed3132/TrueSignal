@@ -88,7 +88,7 @@ TrueSignal supports two distinct methods for deploying sensors, both resulting i
 The Wizard CLI runs directly on the target host. It performs point-in-time discovery of running services, evaluates sensor heuristics, and communicates with the Hub to automatically generate and apply a customized Docker Compose deployment. This model is ideal for dynamic environments, rapid provisioning, and maximizing deception coverage without manual configuration.
 
 ### Manual Deployment (Static)
-Users can bypass the Wizard entirely via the Hub UI. The dashboard allows users to browse the Sensor Store, select a specific decoy, and instantly generate a pre-configured `truesignal-compose.yml` snippet (injected with the correct Hub endpoint and Node keys). The user then manually drops this file onto the target host and runs `docker compose -f /opt/truesignal/sensors/truesignal-compose.yml -p truesignal up -d` (the wizard runs the same command under the hood). This model is ideal for strict change-control environments, highly customized deployments, or isolated networks where running an automated discovery tool is undesirable.
+Users can bypass the Wizard entirely via the Hub UI. The dashboard allows users to browse the Sensor Store, select a specific decoy, and instantly generate a pre-configured `truesignal-compose.yml` snippet (injected with the correct Hub endpoint; the node key appears as a placeholder, since the Hub stores only its hash and the operator pastes the key shown at node creation). The user then manually drops this file onto the target host and runs `docker compose -f /opt/truesignal/sensors/truesignal-compose.yml -p truesignal up -d` (the wizard runs the same command under the hood). This model is ideal for strict change-control environments, highly customized deployments, or isolated networks where running an automated discovery tool is undesirable.
 
 ---
 
@@ -163,9 +163,9 @@ TrueSignal strictly uses Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 This relies entirely on the inherent stability guarantees of Semantic Versioning rather than manual configuration metadata.
 
 ### Registry Pipeline
-When a `sensor/**` tag is pushed, a Gitea Action:
+When a `sensor/**` tag is pushed, the `publish-sensor-registry` workflow (GitHub Actions or Gitea Actions):
 1. Reads the sensor's source JSON from `Sensors/official/`
-2. Injects the version and Docker image tag
+2. Builds and pushes the image, then injects the version, the Docker image tag and the pushed image digest (the Hub refuses to deploy unpinned images)
 3. Writes a versioned manifest to the `registry-pages` branch
 4. Regenerates `index.json` with all sensor metadata and version/compat tables
 

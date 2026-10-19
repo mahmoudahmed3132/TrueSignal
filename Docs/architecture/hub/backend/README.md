@@ -8,7 +8,7 @@ Go (Golang) was chosen as the primary language for the Hub backend for several s
 - **Concurrency & WebSockets:** Go's lightweight goroutines make it exceptionally well-suited for handling thousands of simultaneous, long-lived WebSocket connections without the overhead of traditional threading models.
 - **Single Static Binary:** Go compiles to a single, statically linked executable. This allows the Hub to be deployed in a highly secure, minimal Distroless container sandbox with no runtime dependencies.
 - **Performance:** As a distributed security system, the Hub must ingest high-velocity telemetry from sensors across the network without dropping packets. Go's performance characteristics ensure low latency and high throughput.
-- **Standard Library:** Go's robust `net/http` standard library allowed us to build the entire API and router without relying on heavy third-party web frameworks, reducing the attack surface.
+- **Standard Library + chi:** The API is built on `net/http` with the lightweight [`go-chi/chi`](https://github.com/go-chi/chi) router (routing and middleware only; no heavy web framework), keeping the attack surface small.
 - **Embedded Database Compatibility:** Go's ability to seamlessly integrate with CGO-free, pure-Go SQLite drivers enables a zero-configuration, single-node persistence layer perfectly suited for edge deployments.
 
 ## Core Principles
@@ -41,17 +41,17 @@ graph LR
 ### 1. Transport Layer (`internal/api`)
 The entry point for all network requests.
 - **Handlers:** Bound to domain-specific struct receivers. They handle JSON marshaling/unmarshaling, input validation, and HTTP status codes. They **never** interact with the database directly.
-- **Middleware:** Handles Authentication, extracts credentials, validates them, and attaches identity to the request context.
+- **Middleware:** Handles Authentication, extracts credentials, validates them, and attaches identity to the request context. It also caps request bodies (1 MB dashboard, 256 KB agent) and writes an audit record for every state-changing dashboard request (`AuditMiddleware`).
 - **Router:** Maps HTTP routes to specific Handlers and applies Middleware groups.
     - **SPA Routing & Frontend Embedding:** The router securely serves the embedded Vue 3 frontend. It enforces strict API protection (returning pure 404 JSON for unmatched `/api/` routes) while providing a transparent SPA fallback (serving `index.html`) for unrecognized paths, enabling seamless frontend History API navigation (e.g., `/dashboard`) without reload errors.
 
 ### 2. Secure Compose Compiler (`internal/compose`)
 Responsible for compiling deterministic, hardened `truesignal-compose.yml` configurations served to remote edge nodes. See the [Compose Compiler Architecture](/Docs/architecture/hub/backend/compose.md) for more details.
 - **Secure Defaults by Inversion:** Explicitly maps specific allowed schema primitives (e.g. strict Linux capabilities, normalized volume paths) into a locked-down Compose base instead of attempting to filter arbitrary config maps.
-- **Validation Engine:** Sanitizes configurations, normalizes directory paths via `filepath.Clean()`, enforces a capability allowlist, and rejects potentially unsafe interpolation patterns.
+- **Validation Engine:** Sanitizes configurations, normalizes directory paths via `filepath.Clean()`, enforces a capability allowlist and a mount denylist, requires digest-pinned images, and rejects potentially unsafe interpolation patterns. Manifests are decoded strictly and the compiler fails closed when any installed sensor's manifest is unavailable.
 - **Dual-Manifest Version Resolution:** Supports manual updates and historical rollbacks. When a node requests its configuration, the compiler resolves the specific deployed version:
   - If the node is running the latest version, it pulls from the in-memory registry cache.
-  - If the node is running an older/historical version, the compiler lazy-loads and caches that specific tagged manifest from the registry (e.g., `ts-sensor-tarpit-v1.0.0.json`) to perform compilation matching the node's deployed state.
+  - If the node is running an older/historical version, the compiler lazy-loads and caches that specific tagged manifest from the registry (e.g., `tcp-tarpit-v2.0.0.json`) to perform compilation matching the node's deployed state.
 
 ### 3. Domain Service Layer (`internal/services`)
 The brain of the application. Everything in `internal/services/*` is framework-agnostic.
@@ -70,6 +70,7 @@ The data access layer.
 - The Hub uses an embedded, automated migration system. 
 - **CRITICAL:** Do NOT use the legacy `CREATE new_table -> DROP old_table -> RENAME` workaround for altering schemas if the table is referenced by foreign keys with `ON DELETE CASCADE`. Doing so while foreign keys are enforced will instantly trigger the cascade and wipe out dependent data (e.g., dropping `node_sensors` deletes all `events`).
 - **Solution:** TrueSignal uses a modern SQLite driver (3.35.0+) that natively supports `ALTER TABLE ... DROP COLUMN`. Always use native `ALTER TABLE` operations to guarantee schema mutations are non-destructive and isolated.
+- Rebuilding a *child* table is safe because nothing cascades from it. Migration v3 does exactly that to `events`, removing its foreign key to `node_sensors` so events survive sensor and node deletion.
 
 ### 5. Read/Analytics Layer (`internal/projections`)
 A specialized CQRS (Command Query Responsibility Segregation) pattern used for heavy dashboard analytics.
@@ -81,6 +82,6 @@ A specialized CQRS (Command Query Responsibility Segregation) pattern used for h
 
 TrueSignal employs a multi-tiered authentication strategy depending on the actor:
 
-1. **UI Dashboard (Humans):** Secured via short-lived Sessions and HTTP-Only, Secure, SameSite `ts_auth` Cookies. Handled via `UIAuthMiddleware`.
-2. **Sensors/Agents (Machines):** Secured via statically generated, cryptographically random API Keys (`ts_key_...`). Passed via `Authorization: Bearer` or `X-Api-Key` headers and validated by `AgentAuthMiddleware`. These are aggressively cached in memory to prevent database bottlenecks during heartbeat storms.
+1. **UI Dashboard (Humans):** Secured via Sessions (12h absolute, 15m idle by default) and HTTP-Only, Secure (in production), `SameSite=Strict` `ts_auth` Cookies. Handled via `UIAuthMiddleware`.
+2. **Sensors/Agents (Machines):** Secured via cryptographically random API Keys (`ts_key_...`), stored only as SHA-256 hashes. Passed via `Authorization: Bearer` or `X-Api-Key` headers (never the query string) and validated by `AgentAuthMiddleware`. Validated keys are cached in memory (keyed by token hash) to prevent database bottlenecks during heartbeat storms; the cache entry is evicted when a key is rotated, its node is deleted, or the Hub is factory-reset.
 3. **Dual-Auth Endpoints:** Shared endpoints (like `/api/v2/manifests`) are protected by `DualAuthMiddleware`, which attempts Bearer authentication first before falling back to Cookie validation.

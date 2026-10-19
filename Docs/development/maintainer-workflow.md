@@ -61,24 +61,26 @@ Run `docker compose -f docker-compose.test-infra.yml up -d`.
    ```bash
    docker push localhost:5000/truesignal/test-sensor:latest
    ```
-3. *Crucial:* Modify your test manifest (`manifest.dev.json`) so the `deployment.image` points to `localhost:5000/truesignal/test-sensor:latest` and upload/sync this manifest to your local Hub.
+3. *Crucial:* Modify your test manifest so `deployment.image_repository` is `localhost:5000/truesignal/test-sensor` and `image_tag` is `latest`, and serve it from the registry URL your local Hub uses (`registryUrl` in Settings). Either set `image_digest` to the pushed image's digest, or run the Hub with `TS_ALLOW_UNPINNED_IMAGES=true`.
 
 ### Step B: Run the Local Hub
 Start the Hub in development mode. Leave this running in a dedicated terminal pane so you can monitor the logs for HTTP requests and compilation errors.
 ```bash
 cd Hub
-TS_ENV=development TS_PORT=8080 go run cmd/hub/main.go
+TS_ENV=development TS_PORT=8080 TS_ALLOW_UNPINNED_IMAGES=true go run cmd/hub/main.go
 ```
+Complete setup with the one-time token the Hub prints on first start.
 *(Ensure the UI is also running via `npm run dev` in `Hub/ui` if you are working on the ui, you can also use the hub's embedded ui at `http://localhost:8080`if you need to use the dashboard to provision API keys).*
 
 ### Step C: Test the Wizard Locally Against the Hub
 You do not need to compile the Wizard to test it. You can run it directly via Go, passing your local Hub endpoint.
 
 1. **Link the Node:**
-   Provision a new Node in your local Hub dashboard, copy the API key, and link your local machine:
+   Provision a new Node in your local Hub dashboard, copy the API key (shown once), and link your local machine:
    ```bash
-   go run wizard/cmd/wizard/main.go --link http://localhost:8080 --api-key <YOUR_NODE_KEY>
+   TS_NODE_API_KEY=<YOUR_NODE_KEY> go run wizard/cmd/wizard/main.go --link http://localhost:8080
    ```
+   The Wizard refuses to run unless it is root, so run this from a root shell.
 
 2. **Test Discovery:**
    Run the discovery engine to ensure it correctly evaluates your local host's `/proc` and ports:
@@ -87,7 +89,7 @@ You do not need to compile the Wizard to test it. You can run it directly via Go
    ```
 
 3. **Test Apply (Full Cycle):**
-   Trigger the deployment. The Wizard will fetch the deployment intent from the local Hub, generate the compose file, pull the image from your `localhost:5000` registry, and apply it to your local Docker daemon:
+   Trigger the deployment. The Wizard will fetch the compose file compiled by the local Hub, diff it against the running state, pull the image from your `localhost:5000` registry, and apply it to your local Docker daemon:
    ```bash
    go run wizard/cmd/wizard/main.go apply
    ```
@@ -99,10 +101,12 @@ You do not need to compile the Wizard to test it. You can run it directly via Go
 Sensor releases are automated via the registry pipeline. **You never create versioned manifest files manually.**
 
 ### Step 1: Edit the Source Manifest
-The authoring surface requires you to add the `manifest.json` file directly inside the individual sensor's root directory:
-- `Sensors/official/tcp-tarpit/manifest.json`
-- `Sensors/official/file-canary/manifest.json`
-- `Sensors/official/web-router-decoy/manifest.json`
+The authoring surface is the `<sensor-name>.json` manifest inside each sensor's directory:
+- `Sensors/official/TcpTarpit/tcp-tarpit.json`
+- `Sensors/official/FileCanary/file-canary.json`
+- `Sensors/official/WebRouterDecoy/web-router-decoy.json`
+- `Sensors/official/IcmpCanary/icmp-canary.json`
+- `Sensors/official/NetworkScanDetector/network-scan-detector.json`
 
 This decoupled architecture allows the Hub to dynamically index sensors without monolithic configuration files. Edit the file, update documentation, env vars, heuristics, etc. Commit to `main`.
 
@@ -116,9 +120,9 @@ git push origin sensor/file-canary/v1.2.0
 > **Immutability Rule:** In standard GitOps workflows, release tags are immutable. If you push `v1.2.0`, realize it's broken, and rollback your fleet, you **must not** overwrite the `v1.2.0` tag with a fix. Doing so causes cache poisoning in the Hub backend and Docker registries. Always bump the version (e.g. `v1.2.1`) and leave the rolled-back tag untouched.
 
 ### Step 3: CI Handles the Rest
-The `publish-sensor-registry` Gitea Action will:
+The `publish-sensor-registry` workflow (GitHub or Gitea) will:
 1. Read `Sensors/official/FileCanary/file-canary.json` at the tagged commit
-2. Inject `"version": "1.2.0"` and update the Docker `image_tag` to `"1.2.0"`
+2. Build and push the image, inject `"version": "1.2.0"`, set `image_tag` to `"v1.2.0"`, and write the pushed image's `image_digest` into the main and init containers (the Hub refuses unpinned images)
 3. Write `file-canary-v1.2.0.json` to the `registry-pages` branch
 4. Regenerate `index.json`
 
@@ -129,10 +133,8 @@ Check the `registry-pages` branch to confirm:
 - The `latest` field points to the new version
 
 ### Step 5: Dashboard Sync & Manual Upgrades
-Because TrueSignal explicitly avoids background network polling for security and network hygiene, the Hub will not automatically discover this new version in the background.
-
-To sync the catalog:
+The Hub's updater refreshes the registry catalog (and checks GitHub releases) in the background every `updateCheckIntervalHours` (default 24h; Settings). To pick up a new version sooner:
 1. Run `truesignal status` via the edge node CLI, OR
 2. go into Fleet Management or Node Details view in the Hub Dashboard.
 
-This triggers an on-demand registry fetch. The Hub will compare the latest compatible versions against deployed sensors and flag nodes with an **"Update Available"** indicator. Users must manually trigger the `/api/v2/nodes/{id}/upgrade` endpoint (via the UI) or run `truesignal apply` to instruct the node to pull the new version schema and execute a compose restart.
+This triggers an on-demand registry fetch. The Hub will compare the latest compatible versions against deployed sensors and flag nodes with an **"Update Available"** indicator. Users must click Update in the UI (`/api/v2/nodes/{id}/upgrade` or the per-sensor upgrade endpoint), which only changes the node's desired state, and then run `truesignal apply` on the node to pull the new image and restart the sensor. Nothing is pushed to nodes.

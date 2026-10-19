@@ -194,11 +194,13 @@ graph TD
 ### Deployment Flow
 ```mermaid
 graph TD
-    User["commands.HandleApply() or user selects sensors"] --> Fetch["api.FetchNodeState() gets Hub Desired State"]
-    Fetch --> IR["deploy.GenerateIR() creates Intermediate Representation"]
-    IR --> Compose["deploy.GenerateCompose() compiles final YAML"]
-    Compose --> Docker["docker compose up -d -p truesignal applies state"]
+    User["commands.HandleApply() or user selects sensors"] --> Fetch["api.FetchCompose() gets the compose compiled by the Hub"]
+    Fetch --> Diff["Deep diff against the local truesignal-compose.yml"]
+    Diff --> Apply["deploy.Apply() swaps the file, pulls, runs up -d --remove-orphans"]
+    Apply --> Check["Health check after 3s; restore previous file on failure"]
 ```
+
+The Wizard never compiles compose files itself; the Hub is the only compiler. If the Hub refuses to compile (HTTP 422, e.g. an unavailable or invalid manifest), `apply` stops before touching the running containers.
 
 ### Synchronization Flow
 ```mermaid

@@ -36,20 +36,37 @@ The Hub requires both the Go backend and the Vue frontend to run simultaneously.
    cd Hub
    TS_ENV=development TS_PORT=8080 go run cmd/hub/main.go
    ```
-   *Note: `TS_ENV=development` is crucial; it disables the `Secure` flag on the authentication cookie so you can log in over `http://localhost`.*
+   *Note: `TS_ENV=development` is crucial; it disables the `Secure` flag on the authentication cookie so you can log in over `http://localhost`, and relaxes the WebSocket origin check for the Vite dev server. Never use it in production.*
+
+   *Note: the Go binary embeds `Hub/ui/dist` (`go:embed`). Run `npm run build` in `Hub/ui` once before `go run`/`go test` if `dist/` does not exist.*
+
+   On first start the Hub logs a one-time setup token (`[SETUP] ... One-time setup token: ...`). Enter it on the setup page, or start the Hub with `TS_SETUP_TOKEN=<your-token>` to choose it. The admin password must be at least 12 characters.
+
+   Locally built sensor images have no registry digest. Add `TS_ALLOW_UNPINNED_IMAGES=true` to let the Hub compile them (development only).
 
 3. **Access the Application:**
-   Open your browser and navigate to `http://localhost:5173`. Complete the initial setup to generate your node keys.
+   Open your browser and navigate to `http://localhost:5173`. Complete the initial setup (with the setup token from the Hub log), then create a node to get its key.
 
 ### B. Running the Wizard
 
 To test the Wizard against your local Hub:
 
-1. Copy a Node API Key from your local Hub dashboard.
-2. Run the Wizard from the repository root:
+1. Copy the Node API Key shown when you create the node (it is shown once; rotate it if lost).
+2. Run the Wizard from the repository root, passing the key in the environment so it stays out of the process list:
    ```bash
-   go run wizard/cmd/wizard/main.go --link http://localhost:8080 --api-key <YOUR_NODE_KEY>
+   TS_NODE_API_KEY=<YOUR_NODE_KEY> go run wizard/cmd/wizard/main.go --link http://localhost:8080
    ```
+   The Wizard refuses to run unless it is root, so run this from a root shell.
+   (`--api-key <YOUR_NODE_KEY>` still works.)
+
+### C. Running the Tests
+
+CI (`.github/workflows/test.yml`) runs `go vet ./...` and `go test -race ./...` for the Hub, the Wizard, the Go SDK and each official sensor, and byte-compiles the Python SDK, template and scripts. Run the same locally before pushing:
+
+```bash
+(cd Hub/ui && npm ci && npm run build)   # the Hub tests need the embedded UI
+for m in Hub wizard SDKs/go-truesignal Sensors/official/*/; do (cd "$m" && go vet ./... && go test ./...); done
+```
 
 ---
 
