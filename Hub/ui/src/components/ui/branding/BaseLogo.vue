@@ -13,7 +13,7 @@ defineProps({
         </div>
         
         <div v-if="showText" class="text-center">
-            <h1 class="text-h1 text-text-h tracking-tight">TrueSignal Sentinel</h1>
+            <h1 class="text-h1 text-text-h tracking-tight">TrueSignal</h1>
             <p class="text-sm text-text-m mt-1">Deception telemetry, audit-ready.</p>
         </div>
     </div>

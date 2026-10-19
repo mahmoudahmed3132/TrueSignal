@@ -12,7 +12,7 @@ To help you find what you're looking for, our documentation is split into severa
 
 ### [2. Architecture (`/architecture`)](/Docs/architecture/README.md)
 **Who it's for:** System Architects, Developers, and Security Researchers.
-**What you'll learn:** The underlying technical design of TrueSignal. This section dives deep into how the Sentinel Hub, Setup Wizard, and Sensors communicate. It includes detailed data contracts and component-specific breakdowns to help you understand the magic behind the high-signal tripwires.
+**What you'll learn:** The underlying technical design of TrueSignal. This section dives deep into how the TrueSignal Hub, Setup Wizard, and Sensors communicate. It includes detailed data contracts and component-specific breakdowns to help you understand the magic behind the high-signal tripwires.
 
 ### [3. Development (`/development`)](/Docs/development/README.md)
 **Who it's for:** Contributors, Maintainers, and Custom Sensor Authors.

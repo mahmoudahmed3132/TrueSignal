@@ -56,6 +56,7 @@
 * New mark (two rings and a tripped point) in `components/ui/branding/BrandMark.vue`, used by the header, login/setup and the favicon.
 * Instrument Sans + IBM Plex Mono, bundled via `@fontsource` (no CDN request at runtime; works on offline SOC networks). Previously `Inter`/`JetBrains Mono` were named but never loaded.
 * Severity badges and row bleeds now follow theme tokens instead of hard-coded hexes.
+* Product name is "TrueSignal" everywhere (the "Sentinel" suffix is dropped).
 * Decoys are deliberately left unbranded: a TrueSignal mark on a honeypot would tell the attacker it is one.
 
 ### Tests & CI

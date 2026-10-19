@@ -65,7 +65,7 @@ const doSetup = async () => {
                 <BaseLogo />
                 <PageHeader 
                     center 
-                    title="TrueSignal Sentinel" 
+                    title="TrueSignal" 
                     description="Authorized personnel only." 
                 />
             </div>
@@ -131,7 +131,7 @@ const doSetup = async () => {
                             :disabled="loading" 
                             class="w-full h-11"
                         >
-                            {{ loading ? 'Initializing Sentinel...' : 'Initialize Hub' }}
+                            {{ loading ? 'Initializing Hub...' : 'Initialize Hub' }}
                         </BaseButton>
                     </div>
                 </form>

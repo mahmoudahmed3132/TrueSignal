@@ -46,7 +46,7 @@ If you have legitimate automated security scanners tripping TrueSignal sensors, 
 
 The true power of TrueSignal is that the Hub and Wizard are **completely sensor-agnostic**. You are not limited to the included official sensors. 
 
-By adhering to the **TrueSignal Event Standard V2.0**, you can write a script in *any* language (Bash, Go, Rust, Python) to monitor *anything*, and the Sentinel UI will dynamically parse, syntax-highlight, and render your forensic data. 
+By adhering to the **TrueSignal Event Standard V2.0**, you can write a script in *any* language (Bash, Go, Rust, Python) to monitor *anything*, and the TrueSignal UI will dynamically parse, syntax-highlight, and render your forensic data. 
 
 Whether it is a **Deep Packet Inspection (DPI)** engine, a **DNS sinkhole**, a **Canary Token** embedded in a PDF, an **Email Honeypot**, or a simple **TCP Port Tripwire**, just POST the **Universal Event Standard** JSON payload to the Hub. 
 
@@ -54,7 +54,7 @@ Whether it is a **Deep Packet Inspection (DPI)** engine, a **DNS sinkhole**, a *
 
 ## Features
 
-- **The Sentinel Hub UI:** A fully responsive, Vue 3-powered dashboard featuring dynamic forensic payload inspection, Nodes and Sensors deployment and management, including sensor updates, directly from the UI.
+- **The TrueSignal Hub UI:** A fully responsive, Vue 3-powered dashboard featuring dynamic forensic payload inspection, Nodes and Sensors deployment and management, including sensor updates, directly from the UI.
   - **Universal Push Notifications:** Native, zero-dependency integration for routing critical alerts to **Discord, Slack, Ntfy, and Gotify**.
   - **Enterprise SIEM Integration:** Native RFC5424 Syslog forwarding (TCP/UDP) for seamlessly pushing structured telemetry to Splunk, Elastic, Wazuh, or Vector.
 - **The Setup Wizard:** A deployment and testing automation tool, developed explicitly to not be a 24/7 running agent. It is simply a TUI CLI tool that automates operator tasks like applying and reconciling the Hub's desired state for a given Node, automatically handling configuration, deployment, and rollbacks on failed deployments.
@@ -141,7 +141,7 @@ Get the one-time setup token from the Hub log:
 ```bash
 docker compose logs hub | grep SETUP
 ```
-Navigate to your Hub's URL (through the reverse proxy, or `http://<your-server-ip>:<TS_PORT>` for a local trial) in your browser. You will be greeted by the **TrueSignal Sentinel** setup screen.
+Navigate to your Hub's URL (through the reverse proxy, or `http://<your-server-ip>:<TS_PORT>` for a local trial) in your browser. You will be greeted by the **TrueSignal** setup screen.
 1. Paste the setup token. It stops anyone else who can reach the Hub from claiming it first.
 2. Create your Master Password (at least 12 characters).
 3. Verify your Hub Endpoint URL (the IP/URL where sensors will reach the Hub).

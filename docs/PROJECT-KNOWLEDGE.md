@@ -313,7 +313,7 @@ All `uses:` actions are pinned to commit SHAs (version in a trailing comment).
 
 | Term | Meaning |
 |---|---|
-| Hub / Sentinel Hub | Central Go server: API, DB, UI, alert routing |
+| Hub | Central Go server: API, DB, UI, alert routing |
 | Node | A host running sensors; identified by `node-<8hex>`, authenticated by `ts_key_…` |
 | Sensor | One decoy/tripwire container type, defined by a manifest |
 | Manifest | JSON definition of a sensor: metadata, heuristics, deployment, env vars |
