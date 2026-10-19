@@ -45,16 +45,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	
-	isProd := h.Cfg.Env == "production"
-	// codeql[go/insecure-cookie] Dev environment toggle.
-	// nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
+	ttl := h.service.SessionTTL()
 	http.SetCookie(w, &http.Cookie{
 		Name:     AuthCookieName,
 		Value:    token,
-		MaxAge:   2592000, // 30 days in seconds
-		Expires:  time.Now().Add(30 * 24 * time.Hour),
+		MaxAge:   int(ttl.Seconds()),
+		Expires:  time.Now().Add(ttl),
 		HttpOnly: true,
-		Secure:   isProd,
+		Secure:   !h.Cfg.IsDevelopment(),
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 	})
@@ -67,15 +65,22 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		h.service.DeleteSession(cookie.Value)
 	}
 	
-	// codeql[go/insecure-cookie] Clearing cookie on logout.
-    // nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
+	clearAuthCookie(w, h.Cfg)
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// clearAuthCookie expires the session cookie with the same attributes it was
+// issued with, so browsers reliably replace it.
+func clearAuthCookie(w http.ResponseWriter, cfg *config.Config) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     AuthCookieName,
 		Value:    "",
 		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
+		Secure:   cfg != nil && !cfg.IsDevelopment(),
+		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 	})
-
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

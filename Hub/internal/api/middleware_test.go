@@ -170,10 +170,18 @@ func TestDualAuthMiddleware(t *testing.T) {
 	}))
 
 	t.Run("API Key Priority Success", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/?key=agent-key", nil)
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer agent-key")
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("API Key in query string is rejected", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/?key=agent-key", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	})
 
 	t.Run("UI Fallback Success", func(t *testing.T) {

@@ -2,9 +2,13 @@ package siem
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
+	"os"
 
 	// codeql[go/insecure-randomness] Non-cryptographic use case.
 	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
@@ -20,6 +24,14 @@ import (
 
 const (
 	MaxRetriesPerEvent = 10
+
+	// DefaultPEN is the RFC 5612 documentation Private Enterprise Number.
+	// Operators should configure their own registered PEN (TS_SYSLOG_PEN).
+	DefaultPEN = "32473"
+
+	syslogHostname = "truesignal"
+	syslogAppName  = "truesignalSensor"
+	maxSDValueLen  = 1024
 )
 
 // ============================================================================
@@ -95,10 +107,34 @@ type NodeService interface {
 	GetNodeDetails(nodeID string) (*models.Node, error)
 }
 
+// AuditRecord is an administrative action forwarded to the SIEM so that
+// changes which can blind the platform (whitelists, silencing, disarming,
+// deletions) leave a trail outside the Hub.
+type AuditRecord struct {
+	Time    time.Time `json:"timestamp"`
+	Action  string    `json:"action"`
+	Path    string    `json:"path"`
+	Status  int       `json:"status"`
+	ActorIP string    `json:"actor_ip"`
+}
+
+// Options tunes message identity and transport security.
+type Options struct {
+	PEN    string // IANA Private Enterprise Number for SD-IDs
+	CAFile string // optional PEM bundle for TLS verification
+}
+
+type queueItem struct {
+	event *models.Event
+	audit *AuditRecord
+}
+
 type Service struct {
-	eventQueue  chan models.Event
+	eventQueue  chan queueItem
 	address     string
 	protocol    string
+	pen         string
+	tlsConfig   *tls.Config
 	rng         *rand.Rand
 	mu          sync.RWMutex
 	wg          sync.WaitGroup
@@ -106,9 +142,31 @@ type Service struct {
 	nodeService NodeService
 }
 
-func NewService(nodeService NodeService) *Service {
+func NewService(nodeService NodeService, opts ...Options) *Service {
+	o := Options{PEN: DefaultPEN}
+	if len(opts) > 0 {
+		if opts[0].PEN != "" {
+			o.PEN = opts[0].PEN
+		}
+		o.CAFile = opts[0].CAFile
+	}
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if o.CAFile != "" {
+		if pem, err := os.ReadFile(o.CAFile); err != nil {
+			log.Printf("[WARNING] SIEM CA file %s unreadable: %v (using system roots)", o.CAFile, err)
+		} else {
+			pool := x509.NewCertPool()
+			if pool.AppendCertsFromPEM(pem) {
+				tlsCfg.RootCAs = pool
+			} else {
+				log.Printf("[WARNING] SIEM CA file %s contains no certificates (using system roots)", o.CAFile)
+			}
+		}
+	}
 	return &Service{
-		eventQueue: make(chan models.Event, 5000),
+		eventQueue: make(chan queueItem, 5000),
+		pen:        o.PEN,
+		tlsConfig:  tlsCfg,
 		// codeql[go/insecure-randomness] Non-cryptographic use case.
 		// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 		rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -126,16 +184,25 @@ func (s *Service) UpdateConfig(address, protocol string) {
 	s.protocol = protocol
 }
 
-func (s *Service) QueueEvent(event models.Event) {
+func (s *Service) enqueue(item queueItem) {
 	if s.isDraining.Load() {
 		return
 	}
 
 	select {
-	case s.eventQueue <- event:
+	case s.eventQueue <- item:
 	default:
 		log.Println("[!] SIEM Pipeline saturated. Bounded queue full, dropping event.")
 	}
+}
+
+func (s *Service) QueueEvent(event models.Event) {
+	s.enqueue(queueItem{event: &event})
+}
+
+// QueueAudit forwards an administrative action record.
+func (s *Service) QueueAudit(rec AuditRecord) {
+	s.enqueue(queueItem{audit: &rec})
 }
 
 // ============================================================================
@@ -180,16 +247,29 @@ func (s *Service) StartWorker(ctx context.Context) {
 				s.drainQueue(sess.conn)
 				return
 
-			case event := <-s.eventQueue:
-				sess.processEventWithRetry(ctx, event)
+			case item := <-s.eventQueue:
+				sess.processWithRetry(ctx, s.format(item))
 			}
 		}
 	}()
 }
 
-func (sess *streamSession) processEventWithRetry(ctx context.Context, event models.Event) {
-	msg := sess.service.formatSyslog(event)
+// dial opens the configured transport. "tls" is TCP with TLS 1.2+ and
+// certificate verification (system roots or TS_SIEM_CA_FILE).
+func (s *Service) dial(proto, addr string) (net.Conn, error) {
+	if proto != "tls" {
+		return net.DialTimeout(proto, addr, 5*time.Second)
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	cfg := s.tlsConfig.Clone()
+	cfg.ServerName = host
+	return tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", addr, cfg)
+}
 
+func (sess *streamSession) processWithRetry(ctx context.Context, msg string) {
 	for attempt := 0; attempt < MaxRetriesPerEvent; attempt++ {
 		sess.service.mu.RLock()
 		addr, proto := sess.service.address, sess.service.protocol
@@ -214,7 +294,7 @@ func (sess *streamSession) processEventWithRetry(ctx context.Context, event mode
 			}
 
 			sess.close()
-			dialConn, err := net.DialTimeout(proto, addr, 5*time.Second)
+			dialConn, err := sess.service.dial(proto, addr)
 			fact := classify(err)
 
 			if fact.IsError {
@@ -280,9 +360,9 @@ func (s *Service) drainQueue(conn net.Conn) {
 			log.Printf("[SIEM] Flush cutoff reached. Aborted %d buffered telemetry items.", len(s.eventQueue))
 			log.Println("[SIEM] Worker stopped.")
 			return
-		case event := <-s.eventQueue:
+		case item := <-s.eventQueue:
 			if conn != nil {
-				msg := s.formatSyslog(event)
+				msg := s.format(item)
 				conn.SetWriteDeadline(time.Now().Add(1 * time.Second))
 				if _, err := conn.Write([]byte(msg + "\n")); err == nil {
 					count++
@@ -297,29 +377,77 @@ func (s *Service) drainQueue(conn net.Conn) {
 }
 
 // ============================================================================
-// FORMATTERS & ACCURATE HISTORICAL TIMELINES
+// FORMATTERS (RFC 5424)
 // ============================================================================
 
-func (s *Service) formatSyslog(event models.Event) string {
-	priority := syslogPriority(event.Severity)
-	var t time.Time
-	if event.Timestamp == "" {
-		t = time.Now()
-	} else {
-		// Attempt to parse the string (Assuming standard RFC3339 format)
-		parsedTime, err := time.Parse(time.RFC3339, event.Timestamp)
-		if err != nil {
-			// Fallback to now if the string is malformed
-			t = time.Now()
-		} else {
-			t = parsedTime
+func (s *Service) format(item queueItem) string {
+	if item.audit != nil {
+		return s.formatAudit(*item.audit)
+	}
+	return s.formatSyslog(*item.event)
+}
+
+// escapeSDValue applies RFC 5424 §6.3.3 PARAM-VALUE escaping (", \ and ]).
+// Control characters are replaced so that attacker-supplied values cannot
+// break newline framing or inject fake records.
+func escapeSDValue(v string) string {
+	v = strings.ToValidUTF8(v, "?")
+	if len(v) > maxSDValueLen {
+		v = v[:maxSDValueLen]
+	}
+	var b strings.Builder
+	b.Grow(len(v))
+	for _, r := range v {
+		switch {
+		case r == '"' || r == '\\' || r == ']':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r < 0x20 || r == 0x7f:
+			b.WriteByte(' ')
+		default:
+			b.WriteRune(r)
 		}
 	}
+	return b.String()
+}
 
-	timestamp := t.UTC().Format(time.RFC3339Nano)
+func structuredData(id string, params [][2]string) string {
+	var b strings.Builder
+	b.WriteString("[")
+	b.WriteString(id)
+	for _, kv := range params {
+		b.WriteString(" ")
+		b.WriteString(kv[0])
+		b.WriteString(`="`)
+		b.WriteString(escapeSDValue(kv[1]))
+		b.WriteString(`"`)
+	}
+	b.WriteString("]")
+	return b.String()
+}
+
+func eventTime(ts string) time.Time {
+	if ts != "" {
+		if t, err := time.Parse(time.RFC3339, ts); err == nil {
+			return t
+		}
+	}
+	return time.Now()
+}
+
+// formatSyslog renders one event as an RFC 5424 line:
+//
+//	<PRI>1 TIMESTAMP truesignal truesignalSensor - EVENT [truesignal@PEN ...] {json}
+//
+// The structured data carries the triage fields; the MSG is the full event as
+// single-line JSON, which SIEM parsers (Elastic json processor, LogScale
+// parseJson) can consume without custom grok.
+func (s *Service) formatSyslog(event models.Event) string {
+	priority := syslogPriority(event.Severity)
+	timestamp := eventTime(event.Timestamp).UTC().Format(time.RFC3339Nano)
 
 	detailsJSON := event.Details
-	if len(detailsJSON) == 0 {
+	if len(detailsJSON) == 0 || !json.Valid(detailsJSON) {
 		detailsJSON = []byte("{}")
 	}
 
@@ -332,14 +460,51 @@ func (s *Service) formatSyslog(event models.Event) string {
 		}
 	}
 
-	sd := fmt.Sprintf(
-		`[truesignal trigger="%s" source="%s" target="%s" node="%s" sensor="%s" severity="%s" details=%s]`,
-		event.EventTrigger, event.Source, event.Target,
-		nodeAlias, event.SensorID, event.Severity, string(detailsJSON),
-	)
+	sd := structuredData("truesignal@"+s.pen, [][2]string{
+		{"event_id", fmt.Sprint(event.ID)},
+		{"trigger", event.EventTrigger},
+		{"severity", event.Severity},
+		{"source", event.Source},
+		{"target", event.Target},
+		{"node", nodeAlias},
+		{"node_id", event.NodeID},
+		{"sensor", event.SensorID},
+		{"whitelisted", fmt.Sprint(event.Whitelisted)},
+	})
 
-	return fmt.Sprintf("<%d>1 %s truesignal truesignalSensor - - %s %s",
-		priority, timestamp, sd, event.EventTrigger)
+	body, _ := json.Marshal(map[string]any{
+		"event_id":    event.ID,
+		"timestamp":   event.Timestamp,
+		"node_id":     event.NodeID,
+		"node":        nodeAlias,
+		"sensor_id":   event.SensorID,
+		"trigger":     event.EventTrigger,
+		"severity":    event.Severity,
+		"source":      event.Source,
+		"target":      event.Target,
+		"whitelisted": event.Whitelisted,
+		"details":     json.RawMessage(detailsJSON),
+	})
+
+	return fmt.Sprintf("<%d>1 %s %s %s - EVENT %s %s",
+		priority, timestamp, syslogHostname, syslogAppName, sd, body)
+}
+
+// formatAudit renders an administrative action. Facility local0, severity
+// notice (5).
+func (s *Service) formatAudit(rec AuditRecord) string {
+	if rec.Time.IsZero() {
+		rec.Time = time.Now()
+	}
+	sd := structuredData("truesignal-audit@"+s.pen, [][2]string{
+		{"action", rec.Action},
+		{"path", rec.Path},
+		{"status", fmt.Sprint(rec.Status)},
+		{"actor_ip", rec.ActorIP},
+	})
+	body, _ := json.Marshal(rec)
+	return fmt.Sprintf("<%d>1 %s %s %s - AUDIT %s %s",
+		16*8+5, rec.Time.UTC().Format(time.RFC3339Nano), syslogHostname, syslogAppName, sd, body)
 }
 
 func syslogPriority(severity string) int {

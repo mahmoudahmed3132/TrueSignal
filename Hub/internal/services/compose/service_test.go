@@ -92,6 +92,7 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 			"deployment": map[string]interface{}{
 				"image_repository": "test",
 				"image_tag":        version,
+				"image_digest":     testDigest,
 			},
 		})
 	}))
@@ -119,26 +120,20 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 		}
 	})
 
-	t.Run("Incompatible Hub API 4", func(t *testing.T) {
-		// Hub API 4 should NOT select v3.0.0 because it's looking for v4.x.x
-		yamlData, err := svc.GetNodeCompose("dummy", "http://localhost", "4.0.0")
-		if err != nil {
-			t.Fatalf("Expected success, got error: %v", err)
-		}
-		if contains(yamlData, "image: test:") {
-			t.Errorf("Expected NO sensor to be deployed, got yaml:\n%s", string(yamlData))
+	// An installed sensor with no deployable version must fail the bundle.
+	// Returning a compose without it would make `apply --remove-orphans`
+	// silently tear down the running decoy.
+	t.Run("Incompatible Hub API 4 fails closed", func(t *testing.T) {
+		_, err := svc.GetNodeCompose("dummy", "http://localhost", "4.0.0")
+		if err == nil || !strings.Contains(err.Error(), "manifest_unavailable") {
+			t.Fatalf("Expected manifest_unavailable, got: %v", err)
 		}
 	})
-	
-	t.Run("No Compatible Version Found", func(t *testing.T) {
-		// Hub API 0 is too old for everything (minimum is 1)
-		yamlData, err := svc.GetNodeCompose("dummy", "http://localhost", "0.0.0")
-		if err != nil {
-			t.Fatalf("Expected success (generates empty compose, logs warning), got err: %v", err)
-		}
-		
-		if contains(yamlData, "image: test:") {
-			t.Errorf("Expected NO sensor to be deployed, but found one in yaml:\n%s", string(yamlData))
+
+	t.Run("No Compatible Version Found fails closed", func(t *testing.T) {
+		_, err := svc.GetNodeCompose("dummy", "http://localhost", "0.0.0")
+		if err == nil || !strings.Contains(err.Error(), "manifest_unavailable") {
+			t.Fatalf("Expected manifest_unavailable, got: %v", err)
 		}
 	})
 
@@ -171,6 +166,8 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 	})
 }
 
+var testDigest = "sha256:" + strings.Repeat("a", 64)
+
 func contains(b []byte, s string) bool {
 	return strings.Contains(string(b), s)
 }
@@ -181,19 +178,22 @@ func TestGetNodeComposeSynchronousSync(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"sensors": []map[string]interface{}{
 					{
-						"id":     "ts-sensor-test",
-						"version": "v1.0.0",
+						"id":       "ts-sensor-test",
+						"latest":   "1.0.0",
+						"versions": []map[string]string{{"v": "1.0.0"}},
 					},
 				},
 			})
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/ts-sensor-test-v1.0.0.json") {
+		if r.URL.Path == "/test-v1.0.0.json" {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"id":      "ts-sensor-test",
 				"version": "1.0.0",
 				"deployment": map[string]interface{}{
-					"image": "test-image",
+					"image_repository": "test-image",
+					"image_tag":        "v1.0.0",
+					"image_digest":     testDigest,
 				},
 			})
 			return
@@ -209,9 +209,12 @@ func TestGetNodeComposeSynchronousSync(t *testing.T) {
 	// Refresh index to simulate worker background state
 	catSvc.RefreshIndex()
 
-	_, err := svc.GetNodeCompose("node-1", "http://fallback.com", "v1.0.0")
+	yamlData, err := svc.GetNodeCompose("node-1", "http://fallback.com", "v1.0.0")
 	if err != nil {
 		t.Fatalf("GetNodeCompose failed: %v", err)
+	}
+	if !contains(yamlData, "image: test-image:v1.0.0@"+testDigest) {
+		t.Errorf("expected digest-pinned image in compose, got:\n%s", yamlData)
 	}
 
 	// Verify that GetNodeCompose calculated a new hash and explicitly synchronized it!
@@ -226,19 +229,22 @@ func TestComposeSetDesiredRevisionErrorHandling(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"sensors": []map[string]interface{}{
 					{
-						"id":     "ts-sensor-test",
-						"latest": "v1.0.0",
+						"id":       "ts-sensor-test",
+						"latest":   "1.0.0",
+						"versions": []map[string]string{{"v": "1.0.0"}},
 					},
 				},
 			})
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/ts-sensor-test-v1.0.0.json") {
+		if r.URL.Path == "/test-v1.0.0.json" {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"id":      "ts-sensor-test",
 				"version": "1.0.0",
 				"deployment": map[string]interface{}{
-					"image": "test-image",
+					"image_repository": "test-image",
+					"image_tag":        "v1.0.0",
+					"image_digest":     testDigest,
 				},
 			})
 			return
@@ -257,5 +263,44 @@ func TestComposeSetDesiredRevisionErrorHandling(t *testing.T) {
 	_, err := svc.GetNodeCompose("node-1", "http://fallback.com", "v1.0.0")
 	if err == nil || !strings.Contains(err.Error(), "failed_to_allocate") {
 		t.Fatalf("Expected failed_to_allocate error to cascade up, got: %v", err)
+	}
+}
+
+func TestCompose_RejectsUnpinnedImagesUnlessAllowed(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/index.json" {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"sensors": []map[string]interface{}{{"id": "ts-sensor-test", "latest": "1.0.0", "versions": []map[string]string{{"v": "1.0.0"}}}},
+			})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id": "ts-sensor-test", "version": "1.0.0",
+			"deployment": map[string]interface{}{"image_repository": "test-image", "image_tag": "v1.0.0"},
+		})
+	}))
+	defer ts.Close()
+
+	store := &MockStore{RegistryURL: ts.URL}
+	catSvc := catalog.NewService(store, nil)
+	catSvc.RefreshIndex()
+	svc := composesvc.NewService(store, catSvc)
+
+	if _, err := svc.GetNodeCompose("node-1", "http://x", "v1.0.0"); err == nil || !strings.Contains(err.Error(), "not pinned") {
+		t.Fatalf("expected unpinned image to be rejected, got %v", err)
+	}
+	svc.AllowUnpinnedImages(true)
+	if _, err := svc.GetNodeCompose("node-1", "http://x", "v1.0.0"); err != nil {
+		t.Fatalf("expected unpinned image to be allowed in dev mode, got %v", err)
+	}
+}
+
+func TestFetchSpecificManifest_RejectsPathInjection(t *testing.T) {
+	store := &MockStore{RegistryURL: "http://127.0.0.1:1"}
+	svc := composesvc.NewService(store, catalog.NewService(store, nil))
+	for _, tc := range [][2]string{{"../../etc", "1.0.0"}, {"ts-sensor-test", "1.0.0/../../x"}, {"ts-sensor-test", ""}} {
+		if _, err := svc.FetchSpecificManifest(tc[0], tc[1]); err == nil || !strings.Contains(err.Error(), "invalid") {
+			t.Errorf("expected rejection for %v, got %v", tc, err)
+		}
 	}
 }

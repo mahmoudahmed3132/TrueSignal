@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -44,7 +45,7 @@ func (h *EventHandler) ReceiveEvent(w http.ResponseWriter, r *http.Request) {
 			RespondError(w, "Upgrade Required", http.StatusUpgradeRequired)
 			return
 		}
-		if err.Error() == "sensor_not_registered" {
+		if errors.Is(err, event.ErrSensorNotRegistered) {
 			RespondError(w, "Sensor is not registered", http.StatusNotFound)
 			return
 		}

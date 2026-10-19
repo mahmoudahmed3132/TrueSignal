@@ -26,7 +26,16 @@ func TestValidateMountPath(t *testing.T) {
 		{"Path Traversal to Etc", "/home/user/../../etc/passwd", true},
 		{"Allowed Path", "/opt/data", false},
 		{"Allowed Home Path", "/home/user/logs", false},
-		{"Allowed Relative Path", "relative/path", false},
+		{"Relative Path Rejected", "relative/path", true},
+		{"Relative Traversal To Etc Rejected", "../../../etc", true},
+		{"Host Root Rejected", "/", true},
+		{"Empty Path Rejected", "", true},
+		{"Run Docker Socket (symlink target of /var/run)", "/run/docker.sock", true},
+		{"Containerd Socket", "/run/containerd/containerd.sock", true},
+		{"Docker Data Root", "/var/lib/docker/volumes", true},
+		{"Device Nodes", "/dev/sda", true},
+		{"System Binaries", "/usr/bin", true},
+		{"Allowed Lure Under Var Lib", "/var/lib/db/dump.sql.bak", false},
 	}
 
 	for _, tc := range testCases {
@@ -67,7 +76,7 @@ func TestValidateManifest(t *testing.T) {
 				m.Deployment.CapAdd = []string{"SYS_ADMIN"}
 			},
 			expectError: true,
-			errorMsg:    "capability not allowed in v2: SYS_ADMIN",
+			errorMsg:    "capability not allowed: SYS_ADMIN",
 		},
 		{
 			name: "Allowed Capability in Main",
@@ -84,7 +93,7 @@ func TestValidateManifest(t *testing.T) {
 				}
 			},
 			expectError: true,
-			errorMsg:    "capability not allowed in init container in v2: SYS_ADMIN",
+			errorMsg:    "capability not allowed in init container: SYS_ADMIN",
 		},
 		{
 			name: "Forbidden Mount in Main",

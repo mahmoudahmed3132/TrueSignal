@@ -164,7 +164,7 @@ func (s *Service) Dispatch(e models.Event) {
 	_, allowed := s.severityFilter[strings.ToLower(e.Severity)]
 	s.mu.RUnlock()
 
-	if !isArmed || webhookURL == "" || !allowed {
+	if !isArmed || webhookURL == "" || strings.EqualFold(webhookType, "none") || !allowed {
 		return
 	}
 

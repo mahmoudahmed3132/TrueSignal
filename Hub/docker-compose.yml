@@ -1,15 +1,21 @@
 services:
   # 1. THE FIXER: Runs as root, fixes permissions, and dies instantly.
   permission-fixer:
-    image: alpine:latest
+    image: alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
     # 65532 is the standard UID/GID for the Distroless nonroot user
     command: sh -c "chown -R 65532:65532 /data"
+    network_mode: none
+    read_only: true
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - ./truesignal_data:/data
 
   # 2. THE HUB: Pure Go distroless backend and UI.
   truesignal-hub:
-    image: ghcr.io/mahmoudahmed3132/truesignal-hub:latest
+    # Pin a release in production, e.g. TS_HUB_VERSION=v2.1.0
+    image: ghcr.io/mahmoudahmed3132/truesignal-hub:${TS_HUB_VERSION:-latest}
     container_name: truesignal-hub
     build:
       context: .
@@ -17,7 +23,8 @@ services:
     restart: unless-stopped
     
     ports:
-      - "${TS_PORT:-8080}:${TS_PORT:-8080}"
+      # Host port is configurable; the Hub always listens on 8080 inside.
+      - "${TS_PORT:-8080}:8080"
       
     # --- SECURITY SANDBOX ---
     user: "65532:65532"

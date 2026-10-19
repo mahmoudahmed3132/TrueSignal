@@ -64,8 +64,8 @@ func (s *SQLiteStore) UpdateConfigBatch(req map[string]interface{}) error {
 	}
 	defer tx.Rollback()
 
-	validWebhooks := map[string]bool{"ntfy": true, "gotify": true, "discord": true, "slack": true}
-	validProtocols := map[string]bool{"tcp": true, "udp": true}
+	validWebhooks := map[string]bool{"ntfy": true, "gotify": true, "discord": true, "slack": true, "none": true}
+	validProtocols := map[string]bool{"tcp": true, "udp": true, "tls": true}
 
 	for key, val := range req {
 		switch key {

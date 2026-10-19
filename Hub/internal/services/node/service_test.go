@@ -56,6 +56,7 @@ func (m *MockNodeStore) RemoveNodeSensor(nodeID, sensorID string) error { return
 func (m *MockNodeStore) SetNodePendingConfig(nodeID string) error { return nil }
 func (m *MockNodeStore) ClearNodePendingConfig(nodeID string) error { return nil }
 func (m *MockNodeStore) DeleteNode(nodeID string) error { return nil }
+func (m *MockNodeStore) RotateNodeKey(nodeID string) (string, error) { return "ts_key_new", nil }
 
 type MockNodeBroadcaster struct{}
 func (m *MockNodeBroadcaster) Broadcast(eventType string, payload interface{}) {}

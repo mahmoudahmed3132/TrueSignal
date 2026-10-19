@@ -221,6 +221,10 @@ const submitPasswordChange = async () => {
         pwdError.value = "All fields are required."
         return
     }
+    if (pwdData.value.new.length < 12) {
+        pwdError.value = "New password must be at least 12 characters."
+        return
+    }
     if (pwdData.value.new !== pwdData.value.confirmNew) {
         pwdError.value = "New passwords do not match."
         return
@@ -434,7 +438,7 @@ const submitFactoryReset = async () => {
                         <BaseRadioGroup 
                             v-model="settings.webhookType" 
                             label="Service Provider" 
-                            :options="['ntfy', 'gotify', 'discord', 'slack']" 
+                            :options="['ntfy', 'gotify', 'discord', 'slack', 'none']" 
                         />
                         
                         <BaseDivider />
@@ -448,6 +452,7 @@ const submitFactoryReset = async () => {
                                 :description="
                                     settings.webhookType === 'gotify' ? 'Enter your Gotify server URL and append the App Token (e.g., https://gotify.domain.com/message?token=XYZ).' : 
                                     settings.webhookType === 'ntfy' ? 'Enter your self-hosted or public Ntfy topic URL (e.g., https://ntfy.sh/my_alerts).' : 
+                                    settings.webhookType === 'none' ? 'Push notifications are disabled. Events are still stored and forwarded to the SIEM.' : 
                                     `Paste the incoming Webhook URL provided by ${settings.webhookType === 'discord' ? 'Discord' : 'Slack'}.`
                                 " 
                             />
@@ -485,7 +490,7 @@ const submitFactoryReset = async () => {
                         <BaseRadioGroup 
                             v-model="settings.siemProtocol" 
                             label="Protocol" 
-                            :options="['tcp', 'udp']" 
+                            :options="['tcp', 'udp', 'tls']" 
                             description="Events are sent in RFC5424 syslog format. Leave blank to disable SIEM forwarding."
                         />
                     </BaseCard>

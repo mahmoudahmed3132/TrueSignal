@@ -3,6 +3,9 @@ package api
 import (
 	"context"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"strings"
 	"sync"
 
@@ -138,10 +141,10 @@ func DualAuthMiddleware(sessionValidator SessionValidator, auth NodeAuthenticato
 			token := r.Header.Get("X-Api-Key")
 			if token == "" {
 				authHeader := r.Header.Get("Authorization")
+				// Keys are accepted only in headers: query strings end up in
+				// proxy and access logs.
 				if strings.HasPrefix(authHeader, "Bearer ") {
 					token = strings.TrimSpace(authHeader[7:])
-				} else if r.URL.Query().Get("key") != "" {
-					token = r.URL.Query().Get("key")
 				}
 			}
 			if token != "" {
@@ -165,6 +168,50 @@ func DualAuthMiddleware(sessionValidator SessionValidator, auth NodeAuthenticato
 			}
 
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		})
+	}
+}
+
+// MaxBodyBytes caps request bodies so a single client cannot exhaust Hub memory.
+func MaxBodyBytes(limit int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// Auditor receives one record per state-changing dashboard request.
+type Auditor interface {
+	Audit(action, path string, status int, actorIP string)
+}
+
+// AuditMiddleware records every state-changing request (and every login /
+// setup attempt) after it completes: method + route pattern, concrete path,
+// response status and client IP. Bodies are never recorded (they can carry
+// passwords).
+func AuditMiddleware(auditor Auditor, trustProxy bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if auditor == nil || r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
+
+			pattern := r.URL.Path
+			if rc := chi.RouteContext(r.Context()); rc != nil && rc.RoutePattern() != "" {
+				pattern = rc.RoutePattern()
+			}
+			status := ww.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+			auditor.Audit(r.Method+" "+pattern, r.URL.Path, status, GetRealIP(r, trustProxy))
 		})
 	}
 }

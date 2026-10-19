@@ -254,10 +254,10 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  const completeSetup = async (password: string, hubEndpoint: string): Promise<{ success: boolean; error?: string }> => {
+  const completeSetup = async (password: string, hubEndpoint: string, setupToken: string): Promise<{ success: boolean; error?: string }> => {
     state.value.setupError = null
     try {
-      await api.post('/api/v2/setup', { password, hubEndpoint })
+      await api.post('/api/v2/setup', { password, hubEndpoint, setupToken })
       state.value.requiresSetup = false
       transitionSession('unauthenticated')
       return { success: true }

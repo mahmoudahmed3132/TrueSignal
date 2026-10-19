@@ -3,8 +3,10 @@ package composesvc
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -29,11 +31,23 @@ type Store interface {
 }
 
 type Service struct {
-	store   Store
-	catalog *catalog.Service
-	cache   map[string]models.SensorManifest
-	mu      sync.RWMutex
+	store         Store
+	catalog       *catalog.Service
+	cache         map[string]models.SensorManifest
+	mu            sync.RWMutex
+	allowUnpinned bool
 }
+
+// maxManifestBytes bounds registry responses; real manifests are a few KB.
+const maxManifestBytes = 1 << 20
+
+var (
+	sensorIDPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+	versionPattern  = regexp.MustCompile(`^v?\d+\.\d+\.\d+$`)
+)
+
+// AllowUnpinnedImages permits manifests without image digests (development).
+func (s *Service) AllowUnpinnedImages(allow bool) { s.allowUnpinned = allow }
 
 func NewService(store Store, catalogSvc *catalog.Service) *Service {
 	return &Service{
@@ -119,7 +133,7 @@ func (s *Service) fetchStrictCatalogManifests(currentHubVersion string) ([]model
 			continue
 		}
 
-		manifest, decodeErr := security.DecodeManifestStrict(mResp.Body)
+		manifest, decodeErr := security.DecodeManifestStrict(io.LimitReader(mResp.Body, maxManifestBytes))
 		mResp.Body.Close()
 		if decodeErr != nil {
 			log.Printf("[WARNING] Failed to decode %s: %v", manifestURL, decodeErr)
@@ -137,6 +151,14 @@ func (s *Service) fetchStrictCatalogManifests(currentHubVersion string) ([]model
 }
 
 func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models.SensorManifest, error) {
+	// Both values end up in a registry URL; reject anything that is not a
+	// plain identifier / semver so they cannot traverse the registry host.
+	if !sensorIDPattern.MatchString(sensorID) {
+		return nil, fmt.Errorf("invalid sensor id %q", sensorID)
+	}
+	if !versionPattern.MatchString(targetVersion) {
+		return nil, fmt.Errorf("invalid version %q", targetVersion)
+	}
 	cleanVersion := strings.TrimPrefix(targetVersion, "v")
 
 	registryURL, err := s.store.GetConfigValue("registry_url")
@@ -169,12 +191,16 @@ func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models
 		return nil, fmt.Errorf("unexpected status %d", mResp.StatusCode)
 	}
 
-	var specific models.SensorManifest
-	if dErr := json.NewDecoder(mResp.Body).Decode(&specific); dErr != nil {
-		log.Printf("[ERROR] FetchSpecificManifest failed to decode JSON: %v", dErr)
+	// Same strict decoding as the catalog path: unknown fields are rejected.
+	specific, dErr := security.DecodeManifestStrict(io.LimitReader(mResp.Body, maxManifestBytes))
+	if dErr != nil {
+		log.Printf("[ERROR] FetchSpecificManifest failed to decode %s: %v", manifestURL, dErr)
 		return nil, dErr
 	}
-	
+	if specific.ID != sensorID || strings.TrimPrefix(specific.Version, "v") != cleanVersion {
+		return nil, fmt.Errorf("manifest identity mismatch: requested %s v%s, got %s v%s", sensorID, cleanVersion, specific.ID, specific.Version)
+	}
+
 	s.mu.Lock()
 	s.cache[cacheKey] = specific
 	s.mu.Unlock()
@@ -184,12 +210,27 @@ func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models
 
 // --- GENERATION LOGIC ---
 
+// NodeKeyPlaceholder replaces the node key in compose files rendered for the
+// dashboard: keys are stored hashed, so the Hub cannot embed the real one.
+const NodeKeyPlaceholder = "__REPLACE_WITH_NODE_API_KEY__"
+
+// GetNodeCompose renders the deployment for the node that owns token. The
+// caller must already have authenticated the token.
 func (s *Service) GetNodeCompose(token, hostFallback string, currentHubVersion string) ([]byte, error) {
 	nodeID, err := s.store.GetNodeByKey(token)
 	if err != nil || nodeID == "" {
 		return nil, fmt.Errorf("unauthorized")
 	}
+	return s.renderNodeCompose(nodeID, token, hostFallback, currentHubVersion)
+}
 
+// GetNodeComposeForDashboard renders a node's deployment for manual installs,
+// with NodeKeyPlaceholder in place of the key.
+func (s *Service) GetNodeComposeForDashboard(nodeID, hostFallback, currentHubVersion string) ([]byte, error) {
+	return s.renderNodeCompose(nodeID, NodeKeyPlaceholder, hostFallback, currentHubVersion)
+}
+
+func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, currentHubVersion string) ([]byte, error) {
 	nodeDetails, err := s.store.GetNodeDetails(nodeID)
 	if err != nil {
 		return nil, fmt.Errorf("failed_to_load")
@@ -218,7 +259,7 @@ func (s *Service) GetNodeCompose(token, hostFallback string, currentHubVersion s
 		targetVersion := sensor.DeployedVersion
 		if targetVersion == "" {
 			targetVersion, _ = s.catalog.GetLatestCompatibleVersion(sensor.ID, currentHubVersion)
-			
+
 			// Lock the resolved version in the database so it doesn't float with the catalog
 			if targetVersion != "" {
 				_ = s.store.SetNodeSensorDeployedVersion(nodeID, sensor.ID, targetVersion)
@@ -227,8 +268,11 @@ func (s *Service) GetNodeCompose(token, hostFallback string, currentHubVersion s
 
 		manifestPtr, err := s.FetchSpecificManifest(sensor.ID, targetVersion)
 		if err != nil || manifestPtr == nil {
-			log.Printf("[WARNING] Manifest for sensor %s (v%s) not found in catalog, skipping.", sensor.ID, targetVersion)
-			continue
+			// A configured sensor that cannot be rendered must fail the whole
+			// bundle: silently skipping it would make `apply` tear the running
+			// decoy down (--remove-orphans) and leave the node undefended.
+			log.Printf("[ERROR] Manifest for sensor %s (v%s) unavailable: %v", sensor.ID, targetVersion, err)
+			return nil, fmt.Errorf("manifest_unavailable: %s v%s", sensor.ID, targetVersion)
 		}
 		manifest := *manifestPtr
 
@@ -236,13 +280,22 @@ func (s *Service) GetNodeCompose(token, hostFallback string, currentHubVersion s
 		if valErr := security.ValidateManifest(manifest); valErr != nil {
 			return nil, fmt.Errorf("invalid_manifest: %w", valErr)
 		}
+		if !s.allowUnpinned {
+			if pinErr := security.RequirePinnedImages(manifest); pinErr != nil {
+				return nil, fmt.Errorf("invalid_manifest: %w", pinErr)
+			}
+		}
 
 		if manifest.Version != "" {
 			reqVer := strings.TrimSpace(manifest.Version)
-			if !strings.HasPrefix(reqVer, "v") { reqVer = "v" + reqVer }
+			if !strings.HasPrefix(reqVer, "v") {
+				reqVer = "v" + reqVer
+			}
 			curVer := strings.TrimSpace(currentHubVersion)
-			if !strings.HasPrefix(curVer, "v") { curVer = "v" + curVer }
-			
+			if !strings.HasPrefix(curVer, "v") {
+				curVer = "v" + curVer
+			}
+
 			if semver.IsValid(reqVer) && semver.Major(curVer) != semver.Major(reqVer) {
 				log.Printf("[ERROR] Sensor %s (v%s) is incompatible with Hub (v%s) - Major versions must match", sensor.ID, reqVer, curVer)
 				return nil, fmt.Errorf("incompatible_sensor: %s (v%s) requires a matching Hub Major version", sensor.ID, reqVer)
@@ -251,14 +304,17 @@ func (s *Service) GetNodeCompose(token, hostFallback string, currentHubVersion s
 
 		userVars := make(map[string]string)
 		for k, v := range sensor.EnvVars {
-			if str, ok := v.(string); ok {
-				userVars[k] = str
+			switch val := v.(type) {
+			case string:
+				userVars[k] = val
+			case bool, float64:
+				userVars[k] = fmt.Sprint(val)
 			}
 		}
 
 		sysVars := map[string]string{
 			"TS_HUB_ENDPOINT": hubEndpoint,
-			"TS_HUB_KEY":      token,
+			"TS_HUB_KEY":      nodeKey,
 			"TS_SENSOR_ID":    sensor.ID,
 			"TS_TEST_MODE":    "false",
 		}
@@ -269,8 +325,8 @@ func (s *Service) GetNodeCompose(token, hostFallback string, currentHubVersion s
 		envMap := composeEngine.BuildEnv(manifest, userVars, sysVars)
 		svcCompose, err := composeEngine.BuildService(sensor.ID, manifest, envMap)
 		if err != nil {
-			log.Printf("[ERROR] Compose build failed for sensor %s (Node %s)", sensor.ID, nodeID)
-			return nil, fmt.Errorf("build_failed")
+			log.Printf("[ERROR] Compose build failed for sensor %s (Node %s): %v", sensor.ID, nodeID, err)
+			return nil, fmt.Errorf("build_failed: %w", err)
 		}
 		finalCompose.Services = append(finalCompose.Services, svcCompose.Services...)
 	}
@@ -287,17 +343,13 @@ func (s *Service) GeneratePreviewCompose(req PreviewRequest) ([]byte, error) {
 			return nil, fmt.Errorf("invalid_manifest: %w", valErr)
 		}
 
-		envMap := make(map[string]string)
-		for _, v := range sensor.Manifest.Deployment.EnvVars {
-			envMap[v.Name] = v.Default
-		}
-		for k, v := range sensor.EnvValues {
-			envMap[k] = v
-		}
-		envMap["TS_HUB_ENDPOINT"] = req.HubEndpoint
-		envMap["TS_HUB_KEY"] = req.HubKey
-		envMap["TS_SENSOR_ID"] = sensor.SensorID
-		envMap["TS_TEST_MODE"] = "false"
+		// Same precedence and reserved-variable rules as real deployments.
+		envMap := composeEngine.BuildEnv(sensor.Manifest, sensor.EnvValues, map[string]string{
+			"TS_HUB_ENDPOINT": req.HubEndpoint,
+			"TS_HUB_KEY":      req.HubKey,
+			"TS_SENSOR_ID":    sensor.SensorID,
+			"TS_TEST_MODE":    "false",
+		})
 
 		svcCompose, err := composeEngine.BuildService(sensor.SensorID, sensor.Manifest, envMap)
 		if err != nil {

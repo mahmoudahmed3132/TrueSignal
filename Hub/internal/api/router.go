@@ -22,7 +22,7 @@ func ErrorOnlyLogger(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r)
 
 		if ww.Status() >= 400 {
-			log.Printf("[-] HTTP %d | %s %s from %s (took %v)",
+			log.Printf("[-] HTTP %d | %s %q from %s (took %v)",
 				ww.Status(), r.Method, r.URL.Path, r.RemoteAddr, time.Since(start))
 		}
 	})
@@ -39,26 +39,36 @@ type RouterConfig struct {
 	WSService         *websocket.Service
 	SessionValidator  SessionValidator
 	NodeAuthenticator NodeAuthenticator
+	Auditor           Auditor
+	TrustProxy        bool
 }
+
+const (
+	maxUIBodyBytes    = 1 << 20   // dashboard JSON payloads
+	maxAgentBodyBytes = 256 << 10 // sensor events/heartbeats
+)
 
 func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 	r := chi.NewRouter()
 
 	r.Use(ErrorOnlyLogger)
 	r.Use(middleware.Recoverer)
+	r.Use(MaxBodyBytes(maxUIBodyBytes))
 
 	rateLimiter := NewRateLimiter()
+	audit := AuditMiddleware(cfg.Auditor, cfg.TrustProxy)
 
 	// Public Endpoints
 	r.Get("/api/v2/version", cfg.Config.HandleVersion)
-	r.Post("/login", cfg.Auth.Login)
-	r.Post("/logout", cfg.Auth.Logout)
+	r.With(audit).Post("/login", cfg.Auth.Login)
+	r.With(audit).Post("/logout", cfg.Auth.Logout)
 	r.Get("/api/v2/setup/status", cfg.Config.GetSetupStatus)
-	r.Post("/api/v2/setup", cfg.Config.CompleteSetup)
+	r.With(audit).Post("/api/v2/setup", cfg.Config.CompleteSetup)
 
 	// UI Endpoints (Protected by Cookies)
 	r.Group(func(r chi.Router) {
 		r.Use(UIAuthMiddleware(cfg.SessionValidator))
+		r.Use(audit)
 
 		r.Get("/api/v2/ws", cfg.WSService.HandleWS)
 
@@ -71,6 +81,8 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Get("/api/v2/nodes/{nodeId}", cfg.Nodes.GetNodeDetails)
 		r.Patch("/api/v2/nodes/{nodeId}", cfg.Nodes.UpdateNode)
 		r.Post("/api/v2/nodes/{nodeId}/upgrade", cfg.Nodes.UpgradeNode)
+		r.Post("/api/v2/nodes/{nodeId}/rotate-key", cfg.Nodes.RotateNodeKey)
+		r.Get("/api/v2/nodes/{nodeId}/compose", cfg.Compose.GetNodeComposeForDashboard)
 		r.Delete("/api/v2/nodes/{nodeId}", cfg.Nodes.DeleteNode)
 
 		// --- Sensor Management ---
@@ -110,6 +122,7 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 
 	// --- Wizard & Telemetry Endpoints ---
 	r.Group(func(r chi.Router) {
+		r.Use(MaxBodyBytes(maxAgentBodyBytes))
 		r.Use(AgentAuthMiddleware(cfg.NodeAuthenticator, rateLimiter))
 		r.Get("/api/v2/nodes/me", cfg.Nodes.GetCurrentNode)
 		r.Get("/api/v2/nodes/compose", cfg.Compose.GetNodeCompose)

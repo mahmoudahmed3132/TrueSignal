@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,5 +78,52 @@ func TestSyslogForwardingRFC5424(t *testing.T) {
 		matches := re.FindStringSubmatch(msg)
 		t.Logf("Matches: PRI=%s, VER=%s, TS=%q, HOST=%s, APP=%s, PROC=%s, MSGID=%s, SD=%s, MSG=%s", 
 			matches[1], matches[2], matches[3], matches[4], matches[5], matches[6], matches[7], matches[8], matches[9])
+	}
+}
+
+func TestFormatSyslog_EscapesAttackerControlledValues(t *testing.T) {
+	svc := NewService(nil, Options{PEN: "99999"})
+	msg := svc.formatSyslog(models.Event{
+		ID:           7,
+		NodeID:       "node-01",
+		Timestamp:    "2026-01-01T00:00:00Z",
+		Severity:     "critical",
+		EventTrigger: "web_login_attempt",
+		Source:       "10.0.0.9",
+		Target:       `x"] [fake@1 k="v`,
+		SensorID:     "ts-sensor-web-router-decoy",
+		Details:      json.RawMessage("{\"attempted_username\":\"a]\\\"b\\nINJECTED\"}"),
+	})
+
+	if strings.Contains(msg, "\n") {
+		t.Fatalf("message must be a single line: %q", msg)
+	}
+	if !strings.Contains(msg, `[truesignal@99999 `) {
+		t.Fatalf("SD-ID must carry the configured PEN: %q", msg)
+	}
+	if !strings.Contains(msg, `target="x\"\] [fake@1 k=\"v"`) {
+		t.Fatalf("SD param value not escaped per RFC 5424: %q", msg)
+	}
+	// The JSON body must parse back to the original details.
+	idx := strings.Index(msg, "] {")
+	if idx < 0 {
+		t.Fatalf("no JSON body: %q", msg)
+	}
+	var body struct {
+		Details map[string]string `json:"details"`
+	}
+	if err := json.Unmarshal([]byte(msg[idx+2:]), &body); err != nil {
+		t.Fatalf("body is not JSON: %v (%q)", err, msg[idx+2:])
+	}
+	if body.Details["attempted_username"] != "a]\"b\nINJECTED" {
+		t.Fatalf("details round-trip failed: %#v", body.Details)
+	}
+}
+
+func TestFormatAudit(t *testing.T) {
+	svc := NewService(nil)
+	msg := svc.formatAudit(AuditRecord{Action: "PATCH /api/v2/config", Path: "/api/v2/config", Status: 200, ActorIP: "10.1.1.1"})
+	if !strings.HasPrefix(msg, "<133>1 ") || !strings.Contains(msg, " - AUDIT [truesignal-audit@32473 action=\"PATCH /api/v2/config\"") {
+		t.Fatalf("unexpected audit format: %q", msg)
 	}
 }

@@ -2,9 +2,11 @@ package store
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -13,31 +15,72 @@ import (
 	"github.com/truesignal/hub/internal/models"
 )
 
+// apiKeyHashPrefix marks node keys stored as digests. Node keys are credentials
+// and are never persisted in plaintext; the plaintext is only returned once,
+// at creation or rotation.
+const apiKeyHashPrefix = "sha256:"
+
+// HashAPIKey returns the at-rest representation of a node API key.
+func HashAPIKey(apiKey string) string {
+	sum := sha256.Sum256([]byte(apiKey))
+	return apiKeyHashPrefix + hex.EncodeToString(sum[:])
+}
+
+func isHashedAPIKey(stored string) bool {
+	return strings.HasPrefix(stored, apiKeyHashPrefix)
+}
+
+func generateAPIKey() (string, error) {
+	keyBytes := make([]byte, 32)
+	if _, err := rand.Read(keyBytes); err != nil {
+		return "", err
+	}
+	return "ts_key_" + hex.EncodeToString(keyBytes), nil
+}
+
 // CreateNode initializes a new UI-first node and returns the generated credentials.
 func (s *SQLiteStore) CreateNode(alias string, tagsJSON string) (string, string, error) {
 	nodeID := "node-" + uuid.New().String()[:8]
 
-	keyBytes := make([]byte, 32)
-	if _, err := rand.Read(keyBytes); err != nil {
+	apiKey, err := generateAPIKey()
+	if err != nil {
 		return "", "", err
 	}
-	apiKey := "ts_key_" + hex.EncodeToString(keyBytes)
 
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	_, err := s.DB.Exec(`
-		INSERT INTO nodes (id, alias, api_key, tags, pending_config, created_at, updated_at) 
+	_, err = s.DB.Exec(`
+		INSERT INTO nodes (id, alias, api_key, tags, pending_config, created_at, updated_at)
 		VALUES (?, ?, ?, ?, 0, ?, ?)`,
-		nodeID, alias, apiKey, tagsJSON, now, now,
+		nodeID, alias, HashAPIKey(apiKey), tagsJSON, now, now,
 	)
 
 	return nodeID, apiKey, err
 }
 
+// RotateNodeKey replaces a node's API key and returns the new plaintext key.
+// The previous key stops authenticating immediately (callers must also evict
+// any cached authentication for the node).
+func (s *SQLiteStore) RotateNodeKey(nodeID string) (string, error) {
+	apiKey, err := generateAPIKey()
+	if err != nil {
+		return "", err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := s.DB.Exec(`UPDATE nodes SET api_key = ?, updated_at = ? WHERE id = ?`, HashAPIKey(apiKey), now, nodeID)
+	if err != nil {
+		return "", err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return "", sql.ErrNoRows
+	}
+	return apiKey, nil
+}
+
 // GetNodeByKey allows the agent/wizard to authenticate itself
 func (s *SQLiteStore) GetNodeByKey(apiKey string) (string, error) {
 	var nodeID string
-	err := s.DB.QueryRow("SELECT id FROM nodes WHERE api_key = ?", apiKey).Scan(&nodeID)
+	err := s.DB.QueryRow("SELECT id FROM nodes WHERE api_key = ?", HashAPIKey(apiKey)).Scan(&nodeID)
 	return nodeID, err
 }
 
@@ -92,7 +135,7 @@ func deriveCompositeNodeStatus(baseStatus string, sensors []models.NodeSensor) s
 // GetNodes returns a list of all nodes and their installed sensors for the Fleet Dashboard
 func (s *SQLiteStore) GetNodes() ([]models.Node, error) {
 	rows, err := s.DB.Query(`
-		SELECT id, alias, api_key, active_revision, desired_revision, public_ip, private_ip, tags, pending_config, last_heartbeat 
+		SELECT id, alias, active_revision, desired_revision, public_ip, private_ip, tags, pending_config, last_heartbeat 
 		FROM nodes ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -107,7 +150,7 @@ func (s *SQLiteStore) GetNodes() ([]models.Node, error) {
 		var activeRevision sql.NullString
 		var desiredRevision sql.NullString
 
-		if err := rows.Scan(&n.ID, &n.Alias, &n.APIKey, &activeRevision, &desiredRevision, &n.PublicIP, &n.PrivateIP, &tagsJSON, &pendingInt, &n.LastHeartbeat); err != nil {
+		if err := rows.Scan(&n.ID, &n.Alias, &activeRevision, &desiredRevision, &n.PublicIP, &n.PrivateIP, &tagsJSON, &pendingInt, &n.LastHeartbeat); err != nil {
 			return nil, err
 		}
 
@@ -176,9 +219,9 @@ func (s *SQLiteStore) GetNodeDetails(nodeID string) (*models.Node, error) {
 
 	// Fetch Node Meta
 	err := s.DB.QueryRow(`
-		SELECT id, alias, api_key, active_revision, desired_revision, public_ip, private_ip, tags, pending_config, last_heartbeat 
+		SELECT id, alias, active_revision, desired_revision, public_ip, private_ip, tags, pending_config, last_heartbeat 
 		FROM nodes WHERE id = ?`, nodeID).
-		Scan(&node.ID, &node.Alias, &node.APIKey, &activeRevision, &desiredRevision, &node.PublicIP, &node.PrivateIP, &tagsJSON, &pendingInt, &node.LastHeartbeat)
+		Scan(&node.ID, &node.Alias, &activeRevision, &desiredRevision, &node.PublicIP, &node.PrivateIP, &tagsJSON, &pendingInt, &node.LastHeartbeat)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +321,7 @@ func (s *SQLiteStore) UpdateNodeSensor(nodeID, sensorID, customName string, conf
 		return err
 	}
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().UTC().Format(time.RFC3339)
 	tx, err := s.DB.Begin()
 	if err != nil {
 		return err
@@ -306,7 +349,7 @@ func (s *SQLiteStore) UpdateNodeSensor(nodeID, sensorID, customName string, conf
 
 // RemoveNodeSensor deletes the sensor and sets pending_config = 1
 func (s *SQLiteStore) RemoveNodeSensor(nodeID, sensorID string) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().UTC().Format(time.RFC3339)
 	tx, err := s.DB.Begin()
 	if err != nil {
 		return err

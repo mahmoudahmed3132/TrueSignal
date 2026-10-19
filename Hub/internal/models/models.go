@@ -1,15 +1,39 @@
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"strings"
+)
 
 // HubVersion defines the backend protocol version for resolving compatible sensors and authenticating Agents.
 const HubVersion = "2.1.0"
+
+// ErrNotFound is returned by stores when the addressed row does not exist.
+var ErrNotFound = errors.New("not found")
+
+// ValidSeverities is the closed set of event severities, lowest first.
+var ValidSeverities = []string{"info", "low", "medium", "high", "critical"}
+
+// NormalizeSeverity lower-cases and validates a severity. Unknown values map to
+// "medium" (the schema default) rather than rejecting the event: a decoy alert
+// must never be dropped because of a misconfigured severity.
+func NormalizeSeverity(sev string) (string, bool) {
+	clean := strings.ToLower(strings.TrimSpace(sev))
+	for _, v := range ValidSeverities {
+		if clean == v {
+			return clean, true
+		}
+	}
+	return "medium", false
+}
 
 // SetupPayload represents the initial setup POST request
 type SetupPayload struct {
 	Password    string `json:"password"`
 	HubEndpoint string `json:"hubEndpoint"`
-	HubKey      string `json:"hubKey"`
+	// SetupToken is the one-time token printed in the Hub log on first start.
+	SetupToken string `json:"setupToken"`
 }
 
 // ConfigPayload represents the runtime configuration of the Hub
@@ -41,6 +65,9 @@ type Event struct {
 	IsRead       bool            `json:"isRead"`
 	IsArchived   bool            `json:"isArchived"`
 	Count        int             `json:"count"`
+	// Whitelisted marks events from whitelisted sources (stored archived, not
+	// notified). Not persisted as a column.
+	Whitelisted bool `json:"whitelisted,omitempty"`
 }
 
 // Heartbeat represents a routine ping from a sensor
@@ -53,7 +80,7 @@ type Heartbeat struct {
 type Node struct {
 	ID                 string       `json:"nodeId"`
 	Alias              string       `json:"alias"`
-	APIKey             string       `json:"apiKey"`
+	APIKey             string       `json:"-"` // never serialized; keys are stored hashed
 	ActiveRevision     string       `json:"activeRevision,omitempty"`
 	DesiredRevision    string       `json:"desiredRevision,omitempty"`
 	PublicIP           *string      `json:"publicIp"`

@@ -230,6 +230,86 @@ var migrations = []Migration{
 			return err
 		},
 	},
+	{
+		Version:     3,
+		Description: "Hash node API keys at rest; retain events when sensors or nodes are removed",
+		Up: func(tx *sql.Tx) error {
+			// 1. Node keys are credentials: replace plaintext keys with their digest.
+			rows, err := tx.Query(`SELECT id, api_key FROM nodes`)
+			if err != nil {
+				return fmt.Errorf("reading node keys: %w", err)
+			}
+			type nodeKey struct{ id, key string }
+			var plain []nodeKey
+			for rows.Next() {
+				var nk nodeKey
+				if err := rows.Scan(&nk.id, &nk.key); err != nil {
+					rows.Close()
+					return fmt.Errorf("scanning node key: %w", err)
+				}
+				if !isHashedAPIKey(nk.key) {
+					plain = append(plain, nk)
+				}
+			}
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				return err
+			}
+			rows.Close()
+			for _, nk := range plain {
+				if _, err := tx.Exec(`UPDATE nodes SET api_key = ? WHERE id = ?`, HashAPIKey(nk.key), nk.id); err != nil {
+					return fmt.Errorf("hashing key for node %s: %w", nk.id, err)
+				}
+			}
+
+			// 2. Rebuild `events` without the ON DELETE CASCADE foreign key so that
+			// removing a sensor or node no longer destroys its alert history.
+			// This is safe: `events` is a child table (nothing references it), so
+			// dropping it cannot cascade into other tables.
+			var hasEvents int
+			if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='events'`).Scan(&hasEvents); err != nil {
+				return err
+			}
+			copyAndDrop := []string{
+				`INSERT INTO events_v3 (id, node_id, sensor_id, timestamp, event_trigger, severity, source, target, details, is_read, is_archived, count)
+				 SELECT id, node_id, sensor_id, timestamp, event_trigger, severity, source, target, details, is_read, is_archived, count FROM events`,
+				`DROP TABLE events`,
+			}
+			if hasEvents == 0 {
+				copyAndDrop = nil
+			}
+			stmts := []string{
+				`CREATE TABLE events_v3 (
+					id               INTEGER PRIMARY KEY AUTOINCREMENT,
+					node_id          TEXT NOT NULL,
+					sensor_id        TEXT NOT NULL,
+					timestamp        TEXT NOT NULL,
+					event_trigger    TEXT NOT NULL DEFAULT 'alert',
+					severity         TEXT NOT NULL DEFAULT 'medium',
+					source           TEXT NOT NULL DEFAULT 'Unknown',
+					target           TEXT NOT NULL DEFAULT 'Unknown',
+					details          TEXT NOT NULL DEFAULT '{}',
+					is_read          INTEGER NOT NULL DEFAULT 0,
+					is_archived      INTEGER NOT NULL DEFAULT 0,
+					count            INTEGER NOT NULL DEFAULT 1
+				)`,
+			}
+			stmts = append(stmts, copyAndDrop...)
+			stmts = append(stmts,
+				`ALTER TABLE events_v3 RENAME TO events`,
+				`CREATE INDEX IF NOT EXISTS idx_events_archived ON events(is_archived, id DESC)`,
+				`CREATE INDEX IF NOT EXISTS idx_events_node_sensor ON events(node_id, sensor_id)`,
+				`CREATE INDEX IF NOT EXISTS idx_events_severity ON events(severity)`,
+				`CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp)`,
+			)
+			for _, stmt := range stmts {
+				if _, err := tx.Exec(stmt); err != nil {
+					return fmt.Errorf("rebuilding events table: %w", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // RunMigrations applies all pending schema changes transactionally.

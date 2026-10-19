@@ -13,7 +13,7 @@ func (s *SQLiteStore) InsertEvent(e *models.Event, nowStr string, detailsStr str
 		INSERT INTO events (node_id, sensor_id, timestamp, event_trigger, severity, source, target, details, is_read, is_archived)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.NodeID, e.SensorID, nowStr, e.EventTrigger, e.Severity, e.Source, e.Target, detailsStr,
-		0, 0)
+		boolToInt(e.IsRead), boolToInt(e.IsArchived))
 	if err != nil {
 		return 0, err
 	}
@@ -22,6 +22,25 @@ func (s *SQLiteStore) InsertEvent(e *models.Event, nowStr string, detailsStr str
 		return 0, err
 	}
 	return int(lastInsertID), nil
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// IsSensorRegistered reports whether a sensor is installed on the node. Events
+// no longer carry a foreign key (they outlive sensor removal), so ingestion
+// checks registration explicitly.
+func (s *SQLiteStore) IsSensorRegistered(nodeID, sensorID string) (bool, error) {
+	var n int
+	err := s.DB.QueryRow(
+		"SELECT COUNT(*) FROM node_sensors WHERE node_id = ? AND sensor_id = ?",
+		nodeID, sensorID,
+	).Scan(&n)
+	return n > 0, err
 }
 
 func (s *SQLiteStore) IsSensorSilenced(nodeID, sensorID string) (bool, error) {

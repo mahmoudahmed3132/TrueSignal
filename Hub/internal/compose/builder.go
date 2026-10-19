@@ -2,6 +2,7 @@ package compose
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -46,35 +47,26 @@ func BuildService(sensorID string, m models.SensorManifest, envMap map[string]st
 	})
 
 	for _, ic := range initContainers {
+		// Init containers run once, as provisioners. They get the same baseline
+		// as sensors (read-only rootfs, all caps dropped, no-new-privileges)
+		// and no network at all: provisioning never needs egress.
 		initSvc := &ComposeService{
-			Image:   buildImageString(ic.ImageRepository, ic.ImageTag, ic.ImageDigest),
-			Command: ic.Command,
+			Image:       buildImageString(ic.ImageRepository, ic.ImageTag, ic.ImageDigest),
+			Command:     ic.Command,
+			NetworkMode: "none",
+			ReadOnly:    true,
+			CapDrop:     []string{"ALL"},
+			SecurityOpt: []string{"no-new-privileges:true"},
 		}
 
 		if ic.User != "" {
 			initSvc.User = ic.User
 		}
-		if len(ic.CapDrop) > 0 {
-			initSvc.CapDrop = ic.CapDrop
-		}
-		if len(ic.SecurityOpt) > 0 {
-			initSvc.SecurityOpt = ic.SecurityOpt
-		}
-
-		// CapAdd: defensive filtering against allowlist for init container
-		allowedCaps := map[string]bool{
-			"NET_RAW":          true,
-			"NET_BIND_SERVICE": true,
-			"NET_ADMIN":        true,
-			"DAC_OVERRIDE":     true, // allowed for file-canary
-		}
 
 		initSvc.CapAdd = []string{}
-		if ic.CapAdd != nil {
-			for _, cap := range ic.CapAdd {
-				if allowedCaps[cap] {
-					initSvc.CapAdd = append(initSvc.CapAdd, cap)
-				}
+		for _, cap := range ic.CapAdd {
+			if security.AllowedCaps[cap] {
+				initSvc.CapAdd = append(initSvc.CapAdd, cap)
 			}
 		}
 
@@ -97,12 +89,10 @@ func BuildService(sensorID string, m models.SensorManifest, envMap map[string]st
 					if f == "" {
 						continue
 					}
-					// Extract directory (simplified logic as original)
-					idx := strings.LastIndex(f, "/")
-					dir := "."
-					if idx != -1 {
-						dir = f[:idx]
+					if err := security.ValidateMountPath(f); err != nil {
+						return nil, fmt.Errorf("dynamic volume expansion blocked for init container: %w", err)
 					}
+					dir := filepath.Dir(filepath.Clean(f))
 					if !dirSet[dir] {
 						dirSet[dir] = true
 						dirs = append(dirs, dir)
@@ -150,7 +140,7 @@ func BuildService(sensorID string, m models.SensorManifest, envMap map[string]st
 		}
 		sortEnvKeys(envKeys)
 		for _, k := range envKeys {
-			initSvc.Environment = append(initSvc.Environment, fmt.Sprintf("%s=%s", k, envMap[k]))
+			initSvc.Environment = append(initSvc.Environment, envEntry(k, envMap[k]))
 		}
 
 		compose.Services = append(compose.Services, NamedService{
@@ -198,22 +188,14 @@ func BuildService(sensorID string, m models.SensorManifest, envMap map[string]st
 	} else {
 		// SECURITY MODEL: default to non-root UID to prevent implicit root execution
 		// Docker does NOT guarantee non-root when User is omitted.
-		svc.User = "1000:1000"
+		svc.User = "65532:65532" // distroless "nonroot"; UID 1000 is usually a real login user on the host
 	}
 
 	// CapAdd: defensive filtering against allowlist
-	allowedCaps := map[string]bool{
-		"NET_RAW":          true,
-		"NET_BIND_SERVICE": true,
-		"NET_ADMIN":        true,
-		"DAC_OVERRIDE":     true,
-	}
 	svc.CapAdd = []string{}
-	if m.Deployment.CapAdd != nil {
-		for _, cap := range m.Deployment.CapAdd {
-			if allowedCaps[cap] {
-				svc.CapAdd = append(svc.CapAdd, cap)
-			}
+	for _, cap := range m.Deployment.CapAdd {
+		if security.AllowedCaps[cap] {
+			svc.CapAdd = append(svc.CapAdd, cap)
 		}
 	}
 
@@ -234,7 +216,7 @@ func BuildService(sensorID string, m models.SensorManifest, envMap map[string]st
 	}
 	sortEnvKeys(envKeys)
 	for _, k := range envKeys {
-		svc.Environment = append(svc.Environment, fmt.Sprintf("%s=%s", k, envMap[k]))
+		svc.Environment = append(svc.Environment, envEntry(k, envMap[k]))
 	}
 
 	// Volumes
@@ -299,6 +281,13 @@ func BuildService(sensorID string, m models.SensorManifest, envMap map[string]st
 	})
 
 	return &compose, nil
+}
+
+// envEntry renders KEY=value for compose. Docker Compose interpolates "$" in
+// environment values, so it is escaped as "$$" to deliver values (banners,
+// passwords, regexes) to the container verbatim.
+func envEntry(k, v string) string {
+	return k + "=" + strings.ReplaceAll(v, "$", "$$")
 }
 
 func sortEnvKeys(keys []string) {

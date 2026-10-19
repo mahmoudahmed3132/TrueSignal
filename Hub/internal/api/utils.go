@@ -22,13 +22,19 @@ func SendJSON(w http.ResponseWriter, status int, data interface{}) {
 	}
 }
 
+// GetRealIP returns the client IP. Behind a trusted reverse proxy it prefers
+// X-Real-IP (set by the proxy), then the right-most X-Forwarded-For entry: the
+// left-most entries are client-supplied and trivially spoofed.
 func GetRealIP(r *http.Request, trustProxy bool) string {
 	if trustProxy {
-		if ip := r.Header.Get("X-Real-IP"); ip != "" {
-			return strings.Split(ip, ",")[0]
+		if ip := strings.TrimSpace(r.Header.Get("X-Real-IP")); ip != "" && net.ParseIP(ip) != nil {
+			return ip
 		}
-		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-			return strings.Split(ip, ",")[0]
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			if ip := strings.TrimSpace(parts[len(parts)-1]); net.ParseIP(ip) != nil {
+				return ip
+			}
 		}
 	}
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
