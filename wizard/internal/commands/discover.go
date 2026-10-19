@@ -445,10 +445,33 @@ func renderManifestTemplates(recs []*discovery.Recommendation, dockerMap map[int
 			}
 			var buf strings.Builder
 			if err := t.Execute(&buf, ctx); err == nil {
-				rec.DeploymentTemplate.EnvVars[i].Default = buf.String()
+				rendered := buf.String()
+				if env.Name == "TS_DECOY_FILES" {
+					rendered = keepPlaceableLures(rendered)
+				}
+				rec.DeploymentTemplate.EnvVars[i].Default = rendered
 			}
 		}
 	}
+}
+
+// keepPlaceableLures drops lure paths whose parent directory does not exist
+// on this host. Docker refuses to start a bind mount with a missing source, so
+// one such path would fail the whole node deployment.
+func keepPlaceableLures(csv string) string {
+	var kept []string
+	for _, p := range strings.Split(csv, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if info, err := os.Stat(filepath.Dir(p)); err != nil || !info.IsDir() {
+			fmt.Printf("    %s↳ Skipping lure %s: parent directory does not exist on this host%s\n", cli.Dim, p, cli.Reset)
+			continue
+		}
+		kept = append(kept, p)
+	}
+	return strings.Join(kept, ",")
 }
 
 func updateEnvVar(rec *discovery.Recommendation, key, value string) {

@@ -37,6 +37,7 @@ func SetupUsage() {
 		printUsage("  %s--force%s      Bypass confirmation prompts (useful for automation)\n", Cyan, Reset)
 
 		printUsage("\nEnvironment:\n")
-		printUsage("  TS_DASHBOARD_PASSWORD  Dashboard password (non-interactive use)\n\n")
+		printUsage("  TS_DASHBOARD_PASSWORD  Dashboard password (non-interactive use)\n")
+		printUsage("  TS_NODE_API_KEY        Node API key for --link (keeps it out of the process list)\n\n")
 	}
 }

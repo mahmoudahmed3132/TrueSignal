@@ -25,7 +25,7 @@ func run() error {
 
 	forcePtr := flag.Bool("force", false, "Bypass confirmation prompts (useful for automation)")
 	linkURL := flag.String("link", "", "Hub URL to link to (e.g., https://hub.truesignal.local)")
-	apiKeyPtr := flag.String("api-key", "", "Node API key (for linking to an existing node)")
+	apiKeyPtr := flag.String("api-key", "", "Node API key (for linking to an existing node). Prefer the TS_NODE_API_KEY env var: arguments are visible in the process list")
 	aliasPtr := flag.String("alias", "", "Custom alias for this node (defaults to OS hostname)")
 	tagsPtr := flag.String("tags", "", "Comma-separated tags for this node")
 
@@ -36,7 +36,11 @@ func run() error {
 	}
 
 	if *linkURL != "" {
-		return commands.HandleLink(*linkURL, *apiKeyPtr, *aliasPtr, *tagsPtr, *forcePtr)
+		apiKey := *apiKeyPtr
+		if apiKey == "" {
+			apiKey = os.Getenv("TS_NODE_API_KEY")
+		}
+		return commands.HandleLink(*linkURL, apiKey, *aliasPtr, *tagsPtr, *forcePtr)
 	}
 
 	args := flag.Args()
@@ -56,12 +60,7 @@ func run() error {
 	case "relink":
 		return commands.HandleRelink(args[1:], *forcePtr)
 	case "uninstall":
-		err := commands.HandleTeardown(*forcePtr)
-		if err == nil {
-			fmt.Printf("\n  Some TrueSignal sensors may have created host-side artifacts or decoy files.\n")
-			fmt.Printf("    Review your deployment configuration and remove any remaining files manually if desired.\n\n")
-		}
-		return err
+		return commands.HandleTeardown(*forcePtr)
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}

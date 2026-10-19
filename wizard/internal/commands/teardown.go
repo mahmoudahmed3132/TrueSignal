@@ -23,6 +23,8 @@ func HandleTeardown(force bool) error {
 		return nil
 	}
 
+	lures := deploy.ConfiguredDecoyFiles()
+
 	fmt.Printf("\n%s[*] Tearing down isolated Docker environment...%s\n", cli.Dim, cli.Reset)
 	if err := deploy.Uninstall(); err != nil {
 		fmt.Printf("%s[!] Docker teardown encountered an issue: %v%s\n", cli.Yellow, err, cli.Reset)
@@ -41,5 +43,12 @@ func HandleTeardown(force bool) error {
 	}
 
 	fmt.Printf("\n%s✅ All TrueSignal sensors, configurations, and the CLI tool have been successfully removed.%s\n\n", cli.Green, cli.Reset)
+	if len(lures) > 0 {
+		fmt.Printf("%sLure files were left in place (they may be pre-existing host files). Review and delete as appropriate:%s\n", cli.Yellow, cli.Reset)
+		for _, f := range lures {
+			fmt.Printf("    %s\n", f)
+		}
+		fmt.Println()
+	}
 	return nil
 }

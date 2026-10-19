@@ -10,7 +10,7 @@ func ShowOnboarding() error {
 	fmt.Printf("    Get started:\n\n")
 	fmt.Printf("      %struesignal --link https://hub.example.com%s\n", Cyan, Reset)
 	fmt.Printf("        Create a new node and link to Hub\n\n")
-	fmt.Printf("      %struesignal --link https://hub.example.com --api-key <key>%s\n", Cyan, Reset)
+	fmt.Printf("      %sTS_NODE_API_KEY=<key> truesignal --link https://hub.example.com%s\n", Cyan, Reset)
 	fmt.Printf("        Link to an existing node\n\n")
 	fmt.Printf("    Then run:\n\n")
 	fmt.Printf("      %struesignal apply%s      Reconcile node against Hub's desired state\n", Cyan, Reset)
