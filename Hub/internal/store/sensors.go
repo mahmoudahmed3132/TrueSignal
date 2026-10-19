@@ -3,6 +3,8 @@ package store
 import (
 	"database/sql"
 	"time"
+
+	"github.com/truesignal/hub/internal/models"
 )
 
 type SensorUptimeData struct {
@@ -38,8 +40,12 @@ func (s *SQLiteStore) ProcessHeartbeat(nodeID, sensorID, configRev, nowStr strin
 		SET config_rev = ?, last_heartbeat = ?, updated_at = ? 
 		WHERE node_id = ? AND sensor_id = ?
 	`
-	if _, err := tx.Exec(query, configRev, nowStr, nowStr, nodeID, sensorID); err != nil {
+	res, err := tx.Exec(query, configRev, nowStr, nowStr, nodeID, sensorID)
+	if err != nil {
 		return false, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return false, models.ErrNotFound
 	}
 
 	// Check config reconciliation
@@ -247,4 +253,3 @@ func (s *SQLiteStore) GetSensorLatestStatus(nodeID, sensorID string) (string, er
 	}
 	return status.String, nil
 }
-

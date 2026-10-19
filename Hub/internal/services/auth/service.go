@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
@@ -24,13 +25,31 @@ type Store interface {
 	GetNodeByKey(token string) (string, error)
 }
 
+// Session lifetime defaults. The idle timeout follows PCI DSS 8.2.8 (re-auth
+// after 15 minutes of inactivity); both are overridable via SessionPolicy.
+const (
+	DefaultSessionTTL  = 12 * time.Hour
+	DefaultSessionIdle = 15 * time.Minute
+)
+
+type SessionPolicy struct {
+	TTL  time.Duration // absolute lifetime
+	Idle time.Duration // inactivity timeout; 0 disables
+}
+
+type session struct {
+	expires  time.Time
+	lastSeen time.Time
+}
+
 type Service struct {
 	store             Store
 	dashboardPassword string
+	policy            SessionPolicy
 
 	// Session management
-	sessionMu sync.RWMutex
-	sessions  map[string]time.Time
+	sessionMu sync.Mutex
+	sessions  map[string]*session
 
 	// Brute-force protection
 	authTracker map[string]*loginState
@@ -40,14 +59,25 @@ type Service struct {
 	nodeAuthCache sync.Map
 }
 
-func NewService(store Store, dashboardPassword string) *Service {
+func NewService(store Store, dashboardPassword string, policy ...SessionPolicy) *Service {
+	p := SessionPolicy{TTL: DefaultSessionTTL, Idle: DefaultSessionIdle}
+	if len(policy) > 0 {
+		if policy[0].TTL > 0 {
+			p.TTL = policy[0].TTL
+		}
+		p.Idle = policy[0].Idle
+	}
 	return &Service{
 		store:             store,
 		dashboardPassword: dashboardPassword,
-		sessions:          make(map[string]time.Time),
+		policy:            p,
+		sessions:          make(map[string]*session),
 		authTracker:       make(map[string]*loginState),
 	}
 }
+
+// SessionTTL is the absolute session lifetime (used for the cookie MaxAge).
+func (s *Service) SessionTTL() time.Duration { return s.policy.TTL }
 
 // StartWorkers starts background goroutines for cleaning up sessions and brute-force trackers.
 func (s *Service) StartWorkers(ctx context.Context) {
@@ -69,8 +99,8 @@ func (s *Service) cleanupSessions(ctx context.Context) {
 		case <-ticker.C:
 			s.sessionMu.Lock()
 			now := time.Now()
-			for token, exp := range s.sessions {
-				if now.After(exp) {
+			for token, sess := range s.sessions {
+				if s.expired(sess, now) {
 					delete(s.sessions, token)
 				}
 			}
@@ -86,29 +116,36 @@ func (s *Service) CreateSession() (string, error) {
 	}
 	token := hex.EncodeToString(bytes)
 
+	now := time.Now()
 	s.sessionMu.Lock()
-	s.sessions[token] = time.Now().Add(30 * 24 * time.Hour)
+	s.sessions[token] = &session{expires: now.Add(s.policy.TTL), lastSeen: now}
 	s.sessionMu.Unlock()
 
 	return token, nil
 }
 
-func (s *Service) IsValid(token string) bool {
-	s.sessionMu.RLock()
-	expiration, exists := s.sessions[token]
-	s.sessionMu.RUnlock()
+func (s *Service) expired(sess *session, now time.Time) bool {
+	if now.After(sess.expires) {
+		return true
+	}
+	return s.policy.Idle > 0 && now.Sub(sess.lastSeen) > s.policy.Idle
+}
 
+// IsValid checks a session and, when valid, refreshes its idle timer.
+func (s *Service) IsValid(token string) bool {
+	now := time.Now()
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+
+	sess, exists := s.sessions[token]
 	if !exists {
 		return false
 	}
-
-	if time.Now().After(expiration) {
-		s.sessionMu.Lock()
+	if s.expired(sess, now) {
 		delete(s.sessions, token)
-		s.sessionMu.Unlock()
 		return false
 	}
-
+	sess.lastSeen = now
 	return true
 }
 
@@ -120,7 +157,7 @@ func (s *Service) DeleteSession(token string) {
 
 func (s *Service) ClearAllSessions() {
 	s.sessionMu.Lock()
-	s.sessions = make(map[string]time.Time)
+	s.sessions = make(map[string]*session)
 	s.sessionMu.Unlock()
 }
 
@@ -201,7 +238,8 @@ func (s *Service) AuthenticateNodeRequest(token string) (string, error) {
 		return "", errors.New("missing token")
 	}
 
-	if cachedNodeID, ok := s.nodeAuthCache.Load(token); ok {
+	cacheKey := tokenCacheKey(token)
+	if cachedNodeID, ok := s.nodeAuthCache.Load(cacheKey); ok {
 		return cachedNodeID.(string), nil
 	}
 
@@ -210,6 +248,33 @@ func (s *Service) AuthenticateNodeRequest(token string) (string, error) {
 		return "", errors.New("invalid node api key")
 	}
 
-	s.nodeAuthCache.Store(token, nodeID)
+	s.nodeAuthCache.Store(cacheKey, nodeID)
 	return nodeID, nil
+}
+
+// tokenCacheKey keeps plaintext node keys out of process memory structures
+// that outlive the request.
+func tokenCacheKey(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// InvalidateNode evicts cached authentication for a node. It must be called
+// whenever a node's key changes or the node is deleted, otherwise the old key
+// keeps authenticating until the Hub restarts.
+func (s *Service) InvalidateNode(nodeID string) {
+	s.nodeAuthCache.Range(func(k, v any) bool {
+		if v.(string) == nodeID {
+			s.nodeAuthCache.Delete(k)
+		}
+		return true
+	})
+}
+
+// ClearNodeCache evicts all cached node authentications (factory reset).
+func (s *Service) ClearNodeCache() {
+	s.nodeAuthCache.Range(func(k, _ any) bool {
+		s.nodeAuthCache.Delete(k)
+		return true
+	})
 }

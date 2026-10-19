@@ -10,8 +10,8 @@ import (
 
 	// codeql[go/insecure-randomness] Non-cryptographic use case.
 	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
-	"math/rand"
 	"github.com/truesignal/hub/internal/models"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -164,7 +164,7 @@ func (s *Service) Dispatch(e models.Event) {
 	_, allowed := s.severityFilter[strings.ToLower(e.Severity)]
 	s.mu.RUnlock()
 
-	if !isArmed || webhookURL == "" || !allowed {
+	if !isArmed || webhookURL == "" || strings.EqualFold(webhookType, "none") || !allowed {
 		return
 	}
 

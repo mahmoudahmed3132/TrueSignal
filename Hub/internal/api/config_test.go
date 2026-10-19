@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/truesignal/hub/internal/services/config"
 	"github.com/truesignal/hub/internal/services/updater"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockConfigStore struct {
@@ -22,8 +22,8 @@ func (m *mockConfigStore) GetConfigValue(key string) (string, error) {
 	return m.values[key], nil
 }
 
-func (m *mockConfigStore) CompleteSetup(adminHash, hubEndpoint string) error { return nil }
-func (m *mockConfigStore) GetAllConfig() (map[string]string, error) { return m.values, nil }
+func (m *mockConfigStore) CompleteSetup(adminHash, hubEndpoint string) error      { return nil }
+func (m *mockConfigStore) GetAllConfig() (map[string]string, error)               { return m.values, nil }
 func (m *mockConfigStore) UpdateConfigBatch(updates map[string]interface{}) error { return nil }
 func (m *mockConfigStore) UpdateConfigValue(key, value string) error {
 	if m.values == nil {
@@ -32,7 +32,7 @@ func (m *mockConfigStore) UpdateConfigValue(key, value string) error {
 	m.values[key] = value
 	return nil
 }
-func (m *mockConfigStore) FactoryReset() error { return nil }
+func (m *mockConfigStore) FactoryReset() error                         { return nil }
 func (m *mockConfigStore) FactoryResetDryRun() (map[string]int, error) { return nil, nil }
 
 type mockCatalog struct {

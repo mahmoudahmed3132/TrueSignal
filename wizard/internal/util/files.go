@@ -14,7 +14,7 @@ func AtomicWriteFile(path string, v interface{}) error {
 	}
 
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 

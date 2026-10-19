@@ -61,7 +61,7 @@ func TestBuildUptimeHistory(t *testing.T) {
 	}
 
 	changes := []store.StatusChangeData{
-		{NodeID: "node1", SensorID: "sensor1", Status: "online", Timestamp: cutoff.Add(30 * time.Minute).Format(time.RFC3339)}, // Block 0: 30 min uptime
+		{NodeID: "node1", SensorID: "sensor1", Status: "online", Timestamp: cutoff.Add(30 * time.Minute).Format(time.RFC3339)},  // Block 0: 30 min uptime
 		{NodeID: "node1", SensorID: "sensor1", Status: "offline", Timestamp: cutoff.Add(90 * time.Minute).Format(time.RFC3339)}, // Block 1: 30 min uptime
 	}
 

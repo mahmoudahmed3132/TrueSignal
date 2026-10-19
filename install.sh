@@ -1,166 +1,188 @@
 #!/bin/sh
 
 # TrueSignal Automated Installer & Provisioner
+#
+# Usage:
+#   curl -fsSL <raw>/install.sh | sh
+#   curl -fsSL <raw>/install.sh | TS_NODE_API_KEY=<key> sh -s -- --link <hub>
+#
+# Options:
+#   --version <vX.Y.Z>   Install a specific wizard release.
+#   --link <hub-url>     Link this node to a Hub after installing.
+#   --api-key <key>      Node API key (prefer the TS_NODE_API_KEY env var:
+#                        command-line arguments are visible to every local
+#                        user through the process list).
+#   --sha256 <hash>      Expected SHA-256 of the wizard binary. When set, the
+#                        download must match it in addition to checksums.txt.
+#                        checksums.txt comes from the same release as the
+#                        binary, so on its own it detects corruption, not
+#                        tampering.
 set -e
 
-# Pass all arguments into the function
 do_install() {
-    # 1. Parse Arguments passed via 'bash -s --'
     LINK_URL=""
-    API_KEY=""
+    API_KEY="${TS_NODE_API_KEY:-}"
     TARGET_VERSION=""
+    PINNED_SHA256=""
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            --version)
-                TARGET_VERSION="$2"
-                shift 2
-                ;;
-            --link)
-                LINK_URL="$2"
-                shift 2
-                ;;
-            --api-key)
-                API_KEY="$2"
+            --version|--link|--api-key|--sha256)
+                if [ $# -lt 2 ]; then
+                    printf 'Error: %s requires a value.\n' "$1" >&2
+                    exit 1
+                fi
+                case "$1" in
+                    --version) TARGET_VERSION="$2" ;;
+                    --link)    LINK_URL="$2" ;;
+                    --api-key) API_KEY="$2" ;;
+                    --sha256)  PINNED_SHA256="$2" ;;
+                esac
                 shift 2
                 ;;
             *)
-                # Ignore unknown arguments silently or log them,
-                # but don't break the install.
+                printf 'Warning: ignoring unknown argument: %s\n' "$1" >&2
                 shift 1
                 ;;
         esac
     done
 
-    # Define colors
-    RESET='\033[0m'
-    BOLD='\033[1m'
-    DIM='\033[2m'
-    CYAN='\033[36m'
-    GREEN='\033[32m'
-    YELLOW='\033[33m'
-    RED='\033[31m'
-    MAGENTA='\033[35m'
+    if [ -t 1 ]; then
+        RESET=$(printf '\033[0m'); BOLD=$(printf '\033[1m'); DIM=$(printf '\033[2m')
+        CYAN=$(printf '\033[36m'); GREEN=$(printf '\033[32m'); YELLOW=$(printf '\033[33m')
+        RED=$(printf '\033[31m'); MAGENTA=$(printf '\033[35m')
+    else
+        RESET=""; BOLD=""; DIM=""; CYAN=""; GREEN=""; YELLOW=""; RED=""; MAGENTA=""
+    fi
 
-    echo -e "${CYAN}${BOLD}==> Starting TrueSignal Installation...${RESET}"
+    info() { printf '%s==> %s%s\n' "$CYAN" "$1" "$RESET"; }
+    fail() { printf '%s%sError:%s%s %s%s\n' "$RED" "$BOLD" "$RESET" "$RED" "$1" "$RESET" >&2; exit 1; }
 
-    # 2. Check for existing installation (Upgrade flow)
+    printf '%s%s==> Starting TrueSignal Installation...%s\n' "$CYAN" "$BOLD" "$RESET"
+
+    if [ -n "$PINNED_SHA256" ]; then
+        PINNED_SHA256=$(printf '%s' "$PINNED_SHA256" | tr 'A-F' 'a-f')
+        case "$PINNED_SHA256" in
+            *[!0-9a-f]*) fail "--sha256 must be a 64-character hex digest." ;;
+        esac
+        [ ${#PINNED_SHA256} -eq 64 ] || fail "--sha256 must be a 64-character hex digest."
+    fi
+
+    # Upgrade flow
     if command -v truesignal >/dev/null 2>&1; then
         EXISTING_PATH=$(command -v truesignal)
-        echo -e "${YELLOW}${BOLD}==> Warning:${RESET}${YELLOW} TrueSignal is already installed at ${EXISTING_PATH}${RESET}"
-        echo -e "${DIM}Upgrading version in 3 seconds... (Press CTRL + C to cancel)${RESET}"
+        printf '%s%s==> Warning:%s%s TrueSignal is already installed at %s%s\n' "$YELLOW" "$BOLD" "$RESET" "$YELLOW" "$EXISTING_PATH" "$RESET"
+        printf '%sUpgrading in 3 seconds... (Press CTRL + C to cancel)%s\n' "$DIM" "$RESET"
         sleep 3
     fi
 
-    # 3. Check for required tools
-    if ! command -v curl >/dev/null 2>&1; then
-        echo -e "${RED}${BOLD}Error:${RESET}${RED} 'curl' is required. Aborting.${RESET}"
-        exit 1
-    fi
+    command -v curl >/dev/null 2>&1 || fail "'curl' is required. Aborting."
+    command -v sha256sum >/dev/null 2>&1 || fail "'sha256sum' is required. Aborting."
 
-    if ! command -v sha256sum >/dev/null 2>&1; then
-        echo -e "${RED}${BOLD}Error:${RESET}${RED} 'sha256sum' is required. Aborting.${RESET}"
-        exit 1
-    fi
-
-    # 4. Detect Architecture
     ARCH=$(uname -m)
     case "$ARCH" in
-        x86_64)  BIN_ARCH="amd64" ;;
-        aarch64) BIN_ARCH="arm64" ;;
-        arm64)   BIN_ARCH="arm64" ;;
-        *)
-            echo -e "${RED}${BOLD}Error:${RESET}${RED} Unsupported architecture ($ARCH)${RESET}"
-            exit 1
-            ;;
+        x86_64)        BIN_ARCH="amd64" ;;
+        aarch64|arm64) BIN_ARCH="arm64" ;;
+        *) fail "Unsupported architecture ($ARCH)" ;;
     esac
 
-    # 5. Resolve Target Release Version
+    RELEASES_API="https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases"
+
+    # Resolve the wizard release
     LATEST_TAG=""
     if [ -n "$TARGET_VERSION" ]; then
         case "$TARGET_VERSION" in
             v*) LATEST_TAG="wizard/$TARGET_VERSION" ;;
             *)  LATEST_TAG="wizard/v$TARGET_VERSION" ;;
         esac
-        echo -e "${CYAN}==> Target version specified: ${BOLD}$LATEST_TAG${RESET}"
+        info "Target version specified: ${BOLD}$LATEST_TAG"
     elif [ -n "$LINK_URL" ]; then
-        echo -e "${CYAN}==> Detecting Hub version compatibility from ${DIM}$LINK_URL${RESET}${CYAN}...${RESET}"
-        HUB_VER=$(curl -s --connect-timeout 3 "$LINK_URL/api/v2/version" 2>/dev/null | grep -o '"version":"[^"]*' | cut -d'"' -f4 || true)
+        info "Detecting Hub version compatibility from $LINK_URL..."
+        HUB_VER=$(curl -fsS --connect-timeout 5 --max-time 15 "$LINK_URL/api/v2/version" 2>/dev/null | grep -o '"version": *"[^"]*' | sed 's/.*"//' || true)
         if [ -n "$HUB_VER" ]; then
-            HUB_MAJOR=$(echo "$HUB_VER" | sed -E 's/^v?([0-9]+).*/\1/')
-            echo -e "${CYAN}==> Hub major version identified: ${BOLD}v$HUB_MAJOR${RESET}"
-            LATEST_TAG=$(curl -s https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases | grep -o "\"tag_name\": \"wizard/v$HUB_MAJOR\.[^\"]*" | head -n 1 | cut -d'"' -f4 || true)
+            HUB_MAJOR=$(printf '%s' "$HUB_VER" | sed -E 's/^v?([0-9]+).*/\1/')
+            info "Hub major version identified: ${BOLD}v$HUB_MAJOR"
+            LATEST_TAG=$(curl -fsS --max-time 30 "$RELEASES_API" 2>/dev/null | grep -o "\"tag_name\": *\"wizard/v$HUB_MAJOR\.[^\"]*" | head -n 1 | sed 's/.*"//' || true)
         fi
     fi
 
-    # Fallback to latest available wizard release
     if [ -z "$LATEST_TAG" ]; then
-        echo -e "${CYAN}==> Fetching latest release info from GitHub...${RESET}"
-        LATEST_TAG=$(curl -s https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases | grep -o '"tag_name": "wizard/[^"]*' | head -n 1 | cut -d'"' -f4 || true)
+        info "Fetching latest release info from GitHub..."
+        LATEST_TAG=$(curl -fsS --max-time 30 "$RELEASES_API" 2>/dev/null | grep -o '"tag_name": *"wizard/[^"]*' | head -n 1 | sed 's/.*"//' || true)
     fi
 
-    if [ -z "$LATEST_TAG" ]; then
-        echo -e "${RED}${BOLD}Error:${RESET}${RED} Could not determine the Wizard release version from GitHub. Aborting.${RESET}"
-        exit 1
-    fi
+    [ -n "$LATEST_TAG" ] || fail "Could not determine the Wizard release version from GitHub. Aborting."
 
-    # 6. Variables
+    case "$LATEST_TAG" in
+        wizard/v[0-9]*) ;;
+        *) fail "Refusing unexpected release tag: $LATEST_TAG" ;;
+    esac
+    case "$LATEST_TAG" in
+        *[!A-Za-z0-9./_-]*) fail "Refusing unexpected release tag: $LATEST_TAG" ;;
+    esac
+
     BASE_URL="https://github.com/mahmoudahmed3132/TrueSignal/releases/download/$LATEST_TAG"
     BINARY_NAME="truesignal-linux-$BIN_ARCH"
     INSTALL_PATH="/usr/local/bin/truesignal"
 
-    # 7. Secure Temp Dir
     TMP_DIR=$(mktemp -d)
-    trap 'rm -rf "$TMP_DIR"' EXIT
+    trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
     cd "$TMP_DIR"
 
-    # 8. Download
-    echo -e "${CYAN}==> Downloading ${BOLD}$LATEST_TAG${RESET}${CYAN}...${RESET}"
-    curl -fsSL "$BASE_URL/$BINARY_NAME" -o "$BINARY_NAME"
+    info "Downloading ${BOLD}$LATEST_TAG${RESET}${CYAN}..."
+    curl -fsSL --proto '=https' --tlsv1.2 "$BASE_URL/$BINARY_NAME" -o "$BINARY_NAME"
 
-    echo -e "${CYAN}==> Downloading checksums...${RESET}"
-    curl -fsSL "$BASE_URL/checksums.txt" -o checksums.txt
+    info "Downloading checksums..."
+    curl -fsSL --proto '=https' --tlsv1.2 "$BASE_URL/checksums.txt" -o checksums.txt
 
-    # 9. Strict Checksum Verification
-    echo -e "${CYAN}==> Verifying cryptographic signature...${RESET}"
-    EXPECTED_HASH=$(grep " $BINARY_NAME\$" checksums.txt | awk '{print $1}')
+    info "Verifying checksum..."
+    EXPECTED_HASH=$(awk -v f="$BINARY_NAME" '$2 == f || $2 == "*" f {print $1; exit}' checksums.txt)
+    [ -n "$EXPECTED_HASH" ] || fail "Binary not found in checksums.txt! Aborting."
 
-    if [ -z "$EXPECTED_HASH" ]; then
-        echo -e "${RED}${BOLD}Error:${RESET}${RED} Binary not found in checksums.txt! Aborting.${RESET}"
-        exit 1
+    ACTUAL_HASH=$(sha256sum "$BINARY_NAME" | awk '{print $1}')
+    [ "$ACTUAL_HASH" = "$EXPECTED_HASH" ] || fail "Checksum verification failed!"
+
+    if [ -n "$PINNED_SHA256" ]; then
+        [ "$ACTUAL_HASH" = "$PINNED_SHA256" ] || fail "Binary does not match the pinned --sha256 value!"
+        printf '%s✓ Checksum valid and matches the pinned hash.%s\n' "$GREEN" "$RESET"
+    else
+        printf '%s✓ Checksum valid.%s %s(Pin with --sha256 to detect a tampered release.)%s\n' "$GREEN" "$RESET" "$DIM" "$RESET"
     fi
 
-    if ! echo "$EXPECTED_HASH  $BINARY_NAME" | sha256sum -c - >/dev/null 2>&1; then
-        echo -e "${RED}${BOLD}Error:${RESET}${RED} Checksum verification failed!${RESET}"
-        exit 1
-    fi
-    echo -e "${GREEN}✓ Checksum valid.${RESET}"
-
-    # 10. Install
-    echo -e "${CYAN}==> Installing to ${DIM}$INSTALL_PATH${RESET}${CYAN} (requires sudo)...${RESET}"
     SUDO=""
     if [ "$(id -u)" -ne 0 ]; then
+        command -v sudo >/dev/null 2>&1 || fail "Not running as root and 'sudo' is not available."
         SUDO="sudo"
     fi
 
-    $SUDO mv "$BINARY_NAME" "$INSTALL_PATH"
-    $SUDO chmod +x "$INSTALL_PATH"
+    info "Installing to $INSTALL_PATH..."
+    $SUDO install -m 0755 -o 0 -g 0 "$BINARY_NAME" "$INSTALL_PATH"
 
-    # 11. Auto-Provisioning (The Magic Step)
     if [ -n "$LINK_URL" ]; then
-        echo -e "\n${CYAN}${BOLD}==> Provisioning Node...${RESET}"
-        # /dev/tty to force the binary to read from the user's keyboard
-        if [ -n "$API_KEY" ]; then
-            $SUDO $INSTALL_PATH --link "$LINK_URL" --api-key "$API_KEY" < /dev/tty
-        else
-            $SUDO $INSTALL_PATH --link "$LINK_URL" < /dev/tty
+        printf '\n%s%s==> Provisioning Node...%s\n' "$CYAN" "$BOLD" "$RESET"
+        # The script itself arrives on stdin (curl | sh), so the wizard reads
+        # prompts from the terminal instead when one is attached.
+        STDIN_SRC=/dev/null
+        if [ -r /dev/tty ] && (: < /dev/tty) 2>/dev/null; then
+            STDIN_SRC=/dev/tty
         fi
-        echo -e "\n${GREEN}${BOLD}==> Node Successfully Deployed!${RESET}"
+        if [ -n "$API_KEY" ]; then
+            # Pass the key through the environment, not argv.
+            TS_NODE_API_KEY="$API_KEY"
+            export TS_NODE_API_KEY
+            if [ -n "$SUDO" ]; then
+                $SUDO --preserve-env=TS_NODE_API_KEY "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
+            else
+                "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
+            fi
+        else
+            $SUDO "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
+        fi
+        printf '\n%s%s==> Node Successfully Deployed!%s\n' "$GREEN" "$BOLD" "$RESET"
     else
-        echo -e "\n${GREEN}${BOLD}==> Installation Complete!${RESET}"
-        echo -e "You can now run the tool by typing: ${MAGENTA}${BOLD}truesignal${RESET}\n"
+        printf '\n%s%s==> Installation Complete!%s\n' "$GREEN" "$BOLD" "$RESET"
+        printf 'You can now run the tool by typing: %s%struesignal%s\n\n' "$MAGENTA" "$BOLD" "$RESET"
     fi
 }
 
-# Execute the function and pass all arguments to it
 do_install "$@"

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	sdk "github.com/truesignal/sdk-go"
@@ -135,13 +136,18 @@ func runInit() {
 			unix.Close(dirFD)
 
 			if err != nil {
-				log.Printf("ERROR: Failed creating decoy file %s: %v", hostPath, err)
+				log.Printf("ERROR: Failed creating decoy file %q: %v", hostPath, err)
 				continue
 			}
 
+			// Only files created here (O_EXCL) get content: existing host files
+			// used as tripwires are never modified.
+			if _, err := unix.Write(fd, lureContent(filepath.Base(f))); err != nil {
+				log.Printf("WARNING: Failed writing lure content to %q: %v", hostPath, err)
+			}
 			unix.Close(fd)
 
-			log.Printf("Created decoy file: %s", hostPath)
+			log.Printf("Created decoy file: %q", hostPath)
 			validFiles++
 
 		} else {
@@ -174,7 +180,7 @@ func reportFileEvent(
 		},
 	)
 
-	log.Printf("[%s] %s -> %s", strings.ToUpper(category), action, path)
+	log.Printf("[%s] %s -> %q", strings.ToUpper(category), action, path)
 }
 
 func main() {
@@ -215,6 +221,12 @@ func main() {
 	}
 
 	alertOnOpen := os.Getenv("TS_ALERT_ON_OPEN") == "true"
+	dedupe := newDeduper(time.Duration(envInt("TS_ALERT_COOLDOWN", 10)) * time.Second)
+	report := func(trigger, category, action, file string) {
+		if dedupe.allow(file+"|"+action, time.Now()) {
+			reportFileEvent(ts, trigger, category, action, file)
+		}
+	}
 
 	decoyFilesStr := os.Getenv("TS_DECOY_FILES")
 	if decoyFilesStr == "" {
@@ -324,9 +336,9 @@ func main() {
 				return
 			}
 
-			var offset uint32
+			offset := 0
 
-			for offset <= uint32(n-unix.SizeofInotifyEvent) {
+			for offset+unix.SizeofInotifyEvent <= n {
 
 				event := (*unix.InotifyEvent)(
 					unsafe.Pointer(&buf[offset]),
@@ -338,33 +350,15 @@ func main() {
 
 					// Tamper events
 					if event.Mask&unix.IN_MODIFY != 0 {
-						reportFileEvent(
-							ts,
-							"decoy_file_tampered",
-							"tamper",
-							"Decoy file modified",
-							fileName,
-						)
+						report("decoy_file_tampered", "tamper", "Decoy file modified", fileName)
 					}
 
 					if event.Mask&unix.IN_CLOSE_WRITE != 0 {
-						reportFileEvent(
-							ts,
-							"decoy_file_tampered",
-							"tamper",
-							"Decoy file modified",
-							fileName,
-						)
+						report("decoy_file_tampered", "tamper", "Decoy file modified", fileName)
 					}
 
 					if event.Mask&unix.IN_ATTRIB != 0 {
-						reportFileEvent(
-							ts,
-							"decoy_file_tampered",
-							"tamper",
-							"File attributes changed",
-							fileName,
-						)
+						report("decoy_file_tampered", "tamper", "File attributes changed", fileName)
 					}
 
 					if event.Mask&unix.IN_DELETE_SELF != 0 {
@@ -403,28 +397,16 @@ func main() {
 					if alertOnOpen {
 
 						if event.Mask&unix.IN_OPEN != 0 {
-							reportFileEvent(
-								ts,
-								"decoy_file_accessed",
-								"access",
-								"Decoy file opened",
-								fileName,
-							)
+							report("decoy_file_accessed", "access", "Decoy file opened", fileName)
 						}
 
 						if event.Mask&unix.IN_ACCESS != 0 {
-							reportFileEvent(
-								ts,
-								"decoy_file_accessed",
-								"access",
-								"Decoy file read",
-								fileName,
-							)
+							report("decoy_file_accessed", "access", "Decoy file read", fileName)
 						}
 					}
 				}
 
-				offset += unix.SizeofInotifyEvent + event.Len
+				offset += unix.SizeofInotifyEvent + int(event.Len)
 			}
 		}
 	}()

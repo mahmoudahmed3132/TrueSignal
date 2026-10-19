@@ -63,6 +63,9 @@ func CheckDiskSpace() (string, error) {
 		return "", fmt.Errorf("failed to statfs %s: %w", path, err)
 	}
 
+	if stat.Bsize <= 0 {
+		return "", fmt.Errorf("statfs %s returned invalid block size %d", path, stat.Bsize)
+	}
 	freeBytes := stat.Bavail * uint64(stat.Bsize)
 	freeGB := float64(freeBytes) / (1024 * 1024 * 1024)
 
@@ -167,4 +170,3 @@ func LoadCurrentState() (*SystemState, error) {
 
 	return state, nil
 }
-

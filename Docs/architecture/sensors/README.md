@@ -30,11 +30,12 @@ graph TD
 
 ## 1. Initialization & Sync
 
-Before a sensor begins monitoring, it must successfully establish a baseline with the Hub.
+Before a sensor begins monitoring, it validates its configuration.
 
-1. **Environment Validation:** The sensor strictly requires `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, and `TS_SENSOR_ID` to be present.
-2. **Version Synchronization (`syncHubVersion`):** The sensor performs a blocking handshake with the Hub (`GET /api/v2/version`). It retrieves the Hub's contract version. If the Hub's major version does not match the SDK's agent version, the sensor refuses to start.
-3. **Pipeline Boot:** If successful, the SDK spins up the Event Loop and Heartbeat Loop as isolated background workers (Goroutines in Go, Daemon Threads in Python).
+1. **Environment Validation:** The sensor strictly requires `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, and `TS_SENSOR_ID` to be present, and refuses to start otherwise.
+2. **Pipeline Boot:** The SDK spins up the Event Loop and Heartbeat Loop as isolated background workers (Goroutines in Go, Daemon Threads in Python).
+
+There is no version handshake between sensor and Hub. Version compatibility is enforced at deploy time instead: the Hub refuses to compile a manifest whose major version differs from its own (`incompatible_sensor`).
 
 ---
 
@@ -44,7 +45,7 @@ The SDK utilizes a pure functional `classify` method. This layer evaluates raw H
 
 **Determines:**
 - `IsError`: Was the request successful?
-- `IsTransient`: Is this a network timeout, a 429 Rate Limit, or a 5xx error (meaning we should retry)? Or is it a 401/403/400 (meaning it's a fatal failure)?
+- `IsTransient`: Is this a network timeout, a 429 Rate Limit, or a 5xx error (meaning we should retry)? Or is it a 400/401/403/404 (meaning it's a fatal failure)? The Hub answers `404` when the sensor is not registered on the node, and `401` after the node key was rotated or the node deleted.
 - `RetryAfter`: Did the Hub explicitly request a backoff duration via HTTP headers?
 
 ---
@@ -79,7 +80,7 @@ The Event Worker handles intrusion alerts. It prioritizes guaranteed delivery wi
 ### Pipeline B: Heartbeat Worker
 The Heartbeat Worker proves the sensor is alive.
 
-1. **Stateless Pulse:** Every 30 seconds, it POSTs to `/api/v2/heartbeat` with its Sensor ID, Agent Version, and Contract Version.
+1. **Stateless Pulse:** Every 30 seconds, it POSTs to `/api/v2/heartbeat` with `{"sensorId": "...", "configRev": "..."}` (see [Data Contracts](/Docs/architecture/dataContracts.md#2-heartbeat-payload)). No version information is sent.
 2. **Lossy:** Unlike events, heartbeats are not queued or retried. If a heartbeat fails, the worker simply sleeps and tries again on the next tick.
 
 ---
@@ -90,4 +91,4 @@ When a sensor container receives a termination signal (SIGTERM):
 
 1. **Stop Signal:** The SDK stops accepting new events into the buffer.
 2. **Drain Queue:** The Event Worker attempts a best-effort, rapid flush of any remaining events in its buffer directly to the Hub.
-3. **Offline Notification (`GoOffline`):** The sensor fires a final, fast-timeout POST to `/api/v2/offline` with the reason `graceful_shutdown`. This allows the Hub's UI to immediately mark the sensor as "Offline" rather than waiting 60 seconds for the heartbeat monitor to declare it "Down".
+3. **Offline Notification (`GoOffline`):** The sensor fires a final, fast-timeout POST to `/api/v2/offline` with the reason `graceful_shutdown`. This allows the Hub to immediately mark the sensor as "Offline" rather than waiting 60 seconds for the heartbeat monitor to declare it "Down". The Hub records a `sensor_stopped` event (low) and, if the sensor has not come back within 5 minutes, escalates with `sensor_heartbeat_lost` (high).

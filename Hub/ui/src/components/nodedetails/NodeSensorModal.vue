@@ -101,7 +101,7 @@ const fetchYamlFromHub = async () => {
   try {
     rawCompose.value = await fleetStore.generateCompose({
       hubEndpoint: configStore.config.hubEndpoint || window.location.origin,
-      hubKey: props.apiKey || '<YOUR_HW_NODE_KEY>',
+      hubKey: props.apiKey || '<NODE_API_KEY>',
       sensors: [{ sensorId: props.sensor.id, envValues: safeEnvValues, manifest: props.sensor }]
     })
     applyHighlighting()

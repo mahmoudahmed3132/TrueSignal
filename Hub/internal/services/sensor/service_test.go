@@ -5,9 +5,9 @@ import (
 )
 
 type mockStore struct {
-	latestStatus string
+	latestStatus   string
 	insertedStatus []string
-	lastHeartbeat string
+	lastHeartbeat  string
 }
 
 func (m *mockStore) ProcessHeartbeat(nodeID, sensorID, configRev, nowStr string) (bool, error) {
@@ -48,7 +48,7 @@ func (b *mockBroadcaster) Broadcast(topic string, payload interface{}) {
 func TestProcessHeartbeat_OnlineTransition(t *testing.T) {
 	st := &mockStore{latestStatus: "offline"}
 	br := &mockBroadcaster{}
-	svc := NewService(st, br)
+	svc := NewService(st, br, nil)
 
 	err := svc.ProcessHeartbeat("node1", "sensor1", "rev1")
 	if err != nil {

@@ -13,18 +13,18 @@
         "title": "Features",
         "type": "list",
         "content": [
-          "Router Simulation: Mimics popular router brands (Netgear, TP-Link, Cisco) to trick attackers.",
-          "Credential Logging: Captures and alerts on attempted login credentials from internal threats.",
-          "Browser Fingerprinting: Logs user-agent and request patterns for forensic analysis."
+          "Router Simulation: Login page and device footer matching the configured brand (Netgear, TP-Link, Cisco, ASUS, Linksys).",
+          "Credential Capture: Records submitted usernames; passwords are hashed by default so real credentials never land in cleartext.",
+          "Reconnaissance Logging: Page views and path probes (/admin, /.env, ...) are reported at medium severity, rate-limited per source."
         ]
       },
       {
         "title": "Security Architecture",
         "type": "list",
         "content": [
-          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
-          "Execution Privilege: Runs as container root (UID 0) to allow bridging network modes.",
-          "Required Capabilities: Adds 'NET_BIND_SERVICE' to allow binding to ports below 1024 without needing full host network control."
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL Linux capabilities, enforces a read-only filesystem and no-new-privileges, and applies log rotation.",
+          "Execution Privilege: Runs as container root only so NET_BIND_SERVICE can bind ports below 1024 when configured.",
+          "Hardening: Request header/body limits and timeouts protect the decoy against slow-client exhaustion."
         ]
       }
     ]
@@ -111,6 +111,22 @@
         "name": "TS_ROUTER_BRAND",
         "description": "Router brand to simulate.",
         "default": "Netgear",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_PASSWORDS",
+        "description": "How submitted passwords are recorded: hash (keyed HMAC-SHA256 + length, default), plain (cleartext; avoid in PCI scope), none.",
+        "default": "hash",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_HASH_KEY",
+        "description": "Optional HMAC key for hash mode. Set the same value on every node to correlate a password across the fleet. Empty: derived from this node's key (correlates per node only). A value set here is stored by the Hub, so Hub records could then be dictionary-tested.",
+        "default": "",
         "type": "string",
         "required": false,
         "hidden": false

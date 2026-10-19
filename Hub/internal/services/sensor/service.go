@@ -3,7 +3,10 @@ package sensor
 import (
 	"errors"
 	"log"
+	"strings"
 	"time"
+
+	"github.com/truesignal/hub/internal/models"
 )
 
 // Store defines exactly what the Sensor service needs from internal/store
@@ -21,17 +24,39 @@ type Broadcaster interface {
 	Broadcast(topic string, payload interface{})
 }
 
+// EventEmitter records Hub-raised events (sensor liveness) through the normal
+// event pipeline so they reach storage, the SIEM and notifications.
+type EventEmitter interface {
+	EmitSystemEvent(nodeID, sensorID, trigger, severity string, details map[string]any)
+}
+
 type Service struct {
 	store       Store
 	broadcaster Broadcaster
+	events      EventEmitter
 }
 
 var ErrSensorNotRegistered = errors.New("sensor not registered")
 
-func NewService(store Store, broadcaster Broadcaster) *Service {
+// Liveness event triggers. Severities are chosen so that a deliberate stop is
+// visible but not paged, while a sensor that stays dark is (see statemonitor).
+const (
+	TriggerSensorStopped   = "sensor_stopped"
+	TriggerSensorRecovered = "sensor_recovered"
+	TriggerHeartbeatLost   = "sensor_heartbeat_lost"
+)
+
+func NewService(store Store, broadcaster Broadcaster, events EventEmitter) *Service {
 	return &Service{
 		store:       store,
 		broadcaster: broadcaster,
+		events:      events,
+	}
+}
+
+func (s *Service) emit(nodeID, sensorID, trigger, severity string, details map[string]any) {
+	if s.events != nil {
+		s.events.EmitSystemEvent(nodeID, sensorID, trigger, severity, details)
 	}
 }
 
@@ -50,6 +75,9 @@ func (s *Service) ProcessHeartbeat(nodeID, sensorID, configRev string) error {
 
 	_, err = s.store.ProcessHeartbeat(nodeID, sensorID, configRev, nowStr)
 	if err != nil {
+		if errors.Is(err, models.ErrNotFound) {
+			return ErrSensorNotRegistered
+		}
 		log.Printf("[ERROR] Heartbeat DB update failed for node %s: %v", nodeID, err)
 		return err
 	}
@@ -57,6 +85,11 @@ func (s *Service) ProcessHeartbeat(nodeID, sensorID, configRev string) error {
 	if isOffline {
 		if err := s.store.InsertStatusChange(nodeID, sensorID, "online", nowStr); err != nil {
 			log.Printf("[WARNING] Failed to log status change: %v", err)
+		}
+		// Only a return from a known-offline state is a recovery; the very
+		// first heartbeat of a newly deployed sensor is not.
+		if latestStatus == "offline" {
+			s.emit(nodeID, sensorID, TriggerSensorRecovered, "info", map[string]any{"config_rev": configRev})
 		}
 		s.broadcaster.Broadcast("NODE_SYNCED", map[string]interface{}{
 			"nodeId": nodeID,
@@ -83,7 +116,11 @@ func (s *Service) ProcessOffline(nodeID, sensorID, reason string) error {
 		return err
 	}
 
-	log.Printf("[INFO] Sensor %s on node %s went offline gracefully (Reason: %s)", sensorID, nodeID, reason)
+	reason = strings.ToValidUTF8(reason, "?")
+	if len(reason) > 128 {
+		reason = reason[:128]
+	}
+	log.Printf("[INFO] Sensor %s on node %s went offline gracefully (Reason: %q)", sensorID, nodeID, reason)
 
 	s.broadcaster.Broadcast("UPDATE_NODE", map[string]interface{}{
 		"nodeId":          nodeID,
@@ -91,6 +128,11 @@ func (s *Service) ProcessOffline(nodeID, sensorID, reason string) error {
 	})
 
 	_ = s.store.InsertStatusChange(nodeID, sensorID, "offline", time.Now().UTC().Format(time.RFC3339))
+
+	// A stop is routine during `truesignal apply`, but it is also how an
+	// intruder would quietly disable a decoy. Record it; the state monitor
+	// escalates if the sensor does not come back.
+	s.emit(nodeID, sensorID, TriggerSensorStopped, "low", map[string]any{"reason": reason})
 
 	return nil
 }

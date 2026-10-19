@@ -48,7 +48,7 @@ func TestSessionManagement(t *testing.T) {
 
 	// 3. Expired Session
 	svc.sessionMu.Lock()
-	svc.sessions[token] = time.Now().Add(-1 * time.Hour) // Force expire
+	svc.sessions[token].expires = time.Now().Add(-1 * time.Hour) // Force expire
 	svc.sessionMu.Unlock()
 
 	assert.False(t, svc.IsValid(token), "Expired session should be invalid and deleted")
@@ -137,4 +137,26 @@ func TestAuthenticateNodeRequest_Caching(t *testing.T) {
 
 	// Assert database was NOT called again
 	assert.Equal(t, 2, store.nodeCalls, "Node API key should have been cached")
+}
+
+func TestSessionIdleTimeoutAndNodeCacheInvalidation(t *testing.T) {
+	svc := NewService(&mockAuthStore{}, "pw", SessionPolicy{TTL: time.Hour, Idle: time.Minute})
+
+	token, err := svc.CreateSession()
+	require.NoError(t, err)
+	svc.sessionMu.Lock()
+	svc.sessions[token].lastSeen = time.Now().Add(-2 * time.Minute)
+	svc.sessionMu.Unlock()
+	assert.False(t, svc.IsValid(token), "idle session must expire")
+
+	svc.nodeAuthCache.Store(tokenCacheKey("k1"), "node-a")
+	svc.nodeAuthCache.Store(tokenCacheKey("k2"), "node-b")
+	svc.InvalidateNode("node-a")
+	_, okA := svc.nodeAuthCache.Load(tokenCacheKey("k1"))
+	_, okB := svc.nodeAuthCache.Load(tokenCacheKey("k2"))
+	assert.False(t, okA, "invalidated node must be evicted")
+	assert.True(t, okB, "other nodes must stay cached")
+	svc.ClearNodeCache()
+	_, okB = svc.nodeAuthCache.Load(tokenCacheKey("k2"))
+	assert.False(t, okB)
 }

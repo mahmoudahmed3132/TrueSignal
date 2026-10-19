@@ -240,12 +240,12 @@ func (s *Sensor) RunTestMode() bool {
 
 	// 2. Synchronously send the payload to guarantee delivery before the program exits
 	payload := map[string]any{
-		"sensorId":        s.SensorID,
-		"severity":        s.Severity,
-		"eventTrigger":    trigger,
-		"source":          source,
-		"target":          target,
-		"details":         details,
+		"sensorId":     s.SensorID,
+		"severity":     s.Severity,
+		"eventTrigger": trigger,
+		"source":       source,
+		"target":       target,
+		"details":      details,
 	}
 
 	resp, err := s.postToHub("/api/v2/event", payload)
@@ -289,13 +289,23 @@ func (ed EventDetails) MarshalJSON() ([]byte, error) {
 }
 
 func (s *Sensor) ReportEvent(trigger, source, target string, details EventDetails) bool {
+	return s.ReportEventSeverity(s.Severity, trigger, source, target, details)
+}
+
+// ReportEventSeverity queues an event with an explicit severity, for sensors
+// that emit signals of different weight (e.g. a page view vs. a credential
+// submission). Empty severity falls back to the sensor's TS_SEVERITY.
+func (s *Sensor) ReportEventSeverity(severity, trigger, source, target string, details EventDetails) bool {
+	if severity == "" {
+		severity = s.Severity
+	}
 	payload := map[string]any{
-		"sensorId":        s.SensorID,
-		"severity":        s.Severity,
-		"eventTrigger":    trigger,
-		"source":          source,
-		"target":          target,
-		"details":         details,
+		"sensorId":     s.SensorID,
+		"severity":     severity,
+		"eventTrigger": trigger,
+		"source":       source,
+		"target":       target,
+		"details":      details,
 	}
 
 	select {
@@ -402,8 +412,8 @@ func (s *Sensor) heartbeatLoop() {
 
 func (s *Sensor) sendHeartbeat() (*http.Response, error) {
 	payload := map[string]any{
-		"sensorId":        s.SensorID,
-		"configRev":       s.ConfigRev,
+		"sensorId":  s.SensorID,
+		"configRev": s.ConfigRev,
 	}
 	return s.postToHub("/api/v2/heartbeat", payload)
 }
@@ -411,8 +421,6 @@ func (s *Sensor) sendHeartbeat() (*http.Response, error) {
 // ==========================================
 // UTILITIES
 // ==========================================
-
-
 
 func (s *Sensor) GoOffline(reason string) {
 	fastClient := &http.Client{Timeout: 2 * time.Second}

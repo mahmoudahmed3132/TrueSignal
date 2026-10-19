@@ -13,7 +13,7 @@ import (
 
 var (
 	// Load custom configuration from environment variables
-	target   = getEnv("TS_CUSTOM_TARGET", "/tmp/honey")
+	target = getEnv("TS_CUSTOM_TARGET", "/tmp/honey")
 )
 
 func main() {

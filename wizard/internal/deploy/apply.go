@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/truesignal/wizard/internal/cli"
 )
@@ -139,7 +139,6 @@ func Apply(ctx context.Context, composeData []byte) error {
 
 	return nil
 }
-
 
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)

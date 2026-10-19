@@ -3,9 +3,9 @@ package compose
 import (
 	"testing"
 
-	"github.com/truesignal/hub/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/truesignal/hub/internal/models"
 )
 
 func TestBuildService_SecurityDefaults(t *testing.T) {
@@ -19,7 +19,7 @@ func TestBuildService_SecurityDefaults(t *testing.T) {
 	require.Len(t, compose.Services, 1)
 
 	svc := compose.Services[0].Service
-	assert.Equal(t, "1000:1000", svc.User, "should default to non-root user")
+	assert.Equal(t, "65532:65532", svc.User, "should default to non-root user")
 	assert.Equal(t, []string{"ALL"}, svc.CapDrop, "should drop all capabilities by default")
 	assert.True(t, svc.ReadOnly, "should be readonly by default")
 	assert.Contains(t, svc.SecurityOpt, "no-new-privileges:true", "should prevent new privileges")
@@ -28,8 +28,8 @@ func TestBuildService_SecurityDefaults(t *testing.T) {
 func TestBuildService_CapabilityFiltering(t *testing.T) {
 	manifest := models.SensorManifest{
 		Deployment: models.Deployment{
-			ImageRepository:  "test-image",
-			CapAdd: []string{"NET_RAW", "SYS_ADMIN"}, // SYS_ADMIN is not allowed
+			ImageRepository: "test-image",
+			CapAdd:          []string{"NET_RAW", "SYS_ADMIN"}, // SYS_ADMIN is not allowed
 		},
 	}
 	compose, err := BuildService("test-sensor", manifest, map[string]string{})
@@ -135,4 +135,65 @@ func TestSortEnvKeys(t *testing.T) {
 	sortEnvKeys(keys)
 	expected := []string{"TS_SENSOR_ID", "TS_HUB_KEY", "TS_SEVERITY", "BAR", "FOO"}
 	assert.Equal(t, expected, keys)
+}
+func TestBuildService_InitContainerBaselineAndEnvEscaping(t *testing.T) {
+	m := models.SensorManifest{
+		Deployment: models.Deployment{
+			ImageRepository: "img",
+			ImageTag:        "v1",
+			InitContainers: []models.InitContainer{{
+				Name:            "prov",
+				ImageRepository: "img",
+				ImageTag:        "v1",
+				User:            "0:0",
+				CapAdd:          []string{"DAC_OVERRIDE", "NET_ADMIN"},
+				VolumeMounts: []models.VolumeMount{{
+					Type: models.DynamicDirBind, SourceEnv: "TS_DECOY_FILES", TargetPrefix: "/host",
+				}},
+			}},
+		},
+	}
+	env := map[string]string{"TS_DECOY_FILES": "/opt/app/.env.backup", "TS_TARPIT_BANNER": "price=$5"}
+	cf, err := BuildService("ts-sensor-x", m, env)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	init := cf.Services[0].Service
+	if init.NetworkMode != "none" || !init.ReadOnly || len(init.CapDrop) != 1 || init.CapDrop[0] != "ALL" {
+		t.Errorf("init container must be network-less, read-only, cap_drop ALL: %+v", init)
+	}
+	if len(init.SecurityOpt) != 1 || init.SecurityOpt[0] != "no-new-privileges:true" {
+		t.Errorf("init container must set no-new-privileges: %v", init.SecurityOpt)
+	}
+	if len(init.CapAdd) != 1 || init.CapAdd[0] != "DAC_OVERRIDE" {
+		t.Errorf("NET_ADMIN must be filtered, got %v", init.CapAdd)
+	}
+	if len(init.Volumes) != 1 || init.Volumes[0].Source != "/opt/app" || init.Volumes[0].Target != "/host/opt/app" {
+		t.Errorf("unexpected dynamic dir bind: %+v", init.Volumes)
+	}
+
+	main := cf.Services[1].Service
+	found := false
+	for _, e := range main.Environment {
+		if e == "TS_TARPIT_BANNER=price=$$5" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("'$' must be escaped for compose interpolation: %v", main.Environment)
+	}
+}
+
+func TestBuildService_RejectsForbiddenDynamicMounts(t *testing.T) {
+	m := models.SensorManifest{Deployment: models.Deployment{
+		ImageRepository: "img",
+		VolumeMounts:    []models.VolumeMount{{Type: models.DynamicFileBind, SourceEnv: "TS_DECOY_FILES", TargetPrefix: "/canaries"}},
+		InitContainers: []models.InitContainer{{Name: "p", ImageRepository: "img",
+			VolumeMounts: []models.VolumeMount{{Type: models.DynamicDirBind, SourceEnv: "TS_DECOY_FILES", TargetPrefix: "/host"}}}},
+	}}
+	for _, bad := range []string{"/run/docker.sock", "/x", "relative/file", "/var/lib/docker/x"} {
+		if _, err := BuildService("ts-sensor-x", m, map[string]string{"TS_DECOY_FILES": bad}); err == nil {
+			t.Errorf("expected %q to be rejected", bad)
+		}
+	}
 }

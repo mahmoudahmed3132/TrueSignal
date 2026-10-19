@@ -3,6 +3,7 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -21,6 +22,9 @@ type RegistryIndex struct {
 	} `json:"sensors"`
 }
 
+// maxIndexBytes bounds the registry index response.
+const maxIndexBytes = 4 << 20
+
 type Store interface {
 	GetConfigValue(key string) (string, error)
 }
@@ -37,23 +41,11 @@ type Service struct {
 	onChange    func()
 }
 
+// NewService starts with no index; the first lookup or RefreshIndex loads it
+// from the registry. (A hard-coded bootstrap index previously advertised
+// sensor versions that do not exist.)
 func NewService(store Store, broadcaster Broadcaster) *Service {
-	mockIdx := &RegistryIndex{
-		Sensors: []struct {
-			ID       string `json:"id"`
-			Latest   string `json:"latest"`
-			Versions []struct {
-				V string `json:"v"`
-			} `json:"versions"`
-		}{
-			{ID: "ts-sensor-file-canary", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.0.1"}, {V: "2.1.0"}, {V: "2.2.0"}}},
-			{ID: "ts-sensor-tcp-tarpit", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.0.2"}, {V: "2.1.0"}, {V: "2.2.0"}}},
-			{ID: "ts-sensor-icmp-canary", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
-			{ID: "ts-sensor-network-scan-detector", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
-			{ID: "ts-sensor-web-router-decoy", Latest: "2.2.0", Versions: []struct{ V string `json:"v"` }{{V: "2.1.2"}, {V: "2.2.0"}}},
-		},
-	}
-	return &Service{store: store, broadcaster: broadcaster, indexCache: mockIdx}
+	return &Service{store: store, broadcaster: broadcaster}
 }
 
 func (s *Service) SetOnChangeHook(hook func()) {
@@ -70,7 +62,7 @@ func (s *Service) RefreshIndex() error {
 
 	indexURL := strings.TrimRight(registryURL, "/") + "/index.json"
 	var idx RegistryIndex
-	
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(indexURL)
 	if err != nil {
@@ -85,10 +77,9 @@ func (s *Service) RefreshIndex() error {
 		return fmt.Errorf("sensor registry returned HTTP %d", resp.StatusCode)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&idx); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxIndexBytes)).Decode(&idx); err != nil {
 		return err
 	}
-
 
 	s.mu.Lock()
 	var oldJSON, newJSON []byte
@@ -96,10 +87,10 @@ func (s *Service) RefreshIndex() error {
 		oldJSON, _ = json.Marshal(s.indexCache)
 	}
 	newJSON, _ = json.Marshal(&idx)
-	
+
 	changed := string(oldJSON) != string(newJSON)
 	s.indexCache = &idx
-	
+
 	var hook func()
 	if changed {
 		hook = s.onChange

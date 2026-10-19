@@ -1,7 +1,9 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -101,12 +103,11 @@ func (h *NodeHandler) GetNodeDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SendJSON(w, http.StatusOK, map[string]interface{}{
-		"nodeId":           node.ID,
-		"alias":            node.Alias,
-		"apiKey":           node.APIKey,
-		"activeRevision":   node.ActiveRevision,
-		"desiredRevision":  node.DesiredRevision,
-		"publicIp":         node.PublicIP,
+		"nodeId":             node.ID,
+		"alias":              node.Alias,
+		"activeRevision":     node.ActiveRevision,
+		"desiredRevision":    node.DesiredRevision,
+		"publicIp":           node.PublicIP,
 		"privateIp":          node.PrivateIP,
 		"tags":               node.Tags,
 		"hasPendingConfig":   node.HasPendingConfig,
@@ -194,6 +195,24 @@ func (h *NodeHandler) DeleteNodeSensor(w http.ResponseWriter, r *http.Request) {
 	SendJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
 
+// RotateNodeKey handles POST /api/v2/nodes/{id}/rotate-key. The new key is
+// returned exactly once; the previous key stops working immediately.
+func (h *NodeHandler) RotateNodeKey(w http.ResponseWriter, r *http.Request) {
+	nodeID := chi.URLParam(r, "nodeId")
+
+	key, err := h.service.RotateKey(nodeID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			RespondError(w, "Node not found", http.StatusNotFound)
+			return
+		}
+		RespondError(w, "Failed to rotate node key", http.StatusInternalServerError)
+		return
+	}
+
+	SendJSON(w, http.StatusOK, map[string]string{"nodeId": nodeID, "apiKey": key})
+}
+
 // DeleteNode handles DELETE /api/v2/nodes/{id}
 func (h *NodeHandler) DeleteNode(w http.ResponseWriter, r *http.Request) {
 	nodeID := chi.URLParam(r, "nodeId")
@@ -238,12 +257,12 @@ func (h *NodeHandler) GetCurrentNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SendJSON(w, http.StatusOK, map[string]interface{}{
-		"nodeId":           node.ID,
-		"alias":            node.Alias,
-		"activeRevision":   node.ActiveRevision,
-		"desiredRevision":  node.DesiredRevision,
-		"publicIp":         node.PublicIP,
-		"privateIp":        node.PrivateIP,
+		"nodeId":             node.ID,
+		"alias":              node.Alias,
+		"activeRevision":     node.ActiveRevision,
+		"desiredRevision":    node.DesiredRevision,
+		"publicIp":           node.PublicIP,
+		"privateIp":          node.PrivateIP,
 		"tags":               node.Tags,
 		"hasPendingConfig":   node.HasPendingConfig,
 		"hasUpdateAvailable": node.HasUpdateAvailable,

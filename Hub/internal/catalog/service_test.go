@@ -88,7 +88,7 @@ func TestRefreshIndexTriggersHook(t *testing.T) {
 	responseIndex := map[string]interface{}{
 		"sensors": []map[string]interface{}{
 			{
-				"id":      "ts-sensor-test",
+				"id":     "ts-sensor-test",
 				"latest": "v1.0.0",
 			},
 		},

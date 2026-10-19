@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sort"
-	"fmt"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -29,6 +29,12 @@ type Store interface {
 	ClearNodePendingConfig(nodeID string) error
 	SetNodeSensorDeployedVersion(nodeID, sensorID, version string) error
 	DeleteNode(nodeID string) error
+	RotateNodeKey(nodeID string) (string, error)
+}
+
+// AuthInvalidator evicts cached node authentication when a key stops being valid.
+type AuthInvalidator interface {
+	InvalidateNode(nodeID string)
 }
 
 // Broadcaster defines how the service sends real-time updates
@@ -40,14 +46,37 @@ type Service struct {
 	store       Store
 	broadcaster Broadcaster
 	catalog     *catalog.Service
+	auth        AuthInvalidator
 }
 
-func NewService(store Store, broadcaster Broadcaster, cat *catalog.Service) *Service {
-	return &Service{
+func NewService(store Store, broadcaster Broadcaster, cat *catalog.Service, auth ...AuthInvalidator) *Service {
+	s := &Service{
 		store:       store,
 		broadcaster: broadcaster,
 		catalog:     cat,
 	}
+	if len(auth) > 0 {
+		s.auth = auth[0]
+	}
+	return s
+}
+
+func (s *Service) invalidate(nodeID string) {
+	if s.auth != nil {
+		s.auth.InvalidateNode(nodeID)
+	}
+}
+
+// RotateKey issues a new API key for the node and revokes the old one. The
+// plaintext key is returned once; only its digest is stored.
+func (s *Service) RotateKey(nodeID string) (string, error) {
+	key, err := s.store.RotateNodeKey(nodeID)
+	if err != nil {
+		return "", err
+	}
+	s.invalidate(nodeID)
+	s.broadcaster.Broadcast("UPDATE_NODE", map[string]string{"nodeId": nodeID})
+	return key, nil
 }
 
 // StartWorker runs a background thread that periodically refreshes the catalog
@@ -108,13 +137,13 @@ func (s *Service) GetNodes() ([]models.Node, error) {
 	if s.catalog != nil {
 		for i := range nodes {
 			for j, sensor := range nodes[i].InstalledSensors {
-				latest, err := s.catalog.GetLatestCompatibleVersion(sensor.ID, models.HubVersion) 
+				latest, err := s.catalog.GetLatestCompatibleVersion(sensor.ID, models.HubVersion)
 				if err == nil && latest != "" {
 					deployedVer := strings.TrimSpace(sensor.DeployedVersion)
 					if !strings.HasPrefix(deployedVer, "v") && deployedVer != "" {
 						deployedVer = "v" + deployedVer
 					}
-					
+
 					latestVer := strings.TrimSpace(latest)
 					if !strings.HasPrefix(latestVer, "v") && latestVer != "" {
 						latestVer = "v" + latestVer
@@ -147,7 +176,7 @@ func (s *Service) GetNodeDetails(nodeID string) (*models.Node, error) {
 				if !strings.HasPrefix(deployedVer, "v") && deployedVer != "" {
 					deployedVer = "v" + deployedVer
 				}
-				
+
 				latestVer := strings.TrimSpace(latest)
 				if !strings.HasPrefix(latestVer, "v") && latestVer != "" {
 					latestVer = "v" + latestVer
@@ -232,6 +261,7 @@ func (s *Service) DeleteNode(nodeID string) error {
 	if err := s.store.DeleteNode(nodeID); err != nil {
 		return err
 	}
+	s.invalidate(nodeID)
 	s.broadcaster.Broadcast("DELETE_NODE", map[string]string{"nodeId": nodeID})
 	return nil
 }

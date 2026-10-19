@@ -82,7 +82,9 @@ Authorization: Bearer <NODE_API_KEY>
 
 The Hub derives node identity internally from the API key.
 
-Sensors never provide or control their own Node ID.
+Sensors never provide or control their own Node ID. The Hub also rejects events and heartbeats for any `sensorId` that is not registered on the authenticated node.
+
+The Hub stores only a SHA-256 hash of each key. The plaintext is shown once (at creation or `rotate-key`); rotating or deleting the node revokes the old key immediately.
 
 ---
 
@@ -138,7 +140,10 @@ The Hub validates the revision and marks the node as synchronized.
 
 The Hub distinguishes between preview generation and production deployment:
 - **Preview Generator** is used by the UI to show operators the compose preview. It is authenticated via the UI session and does not inject state tracking revisions.
-- **Node Deployment** is used by the nodes to fetch their production configuration. It is authenticated via the Node API Key, tracks state, and injects revisions into the environment for synchronization.
+- **Node Deployment** is used by the nodes to fetch their production configuration. It is authenticated via the Node API Key, tracks state, and injects revisions into the environment for synchronization. Because the request carries the plaintext key, this is the only place the real `TS_HUB_KEY` is written into a compose file.
+- **Dashboard Node Compose** (`GET /api/v2/nodes/{nodeId}/compose`) renders the same node bundle for operators with `TS_HUB_KEY` set to a placeholder.
+
+Node deployment fails closed: if any installed sensor's manifest is unavailable or fails validation, the Hub returns `422` and no bundle, so `apply` never removes a decoy because of a registry problem.
 
 ---
 

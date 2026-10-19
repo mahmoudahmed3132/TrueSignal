@@ -16,6 +16,7 @@ const appStore = useAppStore()
 const password = ref('')
 const confirmPassword = ref('')
 const hubEndpoint = ref('')
+const setupToken = ref('')
 
 const loading = ref(false)
 const error = ref('')
@@ -25,8 +26,12 @@ onMounted(() => {
 })
 
 const doSetup = async () => {
-    if (!password.value || !confirmPassword.value || !hubEndpoint.value) {
+    if (!setupToken.value || !password.value || !confirmPassword.value || !hubEndpoint.value) {
         error.value = "All fields are required."
+        return
+    }
+    if (password.value.length < 12) {
+        error.value = "Password must be at least 12 characters."
         return
     }
     if (password.value !== confirmPassword.value) {
@@ -36,7 +41,7 @@ const doSetup = async () => {
     loading.value = true
     error.value = ''
 
-    const result = await appStore.completeSetup(password.value, hubEndpoint.value)
+    const result = await appStore.completeSetup(password.value, hubEndpoint.value, setupToken.value.trim())
 
     loading.value = false
     if (result.success) {
@@ -71,15 +76,28 @@ const doSetup = async () => {
                 <form @submit.prevent="doSetup" class="mt-4 space-y-6">
                     
                     <div>
+                        <PageHeader size="sm" title="Setup Token" />
+                        <BaseInput 
+                            v-model="setupToken" 
+                            label="One-time Setup Token" 
+                            placeholder="Printed in the Hub log on first start"
+                            description="Find the [SETUP] line in the Hub container log (docker logs truesignal-hub)."
+                            required 
+                            autofocus
+                        />
+                    </div>
+
+                    <BaseDivider />
+
+                    <div>
                         <PageHeader size="sm" title="Master Authentication" />
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <BaseInput 
                                 v-model="password" 
                                 label="Master Password" 
                                 type="password" 
-                                placeholder="Required" 
+                                placeholder="At least 12 characters" 
                                 required 
-                                autofocus
                             />
                             <BaseInput 
                                 v-model="confirmPassword" 

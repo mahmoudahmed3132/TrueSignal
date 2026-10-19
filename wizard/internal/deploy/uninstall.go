@@ -6,8 +6,52 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
+
+// ConfiguredDecoyFiles lists the lure paths (TS_DECOY_FILES) in the deployed
+// compose file. Uninstall deliberately leaves them on disk because a lure may
+// be an existing host file used as a tripwire; operators review and remove
+// them by hand.
+func ConfiguredDecoyFiles() []string {
+	data, err := os.ReadFile(filepath.Join(DeployDir, ComposeFile))
+	if err != nil {
+		return nil
+	}
+	return parseDecoyFiles(data)
+}
+
+func parseDecoyFiles(data []byte) []string {
+	var cf struct {
+		Services map[string]struct {
+			Environment []string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &cf); err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var files []string
+	for _, svc := range cf.Services {
+		for _, e := range svc.Environment {
+			v, ok := strings.CutPrefix(e, "TS_DECOY_FILES=")
+			if !ok {
+				continue
+			}
+			v = strings.ReplaceAll(v, "$$", "$")
+			for _, f := range strings.Split(v, ",") {
+				if f = strings.TrimSpace(f); f != "" && !seen[f] {
+					seen[f] = true
+					files = append(files, f)
+				}
+			}
+		}
+	}
+	return files
+}
 
 func Uninstall() error {
 	cmdBase, err := GetDockerCommand()

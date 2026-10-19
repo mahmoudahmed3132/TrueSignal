@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	
+
 	"github.com/truesignal/wizard/core/schema"
 )
 
@@ -72,7 +72,7 @@ func checkStatus(resp *http.Response, expected ...int) error {
 			return nil
 		}
 	}
-	
+
 	msg := readBodyTruncated(resp)
 	if resp.StatusCode == http.StatusUpgradeRequired {
 		return fmt.Errorf("[VERSION MISMATCH] %s\n    Please update your Hub or use a compatible Wizard version.", msg)
@@ -259,10 +259,10 @@ type createNodeRequest struct {
 }
 
 type NodeInfo struct {
-	NodeID           string       `json:"nodeId"`
-	Alias            string       `json:"alias"`
-	Tags             []string     `json:"tags"`
-	Status           string       `json:"status"`
+	NodeID             string       `json:"nodeId"`
+	Alias              string       `json:"alias"`
+	Tags               []string     `json:"tags"`
+	Status             string       `json:"status"`
 	PendingConfig      bool         `json:"hasPendingConfig"`
 	HasUpdateAvailable bool         `json:"hasUpdateAvailable"`
 	ActiveRevision     string       `json:"activeRevision"`

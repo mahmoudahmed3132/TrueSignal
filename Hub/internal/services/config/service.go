@@ -1,11 +1,19 @@
 package config
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/truesignal/hub/internal/models"
 	"golang.org/x/crypto/bcrypt"
@@ -20,6 +28,44 @@ type Config struct {
 	Version           string
 	Env               string
 	TrustProxy        bool
+
+	// SessionTTL / SessionIdle bound dashboard sessions (TS_SESSION_TTL,
+	// TS_SESSION_IDLE_TIMEOUT; Go durations, idle "0" disables).
+	SessionTTL  time.Duration
+	SessionIdle time.Duration
+	// AllowUnpinnedImages permits deploying manifests without an image digest
+	// (TS_ALLOW_UNPINNED_IMAGES=true). Intended for local development only.
+	AllowUnpinnedImages bool
+	// SIEMCAFile optionally pins the CA bundle used for syslog over TLS.
+	SIEMCAFile string
+	// SyslogPEN is the IANA Private Enterprise Number used in RFC 5424
+	// SD-IDs (truesignal@<PEN>). Defaults to 32473, the RFC 5612
+	// documentation PEN; set your organisation's registered PEN.
+	SyslogPEN string
+}
+
+// IsDevelopment reports whether the Hub runs outside production mode.
+func (c *Config) IsDevelopment() bool { return c.Env != "production" }
+
+func getDuration(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	if raw == "0" {
+		return 0
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d < 0 {
+		log.Printf("[WARNING] Invalid %s=%q, using default %s", key, raw, fallback)
+		return fallback
+	}
+	return d
+}
+
+func getBool(key string) bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	return v == "true" || v == "1"
 }
 
 func getEnv(key, fallback string) string {
@@ -40,6 +86,12 @@ func Load() *Config {
 		Version:           models.HubVersion,
 		Env:               getEnv("TS_ENV", "production"),
 		TrustProxy:        isProxyTrusted,
+
+		SessionTTL:          getDuration("TS_SESSION_TTL", 12*time.Hour),
+		SessionIdle:         getDuration("TS_SESSION_IDLE_TIMEOUT", 15*time.Minute),
+		AllowUnpinnedImages: getBool("TS_ALLOW_UNPINNED_IMAGES"),
+		SIEMCAFile:          getEnv("TS_SIEM_CA_FILE", ""),
+		SyslogPEN:           getEnv("TS_SYSLOG_PEN", "32473"),
 	}
 }
 
@@ -55,6 +107,7 @@ type Store interface {
 
 type SessionManager interface {
 	ClearAllSessions()
+	ClearNodeCache()
 }
 
 type SiemService interface {
@@ -73,6 +126,9 @@ type Service struct {
 	notifyService     NotifyService
 	dashboardPassword string
 	version           string
+
+	setupMu    sync.Mutex
+	setupToken string
 }
 
 func NewService(store Store, sm SessionManager, siemService SiemService, notifyService NotifyService, dashboardPassword, version string) *Service {
@@ -94,7 +150,33 @@ func (s *Service) GetSetupStatus() (bool, error) {
 	return err != nil || isSetup != "true", nil
 }
 
-func (s *Service) CompleteSetup(password, hubEndpoint string) error {
+// EnsureSetupToken returns the one-time token required to complete first-run
+// setup, generating it if needed. Without it, whoever reaches a fresh Hub first
+// would choose the admin password. TS_SETUP_TOKEN overrides the generated value
+// (for automated installs). Returns "" when setup is not required.
+func (s *Service) EnsureSetupToken() string {
+	if required, _ := s.GetSetupStatus(); !required {
+		return ""
+	}
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
+	if s.setupToken != "" {
+		return s.setupToken
+	}
+	if env := strings.TrimSpace(os.Getenv("TS_SETUP_TOKEN")); env != "" {
+		s.setupToken = env
+		return s.setupToken
+	}
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		log.Printf("[FATAL] cannot generate setup token: %v", err)
+		return ""
+	}
+	s.setupToken = hex.EncodeToString(buf)
+	return s.setupToken
+}
+
+func (s *Service) CompleteSetup(password, hubEndpoint, setupToken string) error {
 	if s.dashboardPassword != "" {
 		return errors.New("setup_locked")
 	}
@@ -104,12 +186,45 @@ func (s *Service) CompleteSetup(password, hubEndpoint string) error {
 		return errors.New("already_setup")
 	}
 
+	expected := s.EnsureSetupToken()
+	if expected == "" || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(setupToken)), []byte(expected)) != 1 {
+		return errors.New("invalid_setup_token")
+	}
+	if len(password) < 12 {
+		return errors.New("weak_password")
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 
-	return s.store.CompleteSetup(string(hash), hubEndpoint)
+	if err := s.store.CompleteSetup(string(hash), hubEndpoint); err != nil {
+		return err
+	}
+	s.setupMu.Lock()
+	s.setupToken = ""
+	s.setupMu.Unlock()
+	return nil
+}
+
+// verifyAdminPassword checks the admin password against the env override when
+// set (TS_DASHBOARD_PASSWORD), otherwise against the stored bcrypt hash.
+func (s *Service) verifyAdminPassword(password string) error {
+	if s.dashboardPassword != "" {
+		if subtle.ConstantTimeCompare([]byte(password), []byte(s.dashboardPassword)) == 1 {
+			return nil
+		}
+		return errors.New("incorrect_password")
+	}
+	dbHash, err := s.store.GetConfigValue("admin_hash")
+	if err != nil {
+		return errors.New("database_error")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(dbHash), []byte(password)); err != nil {
+		return errors.New("incorrect_password")
+	}
+	return nil
 }
 
 func (s *Service) GetConfig() (models.ConfigPayload, error) {
@@ -132,37 +247,128 @@ func (s *Service) GetConfig() (models.ConfigPayload, error) {
 	}
 
 	return models.ConfigPayload{
-		HubEndpoint:             kv["hub_endpoint"],
-		RegistryURL:             kv["registry_url"],
-		AutoArchiveDays:         archiveDays,
-		AutoPurgeDays:           purgeDays,
-		AutoPurgeHeartbeatsDays: purgeHeartbeatsDays,
+		HubEndpoint:              kv["hub_endpoint"],
+		RegistryURL:              kv["registry_url"],
+		AutoArchiveDays:          archiveDays,
+		AutoPurgeDays:            purgeDays,
+		AutoPurgeHeartbeatsDays:  purgeHeartbeatsDays,
 		UpdateCheckIntervalHours: updateCheckIntervalHours,
-		WebhookURL:              kv["webhook_url"],
-		WebhookType:             kv["webhook_type"],
-		WebhookEvents:           events,
-		SiemAddress:             kv["siem_address"],
-		SiemProtocol:            kv["siem_protocol"],
-		WhitelistedSources:      kv["whitelisted_sources"],
+		WebhookURL:               kv["webhook_url"],
+		WebhookType:              kv["webhook_type"],
+		WebhookEvents:            events,
+		SiemAddress:              kv["siem_address"],
+		SiemProtocol:             kv["siem_protocol"],
+		WhitelistedSources:       kv["whitelisted_sources"],
 	}, nil
 }
 
+// ValidationError marks a client-side configuration mistake (HTTP 400).
+type ValidationError struct{ Msg string }
+
+func (e *ValidationError) Error() string { return e.Msg }
+
+func validateHTTPURL(field string, v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return &ValidationError{field + " must be a string"}
+	}
+	if str == "" {
+		return nil
+	}
+	u, err := url.Parse(str)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return &ValidationError{field + " must be an http(s) URL"}
+	}
+	return nil
+}
+
+func validateConfigUpdate(req map[string]interface{}) error {
+	for _, f := range []string{"hubEndpoint", "webhookUrl", "registryUrl"} {
+		if v, ok := req[f]; ok {
+			if err := validateHTTPURL(f, v); err != nil {
+				return err
+			}
+		}
+	}
+	if v, ok := req["siemAddress"]; ok {
+		str, isStr := v.(string)
+		if !isStr {
+			return &ValidationError{"siemAddress must be a string"}
+		}
+		if str != "" {
+			host, port, err := net.SplitHostPort(str)
+			p, perr := strconv.Atoi(port)
+			if err != nil || host == "" || perr != nil || p < 1 || p > 65535 {
+				return &ValidationError{"siemAddress must be host:port"}
+			}
+		}
+	}
+	if err := validateEnum(req, "webhookType", "ntfy", "gotify", "discord", "slack", "none"); err != nil {
+		return err
+	}
+	if err := validateEnum(req, "siemProtocol", "tcp", "udp", "tls"); err != nil {
+		return err
+	}
+	if v, ok := req["webhookEvents"]; ok {
+		list, isList := v.([]interface{})
+		if !isList {
+			return &ValidationError{"webhookEvents must be a list of severities"}
+		}
+		for _, item := range list {
+			sev, isStr := item.(string)
+			if _, valid := models.NormalizeSeverity(sev); !isStr || !valid {
+				return &ValidationError{fmt.Sprintf("webhookEvents contains an unknown severity: %v", item)}
+			}
+		}
+	}
+	for _, f := range []string{"autoArchiveDays", "autoPurgeDays", "autoPurgeHeartbeatsDays", "updateCheckIntervalHours"} {
+		if v, ok := req[f]; ok {
+			n, isNum := v.(float64)
+			if !isNum || n < 0 || n != float64(int(n)) {
+				return &ValidationError{f + " must be a non-negative integer"}
+			}
+		}
+	}
+	return nil
+}
+
+// validateEnum rejects a present field whose value is not one of allowed
+// (case-insensitive). The store would otherwise drop it silently.
+func validateEnum(req map[string]interface{}, field string, allowed ...string) error {
+	v, ok := req[field]
+	if !ok {
+		return nil
+	}
+	str, isStr := v.(string)
+	if isStr {
+		for _, a := range allowed {
+			if strings.EqualFold(str, a) {
+				return nil
+			}
+		}
+	}
+	return &ValidationError{fmt.Sprintf("%s must be one of: %s", field, strings.Join(allowed, ", "))}
+}
+
 func (s *Service) UpdateConfig(req map[string]interface{}) error {
+	if err := validateConfigUpdate(req); err != nil {
+		return err
+	}
 	// Safely map incoming camelCase API fields to snake_case DB columns
 	dbUpdates := make(map[string]interface{})
 	mapping := map[string]string{
-		"hubEndpoint":     "hub_endpoint",
-		"registryUrl":     "registry_url",
-		"autoArchiveDays":         "auto_archive_days",
-		"autoPurgeDays":           "auto_purge_days",
-		"autoPurgeHeartbeatsDays": "auto_purge_heartbeats_days",
+		"hubEndpoint":              "hub_endpoint",
+		"registryUrl":              "registry_url",
+		"autoArchiveDays":          "auto_archive_days",
+		"autoPurgeDays":            "auto_purge_days",
+		"autoPurgeHeartbeatsDays":  "auto_purge_heartbeats_days",
 		"updateCheckIntervalHours": "update_check_interval_hours",
-		"webhookType":     "webhook_type",
-		"webhookUrl":      "webhook_url",
-		"webhookEvents":   "webhook_events",
-		"siemAddress":     "siem_address",
-		"siemProtocol":    "siem_protocol",
-		"whitelistedSources": "whitelisted_sources",
+		"webhookType":              "webhook_type",
+		"webhookUrl":               "webhook_url",
+		"webhookEvents":            "webhook_events",
+		"siemAddress":              "siem_address",
+		"siemProtocol":             "siem_protocol",
+		"whitelistedSources":       "whitelisted_sources",
 	}
 	for camelKey, snakeKey := range mapping {
 		if val, exists := req[camelKey]; exists {
@@ -182,7 +388,7 @@ func (s *Service) UpdateConfig(req map[string]interface{}) error {
 		siemAddress, _ = s.store.GetConfigValue("siem_address")
 	}
 	if val, ok := req["siemProtocol"].(string); ok {
-		siemProtocol = val
+		siemProtocol = strings.ToLower(val)
 	} else {
 		siemProtocol, _ = s.store.GetConfigValue("siem_protocol")
 	}
@@ -211,6 +417,10 @@ func (s *Service) ChangePassword(currentPassword, newPassword string) error {
 		return errors.New("incorrect_password")
 	}
 
+	if len(newPassword) < 12 {
+		return errors.New("weak_password")
+	}
+
 	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return errors.New("hash_error")
@@ -225,13 +435,8 @@ func (s *Service) ChangePassword(currentPassword, newPassword string) error {
 }
 
 func (s *Service) FactoryReset(password, ip string) error {
-	dbHash, err := s.store.GetConfigValue("admin_hash")
-	if err != nil {
-		return errors.New("database_error")
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(dbHash), []byte(password)); err != nil {
-		return errors.New("incorrect_password")
+	if err := s.verifyAdminPassword(password); err != nil {
+		return err
 	}
 
 	log.Printf("[!] AUDIT: IP %s initiated a full Factory Reset. Wiping database.", ip)
@@ -241,17 +446,13 @@ func (s *Service) FactoryReset(password, ip string) error {
 	}
 
 	s.sessionManager.ClearAllSessions()
+	s.sessionManager.ClearNodeCache()
 	return nil
 }
 
 func (s *Service) FactoryResetDryRun(password string) (map[string]int, error) {
-	dbHash, err := s.store.GetConfigValue("admin_hash")
-	if err != nil {
-		return nil, errors.New("database_error")
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(dbHash), []byte(password)); err != nil {
-		return nil, errors.New("incorrect_password")
+	if err := s.verifyAdminPassword(password); err != nil {
+		return nil, err
 	}
 
 	return s.store.FactoryResetDryRun()

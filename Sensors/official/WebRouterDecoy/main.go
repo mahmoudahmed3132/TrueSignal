@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"html"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -15,12 +21,33 @@ import (
 )
 
 var (
-	port        string
-	routerBrand string
-	ts          *sdk.Sensor
+	port         string
+	routerBrand  string
+	passwordMode string
+	passwordKey  []byte
+	ts           *sdk.Sensor
+	probes       = newProbeLimiter(60 * time.Second)
 )
 
-// The HTML template with %[1]s for the brand and %[2]s for the error block display
+// brandProfiles keeps the page footer consistent with the advertised brand;
+// a "Netgear" header over a Cisco model number is an instant tell.
+var brandProfiles = map[string][2]string{
+	"netgear": {"R7000", "V1.0.11.134_10.2.120"},
+	"tp-link": {"Archer C7", "3.15.3 Build 180114"},
+	"tplink":  {"Archer C7", "3.15.3 Build 180114"},
+	"cisco":   {"RV340", "1.0.03.20"},
+	"asus":    {"RT-AC68U", "3.0.0.4.386_51665"},
+	"linksys": {"EA7500", "2.0.8.194281"},
+}
+
+func brandProfile(brand string) (model, firmware string) {
+	if p, ok := brandProfiles[strings.ToLower(strings.TrimSpace(brand))]; ok {
+		return p[0], p[1]
+	}
+	return "GW-2200", "2.4.1"
+}
+
+// The HTML template: %[1]s brand, %[2]s error block display, %[3]s model, %[4]s firmware
 const loginHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -221,12 +248,12 @@ button:hover {
     <div class="footer">
         <div class="footer-row">
             <span>Model</span>
-            <span>RV340</span>
+            <span>%[3]s</span>
         </div>
 
         <div class="footer-row">
             <span>Firmware Version</span>
-            <span>1.0.03.20</span>
+            <span>%[4]s</span>
         </div>
 
         <div class="footer-row">
@@ -262,7 +289,9 @@ func main() {
 
 	// Load environment variables AFTER the SDK loads the .env file
 	port = getEnv("TS_BIND_PORT", "8080")
-	routerBrand = getEnv("TS_ROUTER_BRAND", "Enterprise")
+	routerBrand = getEnv("TS_ROUTER_BRAND", "Netgear")
+	passwordMode = strings.ToLower(getEnv("TS_CAPTURE_PASSWORDS", "hash"))
+	passwordKey = passwordHashKey(os.Getenv("TS_CAPTURE_HASH_KEY"), os.Getenv("TS_HUB_KEY"))
 
 	if ts.TestMode {
 		if ts.RunTestMode() {
@@ -276,8 +305,13 @@ func main() {
 	mux.HandleFunc("/login", handleLogin)
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf("0.0.0.0:%s", port),
-		Handler: mux,
+		Addr:              fmt.Sprintf("0.0.0.0:%s", port),
+		Handler:           limitBody(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 << 10,
 	}
 
 	// Run server in background
@@ -286,13 +320,12 @@ func main() {
 			log.Fatalf("[!] FATAL: Web server failed: %v", err)
 		}
 	}()
-    log.Printf("[*] TrueSignal Web Router Decoy | Brand: %s | Port: %s", routerBrand, port)
-    
+	log.Printf("[*] TrueSignal Web Router Decoy | Brand: %s | Port: %s | Password capture: %s", routerBrand, port, passwordMode)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-
-    if err := ts.Start(); err != nil {
+	if err := ts.Start(); err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
 	defer ts.Stop()
@@ -308,17 +341,52 @@ func main() {
 	}
 }
 
+func clientIP(r *http.Request) string {
+	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return ip
+	}
+	return r.RemoteAddr
+}
+
+func userAgent(r *http.Request) string {
+	if ua := r.UserAgent(); ua != "" {
+		return ua
+	}
+	return "Unknown"
+}
+
+// renderLogin writes the login page; errorDisplay is "none" or "block".
+func renderLogin(w http.ResponseWriter, status int, errorDisplay string) {
+	model, firmware := brandProfile(routerBrand)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	// codeql[go/xss] Honeypot decoy rendering; all interpolated values are HTML-escaped.
+	// nosemgrep: go.lang.security.audit.xss.no-fprintf-to-responsewriter.no-fprintf-to-responsewriter
+	fmt.Fprintf(w, loginHTML, html.EscapeString(routerBrand), errorDisplay, html.EscapeString(model), html.EscapeString(firmware))
+}
+
+// handleRoot serves the login page and records reconnaissance: page views and
+// probes for other paths (/.env, /admin, /cgi-bin/...) at medium severity,
+// rate-limited per source so a directory brute-force yields a few events.
 func handleRoot(w http.ResponseWriter, r *http.Request) {
+	srcIP := clientIP(r)
+	if probes.allow(srcIP, time.Now()) {
+		trigger := "web_page_view"
+		if r.URL.Path != "/" {
+			trigger = "web_path_probe"
+		}
+		ts.ReportEventSeverity("medium", trigger, srcIP, "Web Interface", sdk.EventDetails{
+			{Key: "method", Value: r.Method},
+			{Key: "path", Value: truncate(r.URL.RequestURI(), 512)},
+			{Key: "user_agent", Value: truncate(userAgent(r), 512)},
+		})
+	}
+
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	// %[1]s = Brand, %[2]s = 'none' (hides the error banner initially)
-
-	// codeql[go/xss] Honeypot decoy rendering intentional raw HTML.
-	// nosemgrep: go.lang.security.audit.xss.no-fprintf-to-responsewriter.no-fprintf-to-responsewriter
-	fmt.Fprintf(w, loginHTML, routerBrand, "none")
+	renderLogin(w, http.StatusOK, "none")
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -332,41 +400,111 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := r.FormValue("username")
+	username := truncate(r.FormValue("username"), 256)
 	password := r.FormValue("password")
-	userAgent := r.UserAgent()
-	if userAgent == "" {
-		userAgent = "Unknown"
+	srcIP := clientIP(r)
+
+	log.Printf("[!] Login attempt from %s (User: %q)", srcIP, username)
+
+	details := sdk.EventDetails{
+		{Key: "user_agent", Value: truncate(userAgent(r), 512)},
+		{Key: "attempted_username", Value: username},
 	}
+	details = append(details, passwordDetails(password, passwordMode, passwordKey)...)
+	details = append(details, sdk.EventDetail{Key: "action_taken", Value: "logged"})
 
-	srcIP := r.RemoteAddr
-	if ip, _, err := net.SplitHostPort(srcIP); err == nil {
-		srcIP = ip
-	}
-
-	log.Printf("[!] Login attempt from %s (User: %s)", srcIP, username)
-
-	ts.ReportEvent(
-		"web_login_attempt",
-		srcIP,
-		"Web Interface",
-		sdk.EventDetails{
-			{Key: "user_agent", Value: userAgent},
-			{Key: "attempted_username", Value: username},
-			{Key: "attempted_password", Value: password},
-			{Key: "action_taken", Value: "logged"},
-		},
-	)
+	ts.ReportEvent("web_login_attempt", srcIP, "Web Interface", details)
 
 	// Tarpit delay: Add an artificial backend processing delay to slow down automated scripts
 	time.Sleep(1500 * time.Millisecond)
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusUnauthorized)
 	// Re-render the exact same login page, but cleanly display the red error block
-	// codeql[go/xss] Honeypot decoy rendering intentional raw HTML.
-	// nosemgrep: go.lang.security.audit.xss.no-fprintf-to-responsewriter.no-fprintf-to-responsewriter
-	fmt.Fprintf(w, loginHTML, routerBrand, "block")
+	renderLogin(w, http.StatusUnauthorized, "block")
+}
+
+// passwordDetails decides how much of a submitted password leaves the decoy.
+// The default ("hash") records a keyed HMAC-SHA256 and the length instead of
+// storing it. If staff ever type a real password here it must not end up in
+// cleartext in the Hub DB, SIEM or exports, and a plain SHA-256 would be
+// reversible for common passwords by anyone holding those records. "plain"
+// opts in to cleartext capture; "none" records only that a password was
+// submitted.
+func passwordDetails(password, mode string, key []byte) sdk.EventDetails {
+	switch mode {
+	case "plain":
+		return sdk.EventDetails{{Key: "attempted_password", Value: truncate(password, 256)}}
+	case "none":
+		return sdk.EventDetails{{Key: "password_submitted", Value: password != ""}}
+	default:
+		mac := hmac.New(sha256.New, key)
+		mac.Write([]byte(password))
+		return sdk.EventDetails{
+			{Key: "attempted_password_hmac", Value: hex.EncodeToString(mac.Sum(nil))},
+			{Key: "attempted_password_length", Value: len(password)},
+			{Key: "hmac_key_id", Value: keyID(key)},
+		}
+	}
+}
+
+// passwordHashKey picks the HMAC key. TS_CAPTURE_HASH_KEY, set to the same
+// value on every node, makes the same password correlate fleet-wide. Without
+// it the node key is used: stable per node, and the Hub stores only its hash,
+// so Hub/SIEM records alone can't be brute-forced.
+func passwordHashKey(captureKey, nodeKey string) []byte {
+	if captureKey != "" {
+		return []byte(captureKey)
+	}
+	return []byte("truesignal-capture:" + nodeKey)
+}
+
+// keyID lets analysts tell which key produced an HMAC without revealing it.
+func keyID(key []byte) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte("truesignal-key-id"))
+	return hex.EncodeToString(mac.Sum(nil))[:8]
+}
+
+func truncate(s string, n int) string {
+	s = strings.ToValidUTF8(s, "?")
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
+}
+
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// probeLimiter emits at most one reconnaissance event per source per window.
+type probeLimiter struct {
+	mu     sync.Mutex
+	window time.Duration
+	last   map[string]time.Time
+}
+
+func newProbeLimiter(window time.Duration) *probeLimiter {
+	return &probeLimiter{window: window, last: map[string]time.Time{}}
+}
+
+func (p *probeLimiter) allow(key string, now time.Time) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if t, ok := p.last[key]; ok && now.Sub(t) < p.window {
+		return false
+	}
+	p.last[key] = now
+	if len(p.last) > 10000 {
+		for k, t := range p.last {
+			if now.Sub(t) >= p.window {
+				delete(p.last, k)
+			}
+		}
+	}
+	return true
 }
 
 func getEnv(key, fallback string) string {

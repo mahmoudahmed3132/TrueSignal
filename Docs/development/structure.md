@@ -13,14 +13,18 @@ The central backend and frontend dashboard.
 *   **`cmd/hub/`**: The main entry point (`main.go`). This is where dependencies are instantiated and wired together.
 *   **`internal/api/`**: The HTTP transport layer. Contains routers, middleware, and handlers. *No business logic goes here.*
 *   **`internal/services/`**: The domain layer. This is where business logic, side-effects, and background workers live (e.g., event processing, node provisioning).
-*   **`internal/store/`**: The SQLite persistence layer. Contains raw SQL queries, database migrations, and `models/`.
+*   **`internal/store/`**: The SQLite persistence layer. Contains raw SQL queries and database migrations.
+*   **`internal/models/`**: Shared domain structs and JSON contracts.
+*   **`internal/compose/`**: The secure Compose compiler (`builder.go`, `env.go`) and its validator (`security/`).
+*   **`internal/catalog/`**: The sensor registry index cache.
 *   **`internal/projections/`**: The CQRS analytics engine. Pure functions that calculate dashboard charts and stats from raw events.
 
 ### Vue 3 Frontend
-*   **`ui/src/views/`**: Page-level orchestrators (e.g., `Dashboard.vue`, `Fleet.vue`).
+*   **`ui/src/views/`**: Page-level orchestrators (e.g., `Dashboard.vue`, `FleetManagement.vue`, `NodeDetails.vue`).
 *   **`ui/src/components/`**: Reusable UI widgets and layout primitives.
 *   **`ui/src/stores/`**: Pinia state management (`app.ts`, `fleet.ts`, `events.ts`). *All frontend business logic and data filtering lives here.*
-*   **`ui/src/services/`**: API clients and the WebSocket connection manager.
+*   **`ui/src/api/`**: The shared HTTP client (`client.ts`).
+*   **`ui/src/services/`**: The WebSocket connection manager (`ws.ts`).
 
 ---
 
@@ -31,8 +35,9 @@ The host-side deployment and discovery CLI.
 *   **`internal/cli/`**: UI formatting, prompts, and terminal output styling.
 *   **`internal/commands/`**: The CLI verbs (e.g., `discover.go`, `apply.go`, `teardown.go`).
 *   **`internal/app/`**: Local state management and configuration loading.
-*   **`internal/deploy/`**: Compose file generation and Docker daemon interaction.
-*   **`core/discovery/`**: The engine that evaluates host services against sensor heuristics.
+*   **`internal/deploy/`**: Applying the Hub-generated compose file (diff, swap, rollback) and Docker interaction. The Wizard does not generate compose files itself.
+*   **`core/discovery/`**: The engine that evaluates host services against sensor heuristics (`engine.go`).
+*   **`core/schema/`**: The Wizard's view of the sensor manifest (`manifest.go`).
 *   **`core/scanner/`**: Low-level Linux inspection logic (reading `/proc`, mapping open sockets).
 *   **`core/api/`**: The Hub API client.
 
@@ -43,7 +48,7 @@ The containerized decoy applications.
 
 *   **`official/`**: Production-grade sensors maintained by the core team (e.g., `TcpTarpit`, `FileCanary`).
 *   **`community/`**: Third-party sensors submitted by users.
-*   **`templates/`**: Boilerplate scaffolds for creating new sensors (e.g., `go-sensor-template`).
+*   **`templates/`**: Boilerplate scaffolds for creating new sensors (`go-sensor/`, `python-sensor/`).
 
 ---
 

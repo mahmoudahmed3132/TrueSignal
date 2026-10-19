@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
-
 
 type SQLiteStore struct {
 	DB *sql.DB
@@ -27,8 +28,10 @@ func NewStore(dbPath string) (*SQLiteStore, error) {
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
 
-	// Fix for read-only containers: force SQLite to use the writable /data volume for temporary files
-	_, err = db.Exec("PRAGMA temp_store_directory = '/data';")
+	// Read-only containers have no writable /tmp, so keep SQLite temp files
+	// next to the database (the writable volume).
+	tempDir := strings.ReplaceAll(filepath.Dir(dbPath), "'", "''")
+	_, err = db.Exec("PRAGMA temp_store_directory = '" + tempDir + "';")
 	if err != nil {
 		log.Printf("Warning: Failed to set SQLite temp_store_directory: %v", err)
 	}
@@ -43,7 +46,7 @@ func NewStore(dbPath string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to initialize default config: %w", err)
 	}
 
-	log.Println("[DB] Database v2.0.0 initialized successfully in WAL mode.")
+	log.Println("[DB] Database initialized successfully in WAL mode.")
 	return &SQLiteStore{DB: db}, nil
 }
 
@@ -62,15 +65,15 @@ func InitializeDefaultConfig(db *sql.DB) error {
 
 func initializeDefaultConfigTx(tx *sql.Tx) error {
 	defaults := map[string]string{
-		"is_armed":          "true",
-		"webhook_type":      "ntfy",
-		"webhook_url":       "",
-		"webhook_events":    "critical,high,medium,low",
-		"auto_archive_days": "0",
-		"auto_purge_days":   "0",
-		"siem_address":      "",
-		"siem_protocol":     "tcp",
-		"registry_url": "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages",
+		"is_armed":                    "true",
+		"webhook_type":                "ntfy",
+		"webhook_url":                 "",
+		"webhook_events":              "critical,high,medium,low",
+		"auto_archive_days":           "0",
+		"auto_purge_days":             "0",
+		"siem_address":                "",
+		"siem_protocol":               "tcp",
+		"registry_url":                "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages",
 		"acknowledged_wizard_release": "",
 	}
 

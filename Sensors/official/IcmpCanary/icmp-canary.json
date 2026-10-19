@@ -67,7 +67,7 @@
       {
         "name": "TS_SEVERITY",
         "description": "Alert severity sent to the Hub.",
-        "default": "info",
+        "default": "low",
         "type": "string",
         "required": false,
         "hidden": true
@@ -79,6 +79,14 @@
         "type": "string",
         "required": true,
         "hidden": true
+      },
+      {
+        "name": "TS_ICMP_COOLDOWN",
+        "description": "Seconds between events for the same source and ICMP type; suppressed packets are counted in the next event (0 = one event per packet).",
+        "default": "60",
+        "type": "int",
+        "required": false,
+        "hidden": false
       }
     ],
     "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-icmpcanary",

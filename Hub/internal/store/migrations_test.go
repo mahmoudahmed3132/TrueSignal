@@ -110,8 +110,9 @@ func TestMigrations_BackupCreationOnUpgrade(t *testing.T) {
 	// 5. Verify live database contains migrated v2 state
 	var liveVersion int
 	err = db.QueryRow("SELECT MAX(version) FROM schema_migrations").Scan(&liveVersion)
-	if err != nil || liveVersion != 2 {
-		t.Errorf("Expected live DB schema version 2, got %d (err: %v)", liveVersion, err)
+	latest := migrations[len(migrations)-1].Version
+	if err != nil || liveVersion != latest {
+		t.Errorf("Expected live DB schema version %d, got %d (err: %v)", latest, liveVersion, err)
 	}
 
 	var statusCount int
@@ -180,5 +181,61 @@ func TestMigrations_AtomicRollbackOnFailure(t *testing.T) {
 	err = db.QueryRow("SELECT MAX(version) FROM schema_migrations").Scan(&version)
 	if err != nil || version != 1 {
 		t.Errorf("Expected schema_migrations version to remain 1 after rollback, got %d (err: %v)", version, err)
+	}
+}
+
+func TestMigrationV3_HashesKeysAndRetainsEventsOnSensorRemoval(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_v3.db")
+	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)", dbPath)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+
+	// Bring the DB to v2, then seed data the way a v2 Hub would have written it.
+	origMigrations := migrations
+	migrations = origMigrations[:2]
+	if err := RunMigrations(db, dbPath); err != nil {
+		migrations = origMigrations
+		t.Fatalf("migrate to v2: %v", err)
+	}
+	migrations = origMigrations
+
+	if _, err := db.Exec(`
+		INSERT INTO nodes (id, alias, api_key, created_at, updated_at) VALUES ('n1', 'Node 1', 'ts_key_plain', 'x', 'x');
+		INSERT INTO node_sensors (node_id, sensor_id, custom_name, created_at, updated_at) VALUES ('n1', 's1', 'S1', 'x', 'x');
+		INSERT INTO events (node_id, sensor_id, timestamp) VALUES ('n1', 's1', '2026-01-01T00:00:00Z');
+	`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if err := RunMigrations(db, dbPath); err != nil {
+		t.Fatalf("migrate to v3: %v", err)
+	}
+
+	var stored string
+	if err := db.QueryRow(`SELECT api_key FROM nodes WHERE id = 'n1'`).Scan(&stored); err != nil {
+		t.Fatalf("read key: %v", err)
+	}
+	if stored != HashAPIKey("ts_key_plain") {
+		t.Errorf("expected plaintext key to be hashed, got %q", stored)
+	}
+
+	s := &SQLiteStore{DB: db}
+	if id, err := s.GetNodeByKey("ts_key_plain"); err != nil || id != "n1" {
+		t.Errorf("hashed key should still authenticate: id=%q err=%v", id, err)
+	}
+
+	if _, err := db.Exec(`DELETE FROM node_sensors WHERE node_id = 'n1' AND sensor_id = 's1'`); err != nil {
+		t.Fatalf("delete sensor: %v", err)
+	}
+	if _, err := db.Exec(`DELETE FROM nodes WHERE id = 'n1'`); err != nil {
+		t.Fatalf("delete node: %v", err)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&count); err != nil || count != 1 {
+		t.Errorf("events must survive sensor/node removal, got %d (err %v)", count, err)
 	}
 }

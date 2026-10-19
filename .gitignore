@@ -17,6 +17,14 @@ yarn-error.log*
 /Hub/hub
 /Hub/hub.exe
 
+# sensor / wizard binaries from a local `go build`
+/Sensors/official/FileCanary/filecanary
+/Sensors/official/IcmpCanary/icmpcanary
+/Sensors/official/NetworkScanDetector/networkscandetector
+/Sensors/official/TcpTarpit/tcptarpit
+/Sensors/official/WebRouterDecoy/webrouterdecoy
+/wizard/wizard
+
 
 .agent
 

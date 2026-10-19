@@ -64,8 +64,8 @@ func (s *SQLiteStore) UpdateConfigBatch(req map[string]interface{}) error {
 	}
 	defer tx.Rollback()
 
-	validWebhooks := map[string]bool{"ntfy": true, "gotify": true, "discord": true, "slack": true}
-	validProtocols := map[string]bool{"tcp": true, "udp": true}
+	validWebhooks := map[string]bool{"ntfy": true, "gotify": true, "discord": true, "slack": true, "none": true}
+	validProtocols := map[string]bool{"tcp": true, "udp": true, "tls": true}
 
 	for key, val := range req {
 		switch key {
@@ -152,8 +152,8 @@ func (s *SQLiteStore) FactoryResetDryRun() (map[string]int, error) {
 	queries := map[string]string{
 		"events":                "SELECT COUNT(*) FROM events",
 		"sensor_status_changes": "SELECT COUNT(*) FROM sensor_status_changes",
-		"node_sensors":      "SELECT COUNT(*) FROM node_sensors",
-		"nodes":             "SELECT COUNT(*) FROM nodes",
+		"node_sensors":          "SELECT COUNT(*) FROM node_sensors",
+		"nodes":                 "SELECT COUNT(*) FROM nodes",
 	}
 
 	for key, query := range queries {
@@ -166,4 +166,3 @@ func (s *SQLiteStore) FactoryResetDryRun() (map[string]int, error) {
 
 	return stats, nil
 }
-

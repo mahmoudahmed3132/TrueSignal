@@ -4,31 +4,69 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	gorillaws "github.com/gorilla/websocket"
 )
 
-var upgrader = gorillaws.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type Service struct {
 	clients   map[*gorillaws.Conn]*sync.Mutex
 	clientsMu sync.Mutex
+	upgrader  gorillaws.Upgrader
 }
 
+// OriginPolicy decides whether a WebSocket handshake's Origin is acceptable.
+type OriginPolicy func(r *http.Request) bool
+
 func NewService() *Service {
-	return &Service{
+	s := &Service{
 		clients: make(map[*gorillaws.Conn]*sync.Mutex),
+	}
+	s.upgrader.CheckOrigin = SameOrigin(nil, false)
+	return s
+}
+
+// SetOriginPolicy replaces the handshake origin check.
+func (s *Service) SetOriginPolicy(p OriginPolicy) { s.upgrader.CheckOrigin = p }
+
+// SameOrigin accepts handshakes without an Origin header (non-browser clients)
+// or whose Origin host equals the request Host, the X-Forwarded-Host from a
+// trusted proxy, or one of the hosts returned by extraHosts (e.g. the
+// configured Hub endpoint). This blocks cross-site WebSocket hijacking.
+func SameOrigin(extraHosts func() []string, trustProxy bool) OriginPolicy {
+	return func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil || u.Host == "" {
+			return false
+		}
+		allowed := []string{r.Host}
+		if trustProxy {
+			if fh := r.Header.Get("X-Forwarded-Host"); fh != "" {
+				allowed = append(allowed, strings.TrimSpace(strings.Split(fh, ",")[0]))
+			}
+		}
+		if extraHosts != nil {
+			allowed = append(allowed, extraHosts()...)
+		}
+		for _, h := range allowed {
+			if h != "" && strings.EqualFold(h, u.Host) {
+				return true
+			}
+		}
+		log.Printf("[WARNING] Rejected WebSocket handshake from origin %q (host %q)", origin, r.Host)
+		return false
 	}
 }
 
 func (s *Service) HandleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[ERROR] WS Upgrade failed: %v\n", err)
 		return

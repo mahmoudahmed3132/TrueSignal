@@ -49,14 +49,20 @@ const initialEnvVars = ref<Record<string, any>>({})
 
 // --- MODAL STATE ---
 const showKeyModal = ref(false)
+// Plaintext node keys exist only right after creation/rotation; the Hub stores
+// a digest. Keep a freshly rotated key in memory for this page's commands.
+const issuedKey = ref<string | null>(null)
+const keyOrPlaceholder = computed(() => issuedKey.value || '<NODE_API_KEY>')
 const showSyncModal = ref(false)
 const syncComposeYaml = ref('')
+
+const hubOrigin = window.location.origin
 
 const syncCommand = computed(() => {
     if (!node.value) return ''
     const hubUrl = configStore.config.hubEndpoint || window.location.origin
     if (!node.value.lastHeartbeat) {
-        return `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash -s -- --link ${hubUrl} --api-key ${node.value.apiKey}`
+        return `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | TS_NODE_API_KEY=${keyOrPlaceholder.value} bash -s -- --link ${hubUrl}`
     }
     return `truesignal apply`
 })
@@ -240,13 +246,13 @@ watch(() => node.value?.hasPendingConfig, (newVal) => {
 })
 
 const openSensor = (sensor: any) => {
-  const apiKey = node.value?.apiKey
+  const apiKey = issuedKey.value
   selectedSensor.value = sensor
   isEditingSensor.value = false
   editingSensorId.value = null
   initialEnvVars.value = {}
   initialEnvVars.value['TS_HUB_ENDPOINT'] = configStore.config.hubEndpoint || window.location.origin
-  initialEnvVars.value['TS_HUB_KEY'] = apiKey || '<YOUR_HW_NODE_KEY>'
+  initialEnvVars.value['TS_HUB_KEY'] = apiKey || '<NODE_API_KEY>'
 
   sensor.deployment?.env_vars?.forEach((env: any) => {
     if (!['TS_HUB_ENDPOINT', 'TS_HUB_KEY'].includes(env.name)) {
@@ -274,13 +280,13 @@ const editSensor = async (installedSensor: any) => {
       return
   }
   
-  const apiKey = node.value?.apiKey
+  const apiKey = issuedKey.value
   selectedSensor.value = manifest
   isEditingSensor.value = true
   editingSensorId.value = installedSensor.sensorId
   initialEnvVars.value = {}
   initialEnvVars.value['TS_HUB_ENDPOINT'] = configStore.config.hubEndpoint || window.location.origin
-  initialEnvVars.value['TS_HUB_KEY'] = apiKey || '<YOUR_HW_NODE_KEY>'
+  initialEnvVars.value['TS_HUB_KEY'] = apiKey || '<NODE_API_KEY>'
   
   manifest.deployment?.env_vars?.forEach((env: any) => {
     if (!['TS_HUB_ENDPOINT', 'TS_HUB_KEY'].includes(env.name)) {
@@ -351,9 +357,9 @@ const closeSensor = () => {
             @edit="editSensor"
         />
 
-        <NodeKeyModal :show="showKeyModal" :apiKey="node?.apiKey || null" @close="showKeyModal = false" />
+        <NodeKeyModal :show="showKeyModal" :nodeId="node?.id || null" :hubUrl="configStore.config.hubEndpoint || hubOrigin" @rotated="(k: string) => issuedKey = k" @close="showKeyModal = false" />
         <NodeSyncModal :show="showSyncModal" :syncCommand="syncCommand" :syncComposeYaml="syncComposeYaml" @close="showSyncModal = false" />
-        <NodeSensorModal :show="showSensorModal" :sensor="selectedSensor" :isEditing="isEditingSensor" :initialEnvVars="initialEnvVars" :apiKey="node?.apiKey || null" @close="closeSensor" @apply="handleApplySensor" />
+        <NodeSensorModal :show="showSensorModal" :sensor="selectedSensor" :isEditing="isEditingSensor" :initialEnvVars="initialEnvVars" :apiKey="issuedKey" @close="closeSensor" @apply="handleApplySensor" />
 
     </div>
 </template>

@@ -542,16 +542,22 @@ export const useFleetStore = defineStore('fleet', () => {
   }
   
   // --- ACTIONS: COMPOSE / SYNC ---
-  const fetchCompose = async (apiKey: string): Promise<string> => {
+  // Node keys are stored hashed, so the dashboard fetches the compose via its
+  // own session; the key is a placeholder the operator substitutes.
+  const fetchCompose = async (nodeId: string): Promise<string> => {
     try {
-      const res = await api.request('/api/v2/nodes/compose', {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
+      const res = await api.request(`/api/v2/nodes/${encodeURIComponent(nodeId)}/compose`)
       return await res.text()
     } catch (err) {
       console.error('Failed to fetch compose:', err)
       throw err
     }
+  }
+
+  const rotateNodeKey = async (nodeId: string): Promise<string> => {
+    const res = await api.post(`/api/v2/nodes/${encodeURIComponent(nodeId)}/rotate-key`, {})
+    const data = await res.json()
+    return data.apiKey as string
   }
 
   const generateCompose = async (payload: any): Promise<string> => {
@@ -567,11 +573,11 @@ export const useFleetStore = defineStore('fleet', () => {
   const syncNode = async (nodeId: string): Promise<{ success: boolean; yaml?: string; error?: string }> => {
     const node = getNode(nodeId)
     if (!node) return { success: false, error: `Unable to sync: node ${nodeId} not found` }
-    if (!node.apiKey) return { success: false, error: 'Unable to sync: missing node API key' }
 
     try {
-      const composeYaml = await fetchCompose(node.apiKey)
-      patchNode(nodeId, { hasPendingConfig: false })
+      // Fetching the bundle does not deploy it: pending state clears only once
+      // the node's sensors heartbeat with the new revision.
+      const composeYaml = await fetchCompose(nodeId)
       await fetchNodeDetails(nodeId)
       return { success: true, yaml: composeYaml }
     } catch (err: any) {
@@ -755,7 +761,7 @@ export const useFleetStore = defineStore('fleet', () => {
     selectTarget, clearSelection, setActiveTimeframe,
     createNode, deleteNode, updateNode, upgradeNode,
     addSensor, updateSensor, upgradeSensor, removeSensor, toggleSilence, silenceNode,
-    fetchCompose, generateCompose, syncNode,
+    fetchCompose, generateCompose, syncNode, rotateNodeKey,
     handleWsUpdate,
   }
 })

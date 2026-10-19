@@ -1,3 +1,62 @@
+# [Unreleased] - Security & correctness pass (2026-10-19)
+
+### ⚠️ Breaking / operator action required
+* **Schema v3 migration (automatic, with `.bak` snapshot):** node API keys are re-stored as `sha256:<hex>`; existing keys keep working, but the Hub can no longer display them. Use **Rotate key** on the node page to issue a new one (shown once).
+* **First-run setup needs a token.** The Hub prints a one-time setup token in its log (override with `TS_SETUP_TOKEN`); `POST /api/v2/setup` now takes `setupToken` instead of the ignored `hubKey`. Passwords must be at least 12 characters.
+* **Image digests are mandatory.** The compose compiler refuses manifests whose main or init images lack an `@sha256:` digest (`TS_ALLOW_UNPINNED_IMAGES=true` is a dev-only override). A missing or unfetchable manifest now fails the compose with HTTP 422 instead of silently dropping that decoy.
+* **`?key=` node authentication removed.** Use the `Authorization: Bearer` header.
+* **Sessions:** 12h absolute lifetime plus 15-minute idle timeout (`TS_SESSION_TTL`, `TS_SESSION_IDLE_TIMEOUT`).
+* **`NET_ADMIN` is no longer an allowed capability**; `network_mode` is limited to `host`, `bridge` or `none`.
+* **Default container user is `65532:65532`** (distroless `nonroot`) when a manifest sets none; it was `1000:1000`, which is usually a real login user on the host.
+* **SIEM line format** is now RFC 5424-valid: `<PRI>1 TS truesignal truesignalSensor - EVENT [truesignal@<PEN> …] {json}`. SD values are escaped. PEN via `TS_SYSLOG_PEN` (default 32473). Update parsers.
+
+### Security
+* Node key validation cache is invalidated on node deletion, key rotation and factory reset (deleted nodes previously authenticated until a Hub restart).
+* Events from sensors not registered on the calling node are rejected (404); heartbeats too.
+* Event fields are clamped (256 chars), `details` is always a JSON object (≤64KB), unknown severities become `medium`.
+* Mount denylist expanded (`/run`, `/var/run`, `/dev`, `/boot`, `/usr`, `/bin`, `/sbin`, `/lib*`, `/var/lib/docker`, `/var/lib/containerd`, `/var/lib/kubelet`, …); relative paths and `/` are rejected (a relative `../../../etc` previously passed).
+* Init containers are forced `read_only`, `cap_drop: [ALL]`, `no-new-privileges` and `network_mode: none`.
+* `$` in user env values is escaped so Docker Compose can't interpolate host variables.
+* Manifests are size-limited and strictly decoded, with ID/version validation and identity checks.
+* WebSocket upgrades require a same-origin `Origin` (outside development).
+* Request body limits (1MB UI, 256KB agent routes), `ReadHeaderTimeout`, `IdleTimeout` and `MaxHeaderBytes` on the Hub and the web decoy.
+* Audit records (method, route, status, client IP) for login, logout, setup and every state-changing dashboard call are logged and sent to the SIEM (`MSGID AUDIT`). Request bodies are not recorded.
+* SIEM over TLS (`siemProtocol: tls`, optional `TS_SIEM_CA_FILE`).
+* `X-Forwarded-For` is read from the right-most hop when `TS_TRUST_PROXY` is set.
+* Web Router Decoy records a keyed HMAC-SHA256 of captured passwords by default (`TS_CAPTURE_PASSWORDS=hash|plain|none`; key `TS_CAPTURE_HASH_KEY` or derived from the node key) and HTML-escapes reflected values.
+* Installer: POSIX `printf` (the `#!/bin/sh` script printed `-e` under dash), optional `--sha256` pin, node key passed via `TS_NODE_API_KEY` instead of argv, tag validation, `install -m 0755 -o 0 -g 0`.
+* CI actions pinned to commit SHAs; GitHub Trivy now fails the build on HIGH/CRITICAL.
+
+### Evidence retention
+* Whitelisted sources are no longer dropped: events are stored archived and forwarded to the SIEM with `whitelisted=true`; only notifications and the live feed are suppressed.
+* Events no longer cascade-delete when a sensor or node is removed (FK dropped in migration v3).
+
+### Detection
+* New liveness events, sent to the SIEM and webhooks: `sensor_stopped` (low, graceful), `sensor_heartbeat_lost` (high, missed heartbeats or stopped >5 min without recovery), `sensor_recovered` (info).
+* TCP Tarpit alerts on connect (`tcp_connection`) instead of on disconnect (up to 1h later); captured data is a separate `tcp_session_payload`. Per-port banners via `TS_TARPIT_BANNERS` (SSH banner no longer served on non-SSH ports).
+* File Canary: lures get realistic content on creation, read alerts on by default (`TS_ALERT_ON_OPEN=true`), per-file dedupe (`TS_ALERT_COOLDOWN`).
+* Web Router Decoy: `web_page_view` and `web_path_probe` events (rate-limited per source).
+* ICMP Canary: per-source throttle (`TS_ICMP_COOLDOWN`, default 60s) with a `suppressed_since_last` count; default severity raised from `info` to `low` so it reaches webhooks.
+* Network Scan Detector ignores outbound frames (the host's own connections were counted as scans).
+
+### Bug fixes
+* Fleet/node views never refreshed on sensor state changes (WebSocket payload used `id` instead of `nodeId`).
+* Numeric and boolean env values set in the UI were dropped from the compose file.
+* Catalog advertised phantom `2.2.0` versions from a hard-coded mock index at boot.
+* Python sensor template crashed on start (`set_test_payload` keyword).
+* Mock Hub passed the contract test on a heartbeat; it now requires a valid event.
+* `is_armed` fallback mismatch; SQLite temp directory hard-coded to `/data`.
+* `PATCH /api/v2/config` silently ignored invalid `webhookType`/`siemProtocol`; it now returns 400, and validates `webhookEvents` severities. Removed a dead 426 branch from the event handler.
+* `Hub/docker-compose.yml`: a non-default `TS_PORT` broke the port mapping (container always listens on 8080); the image tag is now `${TS_HUB_VERSION:-latest}`; the `permission-fixer` is pinned (`alpine:3.22@sha256:…`) and runs with no network, read-only rootfs and only `CHOWN`/`DAC_OVERRIDE`/`FOWNER`.
+* `truesignal uninstall` now lists the lure files it leaves on disk; `discover` skips lure paths it can't place.
+* Wizard config/state directories created `0750`.
+
+### Tests & CI
+* New tests for the event, statemonitor, websocket, SIEM, auth, compose and migration paths, every official sensor, and the wizard.
+* `.github/workflows/test.yml` runs `go vet` and `go test -race` for every Go module (UI built first); Gitea Hub dev build now runs tests; Gitea sensor build uses Go 1.25.
+
+---
+
 # [Unreleased] - TrueSignal rebrand (2026-10-19)
 
 ### ⚠️ Breaking Changes

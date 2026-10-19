@@ -34,10 +34,10 @@
 
 Place a sensor exactly where you want it. If it trips, you have an intruder.
   - **Production Tripwires**: Sound the alarm when active services are being poked in ways they shouldn't be. By placing a sensor on a sensitive file that should never be read or a service port that should never be accessed, you identify intruders by their deviation from the "authorized path."
-  - **Synthetic Deception**: Deploy lures like the [ICMP Canary](./Sensors/official/IcmpCanary/) or [Network Scan Detector](./Sensors/official/NetworkScanDetector/) to act as decoys. Since these sensors provide no legitimate business value, 100% of their traffic is actionable intelligence.
+  - **Synthetic Deception**: Deploy lures like the [ICMP Canary](./Sensors/official/IcmpCanary/) or [Network Scan Detector](./Sensors/official/NetworkScanDetector/) to act as decoys. Since these sensors provide no legitimate business value, nearly all of their traffic deserves a look; the exceptions are known infrastructure such as monitoring probes and authorised scanners, which you whitelist.
 
-Set up multiple and you start to have a pretty clear idea of the lateral movement of an intruder. No tuning, no noise, just instant forensics.
-If you have legitimate automated security scanners tripping TrueSignal sensors just whitelist them from the Hub's settings.
+Set up multiple and you start to have a pretty clear idea of the lateral movement of an intruder. Expect little tuning and little noise compared with log-based detection, but not zero: uptime monitors ping, vulnerability scanners scan, and backup or indexing jobs can touch lure files.
+If you have legitimate automated security scanners tripping TrueSignal sensors, whitelist them from the Hub's settings. Whitelisted events are still stored (archived) and still forwarded to your SIEM, flagged `whitelisted=true`, so a whitelist cannot silently hide activity.
 
 ## 🔌 The Universal Event Standard (Bring Your Own Sensor)
 
@@ -83,19 +83,27 @@ Create a new directory on your server, create a `docker-compose.yml` file, and p
 services:
   # 1. THE PERMISSION FIXER: Runs once to ensure the Hub can write to the data volume
   permission-fixer:
-    image: alpine:latest
+    image: alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
     container_name: truesignal-permission-fixer
     command: sh -c "chown -R 65532:65532 /data"
+    network_mode: none
+    read_only: true
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - ./truesignal_data:/data
 
   # 2. THE HUB: The central Go-based dashboard and API
   hub:
-    image: ghcr.io/mahmoudahmed3132/truesignal-hub:latest
+    # Pin a release in production, e.g. TS_HUB_VERSION=v2.1.0
+    image: ghcr.io/mahmoudahmed3132/truesignal-hub:${TS_HUB_VERSION:-latest}
     container_name: truesignal-hub
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # Host port is configurable; the Hub always listens on 8080 inside.
+      # Bind to 127.0.0.1 instead when a reverse proxy runs on the same host.
+      - "${TS_PORT:-8080}:8080"
     volumes:
       - ./truesignal_data:/data
     depends_on:
@@ -109,12 +117,19 @@ services:
     security_opt: ["no-new-privileges:true"]
     
     environment:
-      - TS_ENV=development # Required if not using HTTPS, or the cookie will have the secure flag set, in production it is highly recommended to remove this and run this behind a reverse proxy using https
       - TS_PORT=8080
       - TS_DB_PATH=/data/truesignal.db
+      # Set to true only when a reverse proxy sets X-Forwarded-For / X-Real-IP
+      # - TS_TRUST_PROXY=true
+      # Optional: choose the one-time setup token instead of reading it from the log
+      # - TS_SETUP_TOKEN=<random string>
       # Optional: Hardcode the dashboard password (disables the UI password reset feature)
-      # - TS_DASHBOARD_PASSWORD=admin
+      # - TS_DASHBOARD_PASSWORD=<at least 12 characters>
+      # Local HTTP testing only: drops the cookie Secure flag and the WebSocket origin check
+      # - TS_ENV=development
 ```
+
+The Hub runs in production mode by default, which marks the session cookie `Secure`: browsers will only send it over HTTPS. Put a TLS reverse proxy (Nginx, Caddy, Traefik, F5, ...) in front of it. For a quick local trial over plain HTTP, uncomment `TS_ENV=development`, and never leave it set in production.
 
 Start the Hub:
 ```bash
@@ -122,10 +137,15 @@ docker compose up -d
 ```
 
 ### 2. Initialize the System
-Navigate to `http://<your-server-ip>:TS_PORT` in your browser. You will be greeted by the **Initialize Sentinel** screen.
-1. Create your Master Password.
-2. Verify your Hub Endpoint URL (the IP/URL where sensors will reach the Hub).
-3. Click "Initialize Hub".
+Get the one-time setup token from the Hub log:
+```bash
+docker compose logs hub | grep SETUP
+```
+Navigate to your Hub's URL (through the reverse proxy, or `http://<your-server-ip>:<TS_PORT>` for a local trial) in your browser. You will be greeted by the **TrueSignal Sentinel** setup screen.
+1. Paste the setup token. It stops anyone else who can reach the Hub from claiming it first.
+2. Create your Master Password (at least 12 characters).
+3. Verify your Hub Endpoint URL (the IP/URL where sensors will reach the Hub).
+4. Click "Initialize Hub".
 
 ### 3. Deploy Sensors
 1. Create a new Node and paste the provided command to install and link the Setup Wizard to the hub
@@ -142,15 +162,16 @@ Run `truesignal firedrill` to make the TrueSignal sensors send a mock event to t
 
 ## Security Notes
 * **Threat Model:** For a deep dive into trust boundaries, architecture risks, and sandboxing rules, see the **[THREATMODEL.md](./THREATMODEL.md)**.
-* **Node Keys:** Ensure your sensors use their unique `Node Key` to communicate with the Hub. The Hub will reject any payloads with mismatched or invalid keys.
-* **System Arming:** You can toggle the "System Armed" button in the Hub UI to temporarily disable push notifications while doing internal network maintenance or vulnerability scanning.
+* **Node Keys:** Ensure your sensors use their unique `Node Key` to communicate with the Hub. The Hub will reject any payloads with mismatched or invalid keys, and events for sensors not registered on that node. Keys are stored hashed, shown once, and can be rotated from the node page (see the [Operations Guide](./Docs/operations.md#8-rotating-a-node-api-key)).
+* **SIEM Forwarding:** Events, sensor liveness changes and admin actions can be forwarded as RFC 5424 syslog over TCP, UDP or TLS. See [Data Contracts](./Docs/architecture/dataContracts.md#4-siem-syslog-format).
+* **System Arming:** You can toggle the "System Armed" button in the Hub UI to temporarily disable push notifications while doing internal network maintenance or vulnerability scanning. Events are still stored and forwarded to the SIEM while disarmed.
 * **Container Hardening:** TrueSignal utilizes `gcr.io/distroless/static-debian12:nonroot`. We follow the principle of least privilege to make sure that if a container is compromised, the blast is contained.
 * **Distributed Deployment:** It is highly recommended to run the Hub and its Sensors on separate physical or virtual machines. If an attacker compromises a sensor node, they should not have immediate local access to the centralized Hub.
 * ⚠️ **Encryption (HTTPS):** Always serve the Hub Web UI and API over HTTPS using a reverse proxy (like Nginx, Caddy, or Traefik) in production. Failure to do so exposes your Dashboard password and Node Keys to network sniffing.
 
 
 ## Tech Stack
-* **Backend:** Go 1.25, `net/http` (Standard Library), SQLite (ModernC Pure Go Driver)
+* **Backend:** Go 1.25, `net/http` with the `go-chi/chi` router, SQLite (ModernC Pure Go Driver)
 * **Frontend:** Vue 3 (Composition API), TailwindCSS, Chart.js
 * **Infrastructure:** Docker, Docker Compose v5.0.0+
 

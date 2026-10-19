@@ -32,18 +32,42 @@ This is the standard telemetry payload that all sensors (official or community) 
 ### Field Definitions
 - `sensorId` (string, required): The unique identifier of the sensor emitting the event.
 - `eventTrigger` (string, required): A brief, machine-readable reason for the event.
-- `severity` (string, required): Must be one of `info`, `low`, `medium`, `high`, `critical`.
+- `sensorId` must be registered on the node that owns the API key; otherwise the Hub answers `404` and stores nothing.
+- `severity` (string, required): One of `info`, `low`, `medium`, `high`, `critical` (case-insensitive). Any other value is stored as `medium`.
 - `source` (string, required): The attacker's IP, hostname, or identifier.
 - `target` (string, required): The decoy service or port that was attacked.
-- `details` (object, optional): A flexible JSON object containing forensic artifacts. Primitive values are rendered as tags; arrays are rendered as syntax-highlighted code blocks in the UI.
+- `details` (object, optional): A flexible JSON object containing forensic artifacts. Primitive values are rendered as tags; arrays are rendered as syntax-highlighted code blocks in the UI. Non-object values are wrapped as `{"value": ...}`; payloads over 64 KB are replaced with `{"truncated": true, "original_bytes": N}`.
 
-*(Note: When querying the Hub's API or viewing the SQLite DB, the backend automatically enriches this payload with `id`, `nodeId`, `timestamp`, `isRead`, `isArchived`, and `count`)*
+`sensorId`, `eventTrigger`, `source` and `target` are truncated to 256 characters.
+
+*(Note: When querying the Hub's API or viewing the SQLite DB, the backend automatically enriches this payload with `id`, `nodeId`, `timestamp`, `isRead`, `isArchived`, and `count`. These are always set by the Hub; values sent by a sensor are ignored. Events from whitelisted sources additionally carry `"whitelisted": true` and are stored archived and read.)*
+
+### Event triggers
+
+`eventTrigger` values are a contract: SIEM parsers and rules key on them. Do not rename them.
+
+| Trigger | Emitted by | Severity | Meaning |
+|---|---|---|---|
+| `tcp_connection` | TCP Tarpit | `TS_SEVERITY` | A client connected to a decoy port (sent immediately on connect, `details.phase = "connect"`). |
+| `tcp_session_payload` | TCP Tarpit | `TS_SEVERITY` | Sent when the session closes, only if the client sent data (`payload`, `bytes_received`, `duration_sec`). |
+| `icmp_scan_received` | ICMP Canary | `TS_SEVERITY` (default `low`) | Echo/timestamp request. At most one event per source per `TS_ICMP_COOLDOWN` seconds (default 60); `details.suppressed_since_last` counts the rest. |
+| `network_scan_detected` | Network Scan Detector | `TS_SEVERITY` | Port-scan pattern from one source (inbound frames only). |
+| `decoy_file_tampered` | File Canary | `TS_SEVERITY` | A lure was modified, had attributes changed, was moved or deleted. |
+| `decoy_file_accessed` | File Canary | `TS_SEVERITY` | A lure was opened or read (`TS_ALERT_ON_OPEN`, default `true`). Repeats within `TS_ALERT_COOLDOWN` seconds are suppressed. |
+| `web_login_attempt` | Web Router Decoy | `TS_SEVERITY` | `POST /login`. The password is recorded per `TS_CAPTURE_PASSWORDS`: `hash` (default: `attempted_password_hmac` (HMAC-SHA256 keyed by `TS_CAPTURE_HASH_KEY`, else derived from the node key), `attempted_password_length`, `hmac_key_id`), `none` (`password_submitted`), or `plain` (`attempted_password`). |
+| `web_page_view` | Web Router Decoy | `medium` | `GET /`. At most one recon event per source per 60 s. |
+| `web_path_probe` | Web Router Decoy | `medium` | Request for any other path (`/.env`, `/admin`, ...). Shares the per-source 60 s limit with `web_page_view`. |
+| `sensor_stopped` | Hub | `low` | The sensor reported a graceful shutdown (`POST /api/v2/offline`). `details.reason`. |
+| `sensor_recovered` | Hub | `info` | First heartbeat after an `offline` state. |
+| `sensor_heartbeat_lost` | Hub | `high` | No heartbeat for 60 s from a sensor that was online (`details.reason = "heartbeat_timeout"`), or a stopped sensor that has not come back within 5 minutes (`"not_restarted_after_stop"`). |
+
+Hub-raised events use `source = "truesignal-hub"`. Firedrill and `TS_TEST_MODE` events use the sensor's normal trigger with `source = "Wizard Firedrill"`; filter on `source` to exclude them.
 
 ---
 
 ## 2. Heartbeat Payload
 
-This payload is emitted continuously (typically every 30 seconds) by sensors to prove they are alive and running the expected configuration.
+This payload is emitted continuously (every 30 seconds, with backoff when the Hub is unhealthy) by sensors to prove they are alive and running the expected configuration. It carries no version information. The Hub marks a sensor offline after 60 seconds without one.
 
 **Endpoint:** `POST /api/v2/heartbeat`
 **Authentication:** `Authorization: Bearer <TS_NODE_KEY>`
@@ -59,6 +83,8 @@ This payload is emitted continuously (typically every 30 seconds) by sensors to 
 - `sensorId` (string, required): The unique identifier of the sensor.
 - `configRev` (string, required): The current configuration revision the sensor is running. Used by the Hub to determine if the node has synchronized its desired state.
 
+On SIGTERM the SDK also sends `POST /api/v2/offline` with `{"sensorId": "...", "reason": "graceful_shutdown"}`.
+
 ---
 
 ## 3. Sensor Manifest
@@ -67,8 +93,8 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
 
 ```json
 {
-  "id": "ts-tcp-tarpit",
-  "version": "1.1.0",
+  "id": "ts-sensor-tcp-tarpit",
+  "version": "2.1.0",
   "name": "TCP Tarpit",
   "category": "network",
   "osi_layer": "L4",
@@ -91,9 +117,9 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
     "recommendation_reason": "High-value administrative ports are exposed."
   },
   "deployment": {
-    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-tcp-tarpit",
-    "image_tag": "latest",
-    "image_digest": "",
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-tcptarpit",
+    "image_tag": "v2.1.0",
+    "image_digest": "sha256:<64 hex, filled in by CI>",
     "network_mode": "host",
     "user": "65532:65532",
     "cap_add": ["NET_BIND_SERVICE"],
@@ -101,9 +127,8 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
     "security_opt": ["no-new-privileges:true"],
     "port_assignments": [
       {
-        "env_var_name": "TS_TARPIT_PORT",
-        "default": 2222,
-        "auto_shift": true
+        "env_var_name": "TS_DECOY_PORTS",
+        "default": 2222
       }
     ],
     "volume_mounts": [
@@ -111,14 +136,14 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
         "source": "/var/log/tarpit",
         "target": "/logs",
         "type": "bind",
-        "read_only": false
+        "read_only": true
       }
     ],
     "init_containers": [],
     "env_vars": [
       {
         "name": "TS_TARPIT_MODE",
-        "description": "Behavior mode: hold, echo, or banner",
+        "description": "Behavior mode: hold, echo, or close",
         "default": "hold",
         "type": "string",
         "required": true
@@ -131,7 +156,39 @@ The Sensor Manifest is the declarative JSON schema used to describe a decoy. It 
 ### Key Subsystems
 - `heuristics.triggers`: Used by the Wizard Discovery Engine. If the Wizard observes matching `processes`, `ports`, or `file_patterns` on the host, it will recommend this sensor.
 - `deployment`: Used by the Wizard Deployment Engine to generate the Intermediate Representation (IR) and final `docker-compose.yml`.
-- `deployment.env_vars`: Rendered in the Hub UI so users can configure the sensor dynamically.
+- `deployment.env_vars`: Rendered in the Hub UI so users can configure the sensor dynamically. Defaults may be Wizard templates such as `{{ availablePort 2222 }}`.
+- `deployment.image_digest`: **Required** in published manifests (main and init images). The Hub refuses to compile a manifest without a `sha256:` digest unless `TS_ALLOW_UNPINNED_IMAGES=true` (development only). Source manifests in the repo leave it empty; the publish workflow fills it in.
+
+Manifests are decoded strictly: unknown fields (for example the old `port_assignments[].auto_shift`) make the manifest invalid. Other rules enforced by the compiler (`Hub/internal/compose/security/validate.go`):
+- `cap_add` may only contain `NET_RAW`, `NET_BIND_SERVICE`, `DAC_OVERRIDE`.
+- `network_mode` may only be empty, `host`, `bridge` or `none`.
+- Volume sources must be absolute paths outside the forbidden prefixes (`/run`, `/var/run`, `/proc`, `/sys`, `/dev`, `/boot`, `/etc`, `/root`, `/usr`, `/bin`, `/sbin`, `/lib*`, `/var/lib/docker`, `/var/lib/containerd`, `/var/lib/kubelet`) and not `/`.
+- Main-container volume mounts are always mounted read-only, whatever `read_only` says.
 
 > [!TIP]
-> **Automatic Sandbox Enforcement:** You do not need to manually specify `cap_drop: ["ALL"]`, `security_opt: ["no-new-privileges:true"]`, or `read_only: true` in your manifest for the primary sensor container. The Hub's **Compose Compiler** unconditionally injects these fields into the final deployment plan to guarantee a strict security baseline. It will also default `user` to `1000:1000` if omitted to prevent root execution as a baseline.
+> **Automatic Sandbox Enforcement:** You do not need to manually specify `cap_drop: ["ALL"]`, `security_opt: ["no-new-privileges:true"]`, or `read_only: true` in your manifest for the primary sensor container. The Hub's **Compose Compiler** unconditionally injects these fields into the final deployment plan to guarantee a strict security baseline. It will also default `user` to `65532:65532` (distroless `nonroot`) if omitted to prevent root execution as a baseline. Init containers get the same baseline plus `network_mode: none`.
+
+---
+
+## 4. SIEM Syslog Format
+
+When `siemAddress` is set, the Hub forwards every stored event (including whitelisted and Hub-raised ones) and every audit record as one RFC 5424 message per line (newline-terminated over `tcp`/`tls`; one message per datagram over `udp`). Source: `Hub/internal/services/siem/service.go`.
+
+```text
+<PRI>1 TIMESTAMP truesignal truesignalSensor - EVENT [truesignal@PEN event_id="42" trigger="tcp_connection" severity="high" source="203.0.113.7" target="Port 2222" node="db-node-01" node_id="node-1a2b3c4d" sensor="ts-sensor-tcp-tarpit" whitelisted="false"] {"event_id":42,"timestamp":"...","node_id":"...","node":"...","sensor_id":"...","trigger":"...","severity":"...","source":"...","target":"...","whitelisted":false,"details":{...}}
+```
+
+- **PRI:** facility `local0` (16). Severity `critical`→2, `high`→3, `medium`→4, `low`→5, `info`→6.
+- **HOSTNAME / APP-NAME / PROCID:** fixed `truesignal`, `truesignalSensor`, `-`. The node is in the structured data, not the HOSTNAME.
+- **MSGID:** `EVENT` for detections, `AUDIT` for admin actions.
+- **Structured data:** SD-ID `truesignal@<PEN>`. Values are escaped per RFC 5424 §6.3.3 (`"`, `\`, `]`), control characters become spaces, and each value is capped at 1024 bytes, so attacker-supplied strings cannot inject fields or records.
+- **MSG:** the full event as single-line JSON (for an Elastic `json` processor or LogScale `parseJson()`).
+- **PEN:** `TS_SYSLOG_PEN`, default `32473` (the RFC 5612 documentation number). Set your organisation's IANA Private Enterprise Number.
+
+Audit records use PRI `<133>` (local0.notice):
+
+```text
+<133>1 TIMESTAMP truesignal truesignalSensor - AUDIT [truesignal-audit@PEN action="PATCH /api/v2/config" path="/api/v2/config" status="200" actor_ip="10.0.0.5"] {"timestamp":"...","action":"PATCH /api/v2/config","path":"/api/v2/config","status":200,"actor_ip":"10.0.0.5"}
+```
+
+**Transport:** `siemProtocol` is `tcp`, `udp` or `tls`. With `tls`, the Hub requires TLS 1.2+ and verifies the receiver against the system roots or the PEM bundle in `TS_SIEM_CA_FILE`. Sensor liveness (`sensor_stopped`, `sensor_heartbeat_lost`, `sensor_recovered`) arrives as ordinary `EVENT` records.

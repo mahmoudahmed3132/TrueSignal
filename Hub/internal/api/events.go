@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -40,11 +41,7 @@ func (h *EventHandler) ReceiveEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.ProcessEvent(&e, nodeID); err != nil {
-		if err.Error() == "upgrade required" {
-			RespondError(w, "Upgrade Required", http.StatusUpgradeRequired)
-			return
-		}
-		if err.Error() == "sensor_not_registered" {
+		if errors.Is(err, event.ErrSensorNotRegistered) {
 			RespondError(w, "Sensor is not registered", http.StatusNotFound)
 			return
 		}
@@ -117,7 +114,7 @@ func (h *EventHandler) ExportEvents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Disposition", "attachment; filename=truesignal_events.json")
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if err := json.NewEncoder(w).Encode(events); err != nil {
 		http.Error(w, "Failed to encode events", http.StatusInternalServerError)
 		return

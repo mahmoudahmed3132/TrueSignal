@@ -15,7 +15,7 @@ Add any new structs to `internal/models/`. Use appropriate JSON tags.
 3. Implement the method on the concrete struct. This layer should handle validation, DB calls (via the store interface), and side effects.
 
 **Step 3: Define the HTTP Handler (Transport Layer)**
-1. Navigate to `internal/api/handlers/`.
+1. Open the matching file in `internal/api/` (e.g. `nodes.go`, `events.go`); there is no `handlers/` subpackage.
 2. Create a handler function attached to the appropriate handler struct.
 3. *Rule:* The handler must only read the request context/JSON, call the injected Service method, and write the JSON response. No business logic allowed here.
 
@@ -24,7 +24,7 @@ Add any new structs to `internal/models/`. Use appropriate JSON tags.
 2. Register the new HTTP path, attach necessary authentication middleware (`UIAuthMiddleware` vs `AgentAuthMiddleware`), and point it to your new handler.
 
 **Step 5: Update the Frontend API Client**
-1. Open `ui/src/services/api.ts` in the frontend code.
+1. Use the shared HTTP client in `ui/src/api/client.ts` from the relevant Pinia store (`ui/src/stores/`); `ui/src/services/` only holds the WebSocket manager (`ws.ts`).
 2. Add a strongly-typed wrapper method for your new endpoint.
 
 ---
@@ -34,11 +34,11 @@ Add any new structs to `internal/models/`. Use appropriate JSON tags.
 TrueSignal uses CQRS-style projections for analytics to avoid complex front-end data crunching.
 
 **Step 1: Update the DTO**
-1. Open `internal/projections/dtos.go`.
-2. Add the new required field to the Data Transfer Object (e.g., adding `UniqueIPs` to `FleetHealthDTO`).
+1. Open the projection's `dto.go` (each projection is its own package: `internal/projections/{severity,summary,uptime,velocity}/`).
+2. Add the new required field to the Data Transfer Object (e.g., adding `UniqueIPs` to `summary.SummaryDTO`).
 
 **Step 2: Update the Calculator Function**
-1. Open the relevant file in `internal/projections/` (e.g., `calculators.go`).
+1. Open the relevant file in `internal/projections/` (e.g., `velocity/calculator.go`).
 2. Modify the pure function to compute your new field based on the raw input events.
 
 **Step 3: Update the Frontend Pinia Store**

@@ -4,11 +4,12 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
-	"sync"
 
 	"github.com/truesignal/hub/internal/api"
 	"github.com/truesignal/hub/internal/catalog"
@@ -30,6 +31,15 @@ import (
 const HubAPIVersion = 1
 
 // loadConfigSafe is a helper to fetch DB configs without panicking on empty/missing rows
+// auditLogger writes administrative actions to the Hub log and forwards them
+// to the SIEM.
+type auditLogger struct{ siem *siem.Service }
+
+func (a auditLogger) Audit(action, path string, status int, actorIP string) {
+	log.Printf("[AUDIT] %s status=%d ip=%s", action, status, actorIP)
+	a.siem.QueueAudit(siem.AuditRecord{Time: time.Now().UTC(), Action: action, Path: path, Status: status, ActorIP: actorIP})
+}
+
 func loadConfigSafe(s *store.SQLiteStore, key string, fallback string) string {
 	val, err := s.GetConfigValue(key)
 	if err != nil || val == "" {
@@ -54,18 +64,35 @@ func main() {
 	defer rootCancel()
 
 	wsService := websocket.NewService()
-	authService := auth.NewService(dbStore, cfg.DashboardPassword)
+	authService := auth.NewService(dbStore, cfg.DashboardPassword, auth.SessionPolicy{TTL: cfg.SessionTTL, Idle: cfg.SessionIdle})
 
 	catalogService := catalog.NewService(dbStore, wsService)
 
-	nodeSvc := node.NewService(dbStore, wsService, catalogService)
-	sensorSvc := sensor.NewService(dbStore, wsService)
-	siemService := siem.NewService(nodeSvc)
+	nodeSvc := node.NewService(dbStore, wsService, catalogService, authService)
+	siemService := siem.NewService(nodeSvc, siem.Options{PEN: cfg.SyslogPEN, CAFile: cfg.SIEMCAFile})
 	notifyService := notify.NewService(nodeSvc)
 	eventSvc := event.NewService(dbStore, wsService, siemService, notifyService)
+	sensorSvc := sensor.NewService(dbStore, wsService, eventSvc)
 	configService := config.NewService(dbStore, authService, siemService, notifyService, cfg.DashboardPassword, cfg.Version)
 	composeService := composesvc.NewService(dbStore, catalogService)
-	monitorService := statemonitor.NewStateMonitor(dbStore.DB, wsService)
+	composeService.AllowUnpinnedImages(cfg.AllowUnpinnedImages)
+	if cfg.AllowUnpinnedImages {
+		log.Println("[WARNING] TS_ALLOW_UNPINNED_IMAGES=true: sensor images are not required to be digest-pinned. Do not use in production.")
+	}
+	monitorService := statemonitor.NewStateMonitor(dbStore.DB, wsService, eventSvc)
+
+	// Browsers may open the dashboard WebSocket only from the Hub's own origin.
+	if cfg.IsDevelopment() {
+		wsService.SetOriginPolicy(func(*http.Request) bool { return true })
+	} else {
+		wsService.SetOriginPolicy(websocket.SameOrigin(func() []string {
+			endpoint := loadConfigSafe(dbStore, "hub_endpoint", "")
+			if u, err := url.Parse(endpoint); err == nil && u.Host != "" {
+				return []string{u.Host}
+			}
+			return nil
+		}, cfg.TrustProxy))
+	}
 
 	authHandler := api.NewAuthHandler(authService, cfg)
 	nodeHandler := api.NewNodeHandler(nodeSvc)
@@ -87,9 +114,16 @@ func main() {
 		WSService:         wsService,
 		SessionValidator:  authService,
 		NodeAuthenticator: authService,
+		Auditor:           auditLogger{siem: siemService},
+		TrustProxy:        cfg.TrustProxy,
 	})
 	if err != nil {
 		log.Fatalf("[FATAL] Router setup failed: %v", err)
+	}
+
+	if token := configService.EnsureSetupToken(); token != "" {
+		log.Printf("[SETUP] Hub is not initialised. One-time setup token: %s", token)
+		log.Printf("[SETUP] Enter it on the setup page to create the admin account.")
 	}
 
 	// 1. Start External Workers
@@ -101,7 +135,7 @@ func main() {
 	go monitorService.Start(rootCtx)
 
 	// 2. Load Runtime Configurations Safely
-	isArmed := loadConfigSafe(dbStore, "is_armed", "false") == "true"
+	isArmed := loadConfigSafe(dbStore, "is_armed", "true") == "true"
 	webhookType := loadConfigSafe(dbStore, "webhook_type", "ntfy")
 	webhookURL := loadConfigSafe(dbStore, "webhook_url", "")
 	webhookEvents := loadConfigSafe(dbStore, "webhook_events", "[]")
@@ -111,13 +145,17 @@ func main() {
 	siemProtocol := loadConfigSafe(dbStore, "siem_protocol", "tcp")
 	siemService.UpdateConfig(siemAddress, siemProtocol)
 
-
 	go eventSvc.StartRetentionWorker(rootCtx)
 
 	// 4. Start HTTP Server
+	// ReadHeaderTimeout/IdleTimeout bound slow or idle clients (slowloris).
+	// No ReadTimeout/WriteTimeout: the dashboard WebSocket is long-lived.
 	server := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: r,
+		Addr:              ":" + cfg.Port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	go func() {
@@ -147,18 +185,18 @@ func main() {
 
 	// 3. Wait for critical telemetry pipelines to flush
 	// We wait for them concurrently to speed up the shutdown process.
-	// Since both services have hard internal 5-second drain timeouts, 
+	// Since both services have hard internal 5-second drain timeouts,
 	// this is guaranteed to never hang the system indefinitely.
 	log.Println("[*] Waiting for SIEM and Notification workers to flush remaining events...")
-	
+
 	var shutdownWg sync.WaitGroup
-	
+
 	shutdownWg.Add(1)
 	go func() {
 		defer shutdownWg.Done()
 		siemService.Wait()
 	}()
-	
+
 	shutdownWg.Add(1)
 	go func() {
 		defer shutdownWg.Done()

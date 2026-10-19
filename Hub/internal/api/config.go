@@ -2,8 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
-	"time"
 
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/config"
@@ -37,7 +37,15 @@ func (h *ConfigHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.CompleteSetup(req.Password, req.HubEndpoint); err != nil {
+	if err := h.service.CompleteSetup(req.Password, req.HubEndpoint, req.SetupToken); err != nil {
+		if err.Error() == "invalid_setup_token" {
+			RespondError(w, "Invalid setup token. Copy it from the Hub log ([SETUP] line).", http.StatusForbidden)
+			return
+		}
+		if err.Error() == "weak_password" {
+			RespondError(w, "Password must be at least 12 characters.", http.StatusBadRequest)
+			return
+		}
 		if err.Error() == "setup_locked" {
 			RespondError(w, "Setup is locked by environment configuration.", http.StatusForbidden)
 			return
@@ -71,6 +79,11 @@ func (h *ConfigHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.UpdateConfig(req); err != nil {
+		var verr *config.ValidationError
+		if errors.As(err, &verr) {
+			RespondError(w, verr.Msg, http.StatusBadRequest)
+			return
+		}
 		RespondError(w, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -97,19 +110,15 @@ func (h *ConfigHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 			RespondError(w, "Incorrect current password", http.StatusUnauthorized)
 			return
 		}
+		if err.Error() == "weak_password" {
+			RespondError(w, "Password must be at least 12 characters.", http.StatusBadRequest)
+			return
+		}
 		RespondError(w, "Failed to update password", http.StatusInternalServerError)
 		return
 	}
 
-	// codeql[go/insecure-cookie] Clearing configuration cookie.
-	// nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
-	http.SetCookie(w, &http.Cookie{
-		Name:     AuthCookieName,
-		Value:    "",
-		Path:     "/",
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-	})
+	clearAuthCookie(w, h.Cfg)
 
 	SendJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
@@ -153,15 +162,7 @@ func (h *ConfigHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// codeql[go/insecure-cookie] Clearing configuration cookie.
-	// nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
-	http.SetCookie(w, &http.Cookie{
-		Name:     AuthCookieName,
-		Value:    "",
-		Path:     "/",
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-	})
+	clearAuthCookie(w, h.Cfg)
 
 	SendJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }

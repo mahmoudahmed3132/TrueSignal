@@ -2,11 +2,11 @@ package app
 
 import (
 	"context"
-	
+
 	// codeql[go/insecure-randomness] Non-cryptographic use case.
 	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
-	"math/rand"
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -26,10 +26,10 @@ func NewApp(cfg *NodeConfig) *App {
 	return &App{
 		Config: cfg,
 		Hub:    api.NewClient(cfg.HubURL),
-		
+
 		// codeql[go/insecure-randomness] Non-cryptographic use case.
 		// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
