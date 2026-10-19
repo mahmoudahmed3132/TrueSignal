@@ -1,0 +1,77 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: go test (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - Hub
+          - wizard
+          - SDKs/go-truesignal
+          - Sensors/official/FileCanary
+          - Sensors/official/IcmpCanary
+          - Sensors/official/NetworkScanDetector
+          - Sensors/official/TcpTarpit
+          - Sensors/official/WebRouterDecoy
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: '1.25'
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      # The Hub embeds the compiled UI (go:embed), so it must exist before
+      # the api and ui packages compile.
+      - name: Setup Node
+        if: matrix.module == 'Hub'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: Hub/ui/package-lock.json
+
+      - name: Build UI
+        if: matrix.module == 'Hub'
+        working-directory: Hub/ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+      - name: Test
+        working-directory: ${{ matrix.module }}
+        run: go test -race ./...
+
+  python:
+    name: Python SDK / mock hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Byte-compile
+        run: python -m compileall -q SDKs/python-truesignal Sensors/templates/python-sensor scripts
