@@ -20,8 +20,8 @@ class MockHubHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        """Handles and validates the TrueSignal V1.0 Event Contract."""
-        content_length = int(self.headers['Content-Length'])
+        """Handles and validates the TrueSignal event contract."""
+        content_length = int(self.headers.get('Content-Length') or 0)
         post_data = self.rfile.read(content_length)
         
         try:
@@ -30,7 +30,7 @@ class MockHubHandler(http.server.BaseHTTPRequestHandler):
             if self.path == '/api/v2/event':
                 # 1. Enforce the updated V1.0 Contract
                 required_keys = [
-                    "eventTrigger", "source", "target", "details"
+                    "sensorId", "eventTrigger", "severity", "source", "target", "details"
                 ]
                 
                 for key in required_keys:
@@ -42,17 +42,28 @@ class MockHubHandler(http.server.BaseHTTPRequestHandler):
                 
                 # 2. Enforce severity type (String enum or Int)
                 valid_severities = ["info", "low", "medium", "high", "critical"]
-                if not isinstance(payload['severity'], int) and payload['severity'] not in valid_severities:
+                if payload['severity'] not in valid_severities:
                     print(f"[CONTRACT]   FAIL| Event rejected. Invalid severity: '{payload['severity']}'")
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+
+                if not isinstance(payload['details'], dict):
+                    print("[CONTRACT]   FAIL| Event rejected. 'details' must be a JSON object")
                     self.send_response(400)
                     self.end_headers()
                     return
 
                 print(f"[EVENT]      OK | Trigger: {payload['eventTrigger']} from {payload['sensorId']}")
                 print(json.dumps(payload, indent=2))
-                
+
                 self.send_response(200)
                 self.end_headers()
+
+                # CI success flag: only a contract-valid event counts, not a
+                # heartbeat or offline notice.
+                with open('/tmp/test_passed', 'w') as f:
+                    f.write('success')
 
             elif self.path == '/api/v2/heartbeat':
                 self.send_response(200)
@@ -63,11 +74,11 @@ class MockHubHandler(http.server.BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.end_headers()
                 print(f"[OFFLINE]    OK | Sensor: {payload.get('sensorId', 'unknown')}")
-            
-            # Write success flag for the CI runner
-            with open('/tmp/test_passed', 'w') as f:
-                f.write('success')
-                
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+
         except json.JSONDecodeError:
             print("[ERROR]      FAIL| Payload is not valid JSON.")
             self.send_response(400)
@@ -81,7 +92,7 @@ class MockHubHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 if __name__ == '__main__':
-    print("--- TrueSignal Mock Hub (V1.1) ---")
+    print("--- TrueSignal Mock Hub ---")
     print("Listening on 0.0.0.0:8080...")
     print("Awaiting sensor connections for contract validation...")
     server = http.server.HTTPServer(('0.0.0.0', 8080), MockHubHandler)

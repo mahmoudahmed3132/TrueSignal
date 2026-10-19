@@ -6,7 +6,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/truesignal/sdk-go"
 	"golang.org/x/net/icmp"
@@ -64,7 +66,45 @@ func main() {
 	log.Println("[*] Shutdown signal received. Exiting.")
 }
 
+// icmpThrottle aggregates repeated packets from the same source and type so a
+// sweep or monitor produces one event per cooldown window (with a count)
+// instead of one event per packet.
+type icmpThrottle struct {
+	cooldown time.Duration
+	last     map[string]time.Time
+	dropped  map[string]int
+}
+
+func newThrottle(cooldown time.Duration) *icmpThrottle {
+	return &icmpThrottle{cooldown: cooldown, last: map[string]time.Time{}, dropped: map[string]int{}}
+}
+
+// allow reports whether an event should be emitted now, and how many packets
+// were suppressed since the previous emitted event for this key.
+func (t *icmpThrottle) allow(key string, now time.Time) (bool, int) {
+	if t.cooldown <= 0 {
+		return true, 0
+	}
+	if last, ok := t.last[key]; ok && now.Sub(last) < t.cooldown {
+		t.dropped[key]++
+		return false, 0
+	}
+	suppressed := t.dropped[key]
+	t.last[key] = now
+	delete(t.dropped, key)
+	if len(t.last) > 10000 {
+		for k, ts := range t.last {
+			if now.Sub(ts) >= t.cooldown {
+				delete(t.last, k)
+				delete(t.dropped, k)
+			}
+		}
+	}
+	return true, suppressed
+}
+
 func listenICMP(conn *icmp.PacketConn, ts *sdk.Sensor) {
+	throttle := newThrottle(time.Duration(getEnvInt("TS_ICMP_COOLDOWN", 60)) * time.Second)
 	buf := make([]byte, 1500)
 	for {
 		n, addr, err := conn.ReadFrom(buf)
@@ -106,6 +146,11 @@ func listenICMP(conn *icmp.PacketConn, ts *sdk.Sensor) {
 			continue // We only care about Ping and Timestamp scans
 		}
 
+		ok, suppressed := throttle.allow(sourceIP+"|"+icmpTypeStr, time.Now())
+		if !ok {
+			continue
+		}
+
 		log.Printf("[+] ICMP %s from %s (seq=%d size=%d)", icmpTypeStr, sourceIP, icmpSeq, n)
 
 		ts.ReportEvent(
@@ -117,7 +162,17 @@ func listenICMP(conn *icmp.PacketConn, ts *sdk.Sensor) {
 				{Key: "packet_size", Value: n},
 				{Key: "icmp_id", Value: icmpID},
 				{Key: "icmp_seq", Value: icmpSeq},
+				{Key: "suppressed_since_last", Value: suppressed},
 			},
 		)
 	}
+}
+
+func getEnvInt(key string, fallback int) int {
+	if val, ok := os.LookupEnv(key); ok {
+		if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+			return n
+		}
+	}
+	return fallback
 }

@@ -289,9 +289,19 @@ func (ed EventDetails) MarshalJSON() ([]byte, error) {
 }
 
 func (s *Sensor) ReportEvent(trigger, source, target string, details EventDetails) bool {
+	return s.ReportEventSeverity(s.Severity, trigger, source, target, details)
+}
+
+// ReportEventSeverity queues an event with an explicit severity, for sensors
+// that emit signals of different weight (e.g. a page view vs. a credential
+// submission). Empty severity falls back to the sensor's TS_SEVERITY.
+func (s *Sensor) ReportEventSeverity(severity, trigger, source, target string, details EventDetails) bool {
+	if severity == "" {
+		severity = s.Severity
+	}
 	payload := map[string]any{
 		"sensorId":        s.SensorID,
-		"severity":        s.Severity,
+		"severity":        severity,
 		"eventTrigger":    trigger,
 		"source":          source,
 		"target":          target,

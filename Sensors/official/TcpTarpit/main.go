@@ -16,9 +16,11 @@ import (
 )
 
 var (
-	decoyPorts  = parsePorts(getEnv("TS_DECOY_PORTS", "2222,3306"))
-	tarpitMode  = strings.ToLower(getEnv("TS_TARPIT_MODE", "hold"))
+	decoyPorts = parsePorts(getEnv("TS_DECOY_PORTS", "2222,3306"))
+	tarpitMode = strings.ToLower(getEnv("TS_TARPIT_MODE", "hold"))
+	// banner is the fallback for ports without an entry in TS_TARPIT_BANNERS.
 	banner      = parseBanner(getEnv("TS_TARPIT_BANNER", ""))
+	portBanners = parsePortBanners(getEnv("TS_TARPIT_BANNERS", "22=SSH-2.0-OpenSSH_8.2p1\\r\\n;2222=SSH-2.0-OpenSSH_8.2p1\\r\\n"))
 	concurrency = 1000
 	maxBytes    = 50 * 1024
 	maxLines    = 10
@@ -119,9 +121,23 @@ func handleConnection(ts *sdk.Sensor, conn net.Conn, port int) {
 	var payload []string
 	consumedBytes := 0
 
-	if banner != "" && tarpitMode != "close" {
+	// Alert on the connection itself, immediately. In hold mode a session can
+	// stay open for up to maxDuration; waiting for it to end would delay the
+	// alert by up to an hour.
+	ts.ReportEvent(
+		"tcp_connection",
+		srcIP,
+		fmt.Sprintf("Port %d", port),
+		sdk.EventDetails{
+			{Key: "phase", Value: "connect"},
+			{Key: "action_taken", Value: tarpitMode},
+		},
+	)
+
+	portBanner := bannerFor(port)
+	if portBanner != "" && tarpitMode != "close" {
 		conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		conn.Write([]byte(banner))
+		conn.Write([]byte(portBanner))
 	}
 
 	if tarpitMode != "close" {
@@ -159,18 +175,52 @@ func handleConnection(ts *sdk.Sensor, conn net.Conn, port int) {
 		}
 	}
 
-	duration := time.Since(start).Seconds()
-
+	// Follow up only when the session revealed something (what the client
+	// sent); a bare connect/close adds nothing to the first event.
+	if len(payload) == 0 {
+		return
+	}
 	ts.ReportEvent(
-		"tcp_connection",
+		"tcp_session_payload",
 		srcIP,
 		fmt.Sprintf("Port %d", port),
 		sdk.EventDetails{
-			{Key: "duration_sec", Value: duration},
+			{Key: "phase", Value: "close"},
+			{Key: "duration_sec", Value: time.Since(start).Seconds()},
+			{Key: "bytes_received", Value: consumedBytes},
 			{Key: "payload", Value: payload},
 			{Key: "action_taken", Value: tarpitMode},
 		},
 	)
+}
+
+// bannerFor returns the banner to present on a port. Server-first protocols
+// must look right: an SSH banner on a MySQL port is an instant tell.
+func bannerFor(port int) string {
+	if b, ok := portBanners[port]; ok {
+		return b
+	}
+	return banner
+}
+
+// parsePortBanners parses "port=banner;port=banner". An empty banner means
+// "send nothing" for that port.
+func parsePortBanners(raw string) map[int]string {
+	out := make(map[int]string)
+	for _, entry := range strings.Split(raw, ";") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		if p, err := strconv.Atoi(strings.TrimSpace(k)); err == nil && p > 0 && p <= 65535 {
+			out[p] = parseBanner(v)
+		}
+	}
+	return out
 }
 
 func parsePorts(raw string) []int {
@@ -180,7 +230,7 @@ func parsePorts(raw string) []int {
 		if p == "" {
 			continue
 		}
-		if val, err := strconv.Atoi(p); err == nil {
+		if val, err := strconv.Atoi(p); err == nil && val > 0 && val <= 65535 {
 			ports = append(ports, val)
 		}
 	}

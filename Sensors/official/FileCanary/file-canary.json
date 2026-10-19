@@ -13,18 +13,19 @@
         "title": "Features",
         "type": "list",
         "content": [
-          "Context-Aware Lures: Automatically generates realistic trap files based on detected host services (database backups, web config files, etc.).",
-          "Safe Permissions Handling: Uses Access Control Lists (ACLs) to securely read target directories without altering original host ownership.",
-          "Real-time Alerting: Instant telemetry transmission on file access, modification, or deletion."
+          "Plausible Lures: Newly created decoy files get realistic but entirely fabricated content (config, SQL dump, VPN key) chosen by file name; existing files are never modified.",
+          "Read and Tamper Detection: Alerts on open/read (default on) and on modification, attribute change, deletion or move.",
+          "Burst Collapsing: Repeated identical events within the cooldown are reported once."
         ]
       },
       {
         "title": "Security Architecture",
         "type": "list",
         "content": [
-          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
-          "Execution Privilege: Runs completely unprivileged as UID 65532 to prevent system-level modifications even in the event of a breach.",
-          "Required Capabilities: DAC_OVERRIDE, operates purely through monitored Volume Mounts."
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL Linux capabilities, enforces a read-only filesystem and no-new-privileges, and applies log rotation.",
+          "Execution Privilege: The monitor runs unprivileged as UID 65532 with read-only binds of the lure files only.",
+          "Provisioning: A one-shot init container (UID 0, DAC_OVERRIDE only, no network) creates missing lure files in their parent directories.",
+          "Attribution: inotify reports what happened to a lure, not which process did it; correlate the timestamp with EDR telemetry for the actor."
         ]
       }
     ]
@@ -125,8 +126,8 @@
       },
       {
         "name": "TS_ALERT_ON_OPEN",
-        "description": "Generate alerts when a file is simply read or opened (noisier).",
-        "default": "false",
+        "description": "Alert when a lure is opened or read. Reading a lure is the core deception signal; disable only if a legitimate process (backup, AV) must read the paths.",
+        "default": "true",
         "type": "string",
         "required": false,
         "hidden": false
@@ -136,6 +137,14 @@
         "description": "Comma-separated list of absolute file paths to deploy and monitor.",
         "default": "{{ if .HasWeb }}/var/www/html/.backup-config.php{{ else if .HasDB }}/var/lib/db/dump.sql.bak{{ else }}/opt/.env.backup{{ end }}{{ if gt (len .MatchedServices) 1 }},/home/admin/vpn_keys.txt{{ end }}",
         "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_ALERT_COOLDOWN",
+        "description": "Seconds to collapse repeated identical file events (one read fires several inotify events).",
+        "default": "10",
+        "type": "int",
         "required": false,
         "hidden": false
       }

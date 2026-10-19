@@ -14,8 +14,8 @@
         "type": "list",
         "content": [
           "Threshold-Based Detection: Configurable scan detection parameters for noisy environments.",
-          "Intelligent Filtering: Automatically ignores legitimate internal services to prevent false positives.",
-          "Source Tracking: Logs internal attacker IP addresses and precise scan patterns."
+          "Inbound Only: Ignores frames the host itself sends, so a busy client is never reported as scanning.",
+          "Source Tracking: Logs internal attacker IP addresses and precise scan patterns (SYN, NULL, FIN, XMAS, OS probes). IPv4 only."
         ]
       },
       {
@@ -23,7 +23,7 @@
         "type": "list",
         "content": [
           "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
-          "Execution Privilege: Runs as container root (UID 0) strictly to initialize the raw network socket.",
+          "Execution Privilege: Runs as container root holding only CAP_NET_RAW (all other capabilities dropped, no-new-privileges).",
           "Required Capabilities: Adds 'NET_RAW' to allow deep packet-level inspection of TCP headers."
         ]
       }

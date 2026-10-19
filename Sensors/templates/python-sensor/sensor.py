@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     # Register test payload for CI/CD and Wizard validation
     sensor.set_test_payload(
-        event_trigger="custom_anomaly_detected",
+        trigger="custom_anomaly_detected",
         source="192.168.1.100",
         target=sensor.target,
         details={

@@ -105,14 +105,16 @@ func main() {
 	}
 	defer syscall.Close(fd)
 
-	// Drop privileges immediately after opening the raw socket
-	if err := syscall.Setgid(65534); err != nil {
-		log.Printf("[-] Warning: Failed to drop GID: %v", err)
-	}
-	if err := syscall.Setuid(65534); err != nil {
-		log.Printf("[-] Warning: Failed to drop UID: %v", err)
+	// Try to drop to nobody once the socket is open. Under the Hub's sandbox
+	// (cap_drop ALL + NET_RAW, no-new-privileges) CAP_SETUID/SETGID are not
+	// granted, so this normally fails and the process keeps UID 0 holding only
+	// CAP_NET_RAW. Report that accurately instead of claiming a drop.
+	gidErr := syscall.Setgid(65534)
+	uidErr := syscall.Setuid(65534)
+	if gidErr == nil && uidErr == nil {
+		log.Printf("[*] Dropped privileges to nobody (65534) after opening the packet socket")
 	} else {
-		log.Printf("[*] Dropped root privileges and CAP_NET_RAW (Running as nobody)")
+		log.Printf("[*] Privilege drop unavailable (%v / %v); running as UID %d with only the capabilities granted by the sandbox", gidErr, uidErr, os.Getuid())
 	}
 
 	log.Printf("[*] TrueSignal Scan Detector | Threshold: %d ports | Window: %v", threshold, window)
@@ -179,11 +181,9 @@ func main() {
 					continue
 				}
 
-				// Drop packets from the loopback interface if ignoreLocal is true
-				if ignoreLocal && loopbackIfIndex != -1 {
-					if ll, ok := from.(*syscall.SockaddrLinklayer); ok && ll.Ifindex == loopbackIfIndex {
-						continue
-					}
+				ll, _ := from.(*syscall.SockaddrLinklayer)
+				if skipFrame(ll, ignoreLocal, loopbackIfIndex) {
+					continue
 				}
 
 				// Must be TCP (Protocol 6)
@@ -226,6 +226,19 @@ func main() {
 	defer ts.Stop()
 
 	<-ctx.Done()
+}
+
+// skipFrame filters frames that cannot be an inbound scan: AF_PACKET also
+// delivers this host's own outgoing frames, which would otherwise make any
+// host that opens connections to several ports "scan" from its own IP.
+func skipFrame(ll *syscall.SockaddrLinklayer, ignoreLocal bool, loopbackIfIndex int) bool {
+	if ll == nil {
+		return false
+	}
+	if ll.Pkttype == syscall.PACKET_OUTGOING {
+		return true
+	}
+	return ignoreLocal && loopbackIfIndex != -1 && ll.Ifindex == loopbackIfIndex
 }
 
 func processHit(ts *sdk.Sensor, srcIP string, dstPort uint16, flags uint8, winSize uint16) {

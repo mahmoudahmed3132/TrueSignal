@@ -13,9 +13,9 @@
         "title": "Features",
         "type": "list",
         "content": [
+          "Immediate Alerting: Every accepted connection is reported at once; a follow-up event carries what the client sent when the session ends.",
           "Connection Exhaustion: Holds malicious lateral connections open for extended periods to stall automated tools.",
-          "Banner Spoofing: Mimics legitimate internal services (like SSH or MySQL) to attract rogue scanning.",
-          "Resource Denial: Consumes attacker threads and bandwidth silently without risking host exhaustion."
+          "Per-Port Banners: Presents a protocol-appropriate banner per port (e.g. SSH on 22/2222, silence on MySQL ports) so decoys are not trivially fingerprinted."
         ]
       },
       {
@@ -121,8 +121,16 @@
       },
       {
         "name": "TS_TARPIT_BANNER",
-        "description": "Service banner to spoof.",
-        "default": "SSH-2.0-OpenSSH_8.2p1\\r\\n",
+        "description": "Fallback banner for decoy ports not listed in TS_TARPIT_BANNERS (empty = send nothing).",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_TARPIT_BANNERS",
+        "description": "Per-port banners as port=banner pairs separated by ';'. Ports not listed use TS_TARPIT_BANNER.",
+        "default": "22=SSH-2.0-OpenSSH_8.2p1\\r\\n;2222=SSH-2.0-OpenSSH_8.2p1\\r\\n",
         "type": "string",
         "required": false,
         "hidden": false
