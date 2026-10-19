@@ -117,8 +117,16 @@
       },
       {
         "name": "TS_CAPTURE_PASSWORDS",
-        "description": "How submitted passwords are recorded: hash (SHA-256 + length, default), plain (cleartext; avoid in PCI scope), none.",
+        "description": "How submitted passwords are recorded: hash (keyed HMAC-SHA256 + length, default), plain (cleartext; avoid in PCI scope), none.",
         "default": "hash",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_HASH_KEY",
+        "description": "Optional HMAC key for hash mode. Set the same value on every node to correlate a password across the fleet. Empty: derived from this node's key (correlates per node only). A value set here is stored by the Hub, so Hub records could then be dictionary-tested.",
+        "default": "",
         "type": "string",
         "required": false,
         "hidden": false

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -23,6 +24,7 @@ var (
 	port         string
 	routerBrand  string
 	passwordMode string
+	passwordKey  []byte
 	ts           *sdk.Sensor
 	probes       = newProbeLimiter(60 * time.Second)
 )
@@ -289,6 +291,7 @@ func main() {
 	port = getEnv("TS_BIND_PORT", "8080")
 	routerBrand = getEnv("TS_ROUTER_BRAND", "Netgear")
 	passwordMode = strings.ToLower(getEnv("TS_CAPTURE_PASSWORDS", "hash"))
+	passwordKey = passwordHashKey(os.Getenv("TS_CAPTURE_HASH_KEY"), os.Getenv("TS_HUB_KEY"))
 
 	if ts.TestMode {
 		if ts.RunTestMode() {
@@ -407,7 +410,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		{Key: "user_agent", Value: truncate(userAgent(r), 512)},
 		{Key: "attempted_username", Value: username},
 	}
-	details = append(details, passwordDetails(password, passwordMode)...)
+	details = append(details, passwordDetails(password, passwordMode, passwordKey)...)
 	details = append(details, sdk.EventDetail{Key: "action_taken", Value: "logged"})
 
 	ts.ReportEvent("web_login_attempt", srcIP, "Web Interface", details)
@@ -420,24 +423,45 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // passwordDetails decides how much of a submitted password leaves the decoy.
-// Default "hash": a SHA-256 fingerprint and the length, enough to correlate
-// the same password across sensors or against breach corpora without
+// The default ("hash") records a keyed HMAC-SHA256 and the length instead of
 // storing it. If staff ever type a real password here it must not end up in
-// cleartext in the Hub DB, SIEM or exports. "plain" opts in to cleartext
-// capture; "none" records only that a password was submitted.
-func passwordDetails(password, mode string) sdk.EventDetails {
+// cleartext in the Hub DB, SIEM or exports, and a plain SHA-256 would be
+// reversible for common passwords by anyone holding those records. "plain"
+// opts in to cleartext capture; "none" records only that a password was
+// submitted.
+func passwordDetails(password, mode string, key []byte) sdk.EventDetails {
 	switch mode {
 	case "plain":
 		return sdk.EventDetails{{Key: "attempted_password", Value: truncate(password, 256)}}
 	case "none":
 		return sdk.EventDetails{{Key: "password_submitted", Value: password != ""}}
 	default:
-		sum := sha256.Sum256([]byte(password))
+		mac := hmac.New(sha256.New, key)
+		mac.Write([]byte(password))
 		return sdk.EventDetails{
-			{Key: "attempted_password_sha256", Value: hex.EncodeToString(sum[:])},
+			{Key: "attempted_password_hmac", Value: hex.EncodeToString(mac.Sum(nil))},
 			{Key: "attempted_password_length", Value: len(password)},
+			{Key: "hmac_key_id", Value: keyID(key)},
 		}
 	}
+}
+
+// passwordHashKey picks the HMAC key. TS_CAPTURE_HASH_KEY, set to the same
+// value on every node, makes the same password correlate fleet-wide. Without
+// it the node key is used: stable per node, and the Hub stores only its hash,
+// so Hub/SIEM records alone can't be brute-forced.
+func passwordHashKey(captureKey, nodeKey string) []byte {
+	if captureKey != "" {
+		return []byte(captureKey)
+	}
+	return []byte("truesignal-capture:" + nodeKey)
+}
+
+// keyID lets analysts tell which key produced an HMAC without revealing it.
+func keyID(key []byte) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte("truesignal-key-id"))
+	return hex.EncodeToString(mac.Sum(nil))[:8]
 }
 
 func truncate(s string, n int) string {
