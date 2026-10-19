@@ -51,6 +51,13 @@
 * `truesignal uninstall` now lists the lure files it leaves on disk; `discover` skips lure paths it can't place.
 * Wizard config/state directories created `0750`.
 
+### UI: Ledger brand
+* New Ledger identity for the Hub UI, light and dark: warm paper/ink neutrals with one deep-teal accent (`#0B7A75`, `#2BB3A9` in dark), kept out of the severity hues so chrome never reads as an alert. All text/background pairs meet WCAG AA.
+* New mark (two rings and a tripped point) in `components/ui/branding/BrandMark.vue`, used by the header, login/setup and the favicon.
+* Instrument Sans + IBM Plex Mono, bundled via `@fontsource` (no CDN request at runtime; works on offline SOC networks). Previously `Inter`/`JetBrains Mono` were named but never loaded.
+* Severity badges and row bleeds now follow theme tokens instead of hard-coded hexes.
+* Decoys are deliberately left unbranded: a TrueSignal mark on a honeypot would tell the attacker it is one.
+
 ### Tests & CI
 * New tests for the event, statemonitor, websocket, SIEM, auth, compose and migration paths, every official sensor, and the wizard.
 * `.github/workflows/test.yml` runs `go vet` and `go test -race` for every Go module (UI built first); Gitea Hub dev build now runs tests; Gitea sensor build uses Go 1.25.

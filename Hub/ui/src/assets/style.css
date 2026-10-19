@@ -5,108 +5,124 @@
    TRUESIGNAL DESIGN SYSTEM
    ========================================================================== */
 
+/* Ledger: warm paper and ink, one deep-teal accent. Light is primary; dark
+   keeps the same warm neutrals and a brightened teal. The brand accent is
+   kept out of the severity hues (red, orange, yellow, blue) so navigation
+   and buttons never read as an alert. */
 :root {
-  /* --- 1. Colors: Structural (OKLCH) --- */
-  --bg: oklch(95% 0.002 250);
-  --bg-base: oklch(96% 0.002 250);
-  --bg-surface: oklch(98% 0.003 0);
-  --bg-inset: oklch(88% 0.015 250);
-  --surface-highlight: oklch(100% 0 0); 
-  
-  --border-default: oklch(82% 0.02 250);
+  /* --- 1. Colors: Structural --- */
+  --bg: #F7F6F2;                 /* paper */
+  --bg-base: #F1EFE9;            /* sidebar, page chrome */
+  --bg-surface: #FFFFFF;         /* cards */
+  --bg-inset: #ECEAE3;           /* wells, code, table headers */
+  --surface-highlight: #FFFFFF;
+
+  --border-default: #D9D6CC;
+
+  /* --- Brand --- */
+  --brand-ink: #12161C;
+  --brand-accent: #0B7A75;
+  --brand-accent-soft: #EAF5F3;
 
   /* --- 2. Colors: Actions & Interactive --- */
-  --primary-main: oklch(18% 0.025 250);
-  --primary-hover: oklch(28% 0.025 250);
-  --primary-selected: oklch(12% 0.025 250);
-  --primary-text: oklch(98% 0 0);
-  --primary-border: oklch(18% 0.025 250);
+  --primary-main: #0B7A75;
+  --primary-hover: #096A66;
+  --primary-selected: #075954;
+  --primary-text: #FFFFFF;
+  --primary-border: #0B7A75;
 
-  --secondary-main: oklch(98% 0.0001 0);
-  --secondary-hover: oklch(93.5% 0.003 250);
-  --secondary-selected: oklch(88% 0.006 250);
-  --secondary-text: oklch(15% 0.03 250);
-  --secondary-border: oklch(85% 0.002 250);
+  --secondary-main: #FFFFFF;
+  --secondary-hover: #F1EFE9;
+  --secondary-selected: #EAF5F3;
+  --secondary-text: #12161C;
+  --secondary-border: #D9D6CC;
 
-  --disabled-bg: oklch(88% 0.01 250);
-  --disabled-text: oklch(55% 0.015 250);
-  --disabled-border: oklch(78% 0.02 250);
-  
-  --input-bg: oklch(100% 0 0);          
-  --input-border: oklch(76% 0.03 250);
+  --disabled-bg: #ECEAE3;
+  --disabled-text: #8A8D93;
+  --disabled-border: #D9D6CC;
+
+  --input-bg: #FFFFFF;
+  --input-border: #C9C5B8;
 
   /* --- 3. Colors: States & Severities --- */
 
-  /* --- Severities (Light Mode) --- */
-  --sev-critical: oklch(60% 0.22 20);
-  --sev-high: oklch(65% 0.18 50);
-  --sev-medium: oklch(75% 0.15 85);
-  --sev-low: oklch(60% 0.15 250);
-  --sev-info: oklch(55% 0.02 250);
+  /* --- Severities (Light Mode): chart and accent fills --- */
+  --sev-critical: #C8283F;
+  --sev-high: #D0611A;
+  --sev-medium: #BE9104;
+  --sev-low: #2F6FD0;
+  --sev-info: #6B7078;
 
-  --danger-main: oklch(65% 0.2 25);
-  --danger-hover: oklch(85% 0.15 25);
-  --danger-bg: oklch(90% 0.05 20);
-  --danger-text: oklch(25% 0.1 20);
-  --danger-border: oklch(70% 0.2 20);
+  /* Severity badge text (AA on white and on the tinted badge) */
+  --sev-critical-text: #A3122A;
+  --sev-high-text: #8F430A;
+  --sev-medium-text: #6E5200;
+  --sev-low-text: #1F4E9E;
+  --sev-info-text: #4A4F57;
 
-  --update-main: oklch(55% 0.18 250);
-  --update-hover: oklch(48% 0.18 250);
-  --update-bg: oklch(95% 0.035 250);
-  --update-text: oklch(42% 0.18 250);
-  --update-border: oklch(85% 0.08 250);
+  --danger-main: #C8283F;
+  --danger-hover: #A3122A;
+  --danger-bg: #FDE7EA;
+  --danger-text: #7D0E21;
+  --danger-border: #F0A8B3;
 
-  --archive-text: oklch(45% 0.14 80);
-  --archive-bg: oklch(96% 0.035 80);
-  --archive-hover: oklch(92% 0.055 80);
-  --archive-border: oklch(84% 0.09 80);
+  --update-main: #2F6FD0;
+  --update-hover: #2459AA;
+  --update-bg: #E3EDFD;
+  --update-text: #1F4E9E;
+  --update-border: #A9C5F2;
 
-  --warning-main: oklch(65% 0.18 50);
-  --warning-text: oklch(35% 0.14 50);
-  --warning-bg: oklch(96% 0.035 50);
-  --warning-border: oklch(84% 0.09 50);
+  --archive-text: #6E5200;
+  --archive-bg: #FBF1CC;
+  --archive-hover: #F6E6A8;
+  --archive-border: #E6CF7A;
 
-  --success-main: oklch(55% 0.16 150);
-  --success-selected: oklch(92% 0.05 150);
-  --success-text: oklch(38% 0.14 150);
-  --success-bg: oklch(95% 0.035 150);
-  --success-border: oklch(84% 0.07 150);
+  --warning-main: #D0611A;
+  --warning-text: #7A3808;
+  --warning-bg: #FDEBDC;
+  --warning-border: #F2C29B;
 
-  --highlight-bg: oklch(99.5% 0.003 250);
-  --highlight-border: oklch(75% 0.01 250);
-  --highlight-text: oklch(35% 0.14 250);
-  --highlight-ring: oklch(55% 0.18 250 / 0.25);
+  --success-main: #2F8A4C;
+  --success-selected: #DCEFE2;
+  --success-text: #1E6136;
+  --success-bg: #EAF6EE;
+  --success-border: #A9D6B6;
 
-  --select-solid-bg: oklch(18% 0.025 250);
-  --select-solid-text: oklch(98% 0 0);
-  --select-group-bg: oklch(96% 0.003 250);
-  --select-group-border: oklch(74% 0.03 250);
-  --select-row-bg: oklch(99% 0.003 250);
-  --select-row-border: oklch(68% 0.04 250);
+  --highlight-bg: #FFFFFF;
+  --highlight-border: #B8B3A5;
+  --highlight-text: #0B7A75;
+  --highlight-ring: rgb(11 122 117 / 0.25);
+
+  --select-solid-bg: #12161C;
+  --select-solid-text: #FFFFFF;
+  --select-group-bg: #F1EFE9;
+  --select-group-border: #C9C5B8;
+  --select-row-bg: #FFFFFF;
+  --select-row-border: #B8B3A5;
 
   /* --- 4. Typography --- */
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: 'Instrument Sans Variable', 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   --text-h1: 1.5rem;
   --text-base: 0.875rem;
   --text-sm: 0.75rem;
 
-  --font-weight-bold: 800;
+  --font-weight-bold: 700;
   --font-weight-medium: 600;
   --font-weight-normal: 400;
 
   --text-leading-tight: 1.2;
   --text-leading-normal: 1.5;
 
-  --text-h: oklch(18% 0.025 250); /* High Contrast */
-  --text-m: oklch(40% 0.025 250); /* Medium Contrast */
-  --text-l: oklch(58% 0.015 250); /* Low Contrast */
+  --text-h: #12161C; /* High Contrast */
+  --text-m: #3B4048; /* Medium Contrast */
+  --text-l: #5A5E66; /* Low Contrast (still AA on paper) */
 
   /* --- 5. Border Radius --- */
   --radius-sm: 0.25rem;   /* 4px - Checkboxes, small pills */
-  --radius-md: 0.375rem;  /* 6px - Buttons, Inputs */
-  --radius-lg: 0.5rem;    /* 8px - Cards, Modals */
+  --radius-md: 0.5rem;    /* 8px - Buttons, Inputs */
+  --radius-lg: 0.75rem;   /* 12px - Cards, Modals */
   --radius-full: 9999px;  /* Circular pills, avatars */
 
   /* --- 2. SPACING KNOBS --- */
@@ -127,100 +143,113 @@
   --duration-fast: 150ms;
   --duration-normal: 300ms;
 
-  /* --- 8. Light Mode Shadows --- */
-  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.03);
+  /* --- 8. Light Mode Shadows (ink-tinted, soft) --- */
+  --shadow-sm: 0 1px 2px 0 rgb(18 22 28 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(18 22 28 / 0.07), 0 2px 4px -2px rgb(18 22 28 / 0.04);
+  --shadow-lg: 0 10px 15px -3px rgb(18 22 28 / 0.08), 0 4px 6px -4px rgb(18 22 28 / 0.03);
 }
 
-/* --- DARK MODE --- */
+/* --- DARK MODE (Ledger dark: warm ink, brightened teal) --- */
 .dark {
-  /* --- 1. Colors: Structural (OKLCH) --- */
-  --bg: oklch(10% 0.01 250);
-  --bg-base: oklch(16% 0.01 250);
-  --bg-surface: oklch(22% 0.01 250);
-  --bg-inset: oklch(12% 0.01 250);
-  --surface-highlight: oklch(35% 0.02 250);
-  
-  --border-default: oklch(30% 0.02 250);
- 
+  /* --- 1. Colors: Structural --- */
+  --bg: #121417;
+  --bg-base: #171A1E;
+  --bg-surface: #1D2126;
+  --bg-inset: #101215;
+  --surface-highlight: #2A2F35;
+
+  --border-default: #2E333A;
+
+  /* --- Brand --- */
+  --brand-ink: #ECEDEF;
+  --brand-accent: #2BB3A9;
+  --brand-accent-soft: #15302E;
+
   /* --- 2. Colors: Actions & Interactive --- */
-  --primary-main: oklch(90% 0.01 250);
-  --primary-hover: oklch(100% 0 0);
-  --primary-selected: oklch(85% 0.01 250);
-  --primary-text: oklch(15% 0.01 250);
-  --primary-border: oklch(40% 0.02 250);
- 
-  --secondary-main: oklch(22% 0.01 250);
-  --secondary-hover: oklch(26% 0.02 250);
-  --secondary-selected: oklch(35% 0.02 250);
-  --secondary-text: oklch(70% 0.02 250);
-  --secondary-border: oklch(30% 0.02 250);
- 
-  --disabled-bg: oklch(16.081% 0.00909 240.653);
-  --disabled-text: oklch(45% 0.01 250);
-  --disabled-border: oklch(40% 0.01 250);
-  
-  --input-bg: oklch(14% 0.01 250);           
-  --input-border: oklch(30% 0.01 250);
- 
+  /* Teal is too light for white text here, so buttons carry ink text. */
+  --primary-main: #2BB3A9;
+  --primary-hover: #4CC7BD;
+  --primary-selected: #1F9E95;
+  --primary-text: #071312;
+  --primary-border: #2BB3A9;
+
+  --secondary-main: #1D2126;
+  --secondary-hover: #252A30;
+  --secondary-selected: #15302E;
+  --secondary-text: #C9CDD3;
+  --secondary-border: #2E333A;
+
+  --disabled-bg: #171A1E;
+  --disabled-text: #6B7078;
+  --disabled-border: #2A2E34;
+
+  --input-bg: #15181B;
+  --input-border: #343A41;
+
   /* --- 3. Colors: States & Severities --- */
- 
+
   /* --- Severities (Dark Mode) --- */
-  --sev-critical: oklch(60% 0.22 20);
-  --sev-high: oklch(65% 0.18 50);
-  --sev-medium: oklch(75% 0.15 85);
-  --sev-low: oklch(60% 0.15 250);
-  --sev-info: oklch(55% 0.02 250);
- 
-  --danger-main: oklch(58% 0.16 25);
-  --danger-hover: oklch(10% 0.16 25);
-  --danger-bg: oklch(25% 0.05 25);
-  --danger-text: oklch(95% 0.16 25);
-  --danger-border: oklch(40% 0.1 25);
+  --sev-critical: #F0566B;
+  --sev-high: #F08A3C;
+  --sev-medium: #E3B93A;
+  --sev-low: #5B95F0;
+  --sev-info: #8A9099;
 
-  --update-main: oklch(65% 0.15 250);
-  --update-hover: oklch(55% 0.1 250);
-  --update-bg: oklch(15% 0.05 250);
-  --update-text: oklch(60% 0.15 250);
- 
-  --archive-text: oklch(85% 0.1 85);
-  --archive-bg: oklch(48% 0.1 85 / 0.25);
-  --archive-hover: oklch(15% 0.16 85 / 0.2);
-  --archive-border: oklch(50% 0.15 85 / 0.3);
+  --sev-critical-text: #FF8A99;
+  --sev-high-text: #FFB067;
+  --sev-medium-text: #F5D25C;
+  --sev-low-text: #8DB8FF;
+  --sev-info-text: #A9B0B9;
 
-  --warning-main: oklch(75% 0.18 50);
-  --warning-text: oklch(85% 0.14 50);
-  --warning-bg: oklch(48% 0.18 50 / 0.22);
-  --warning-border: oklch(55% 0.18 50 / 0.45);
- 
-  --success-main: oklch(65% 0.15 150);
-  --success-selected: oklch(60% 0.15 150 / 0.3);
-  --success-text: oklch(80% 0.12 150);
-  --success-bg: oklch(35% 0.1 150 / 0.18);
-  --success-border: oklch(40% 0.1 150 / 0.5);
- 
+  --danger-main: #E04A5F;
+  --danger-hover: #F0566B;
+  --danger-bg: #3A1218;
+  --danger-text: #FFC2CB;
+  --danger-border: #6B2330;
+
+  --update-main: #5B95F0;
+  --update-hover: #7BABF5;
+  --update-bg: #142640;
+  --update-text: #8DB8FF;
+  --update-border: #2A4A78;
+
+  --archive-text: #F5D25C;
+  --archive-bg: #352D0E;
+  --archive-hover: #433912;
+  --archive-border: #5E4F16;
+
+  --warning-main: #F08A3C;
+  --warning-text: #FFC08A;
+  --warning-bg: #3A2210;
+  --warning-border: #6A3F1C;
+
+  --success-main: #4FB873;
+  --success-selected: #1E3B28;
+  --success-text: #9DDDB2;
+  --success-bg: #16291D;
+  --success-border: #2E5A3C;
+
   --highlight-bg: transparent;
-  --highlight-border: oklch(70% 0.02 250);
-  --highlight-text: oklch(90% 0.01 250);
-  --highlight-ring: oklch(70% 0.02 250 / 0.5);
- 
-  --select-solid-bg: oklch(90% 0.01 250);
-  --select-solid-text: oklch(15% 0.01 250);
-  --select-group-bg: oklch(100% 0 0 / 0.05);
-  --select-group-border: oklch(40% 0.02 250);
-  --select-row-bg: oklch(26% 0.02 250);
-  --select-row-border: oklch(50% 0.02 250);
- 
+  --highlight-border: #5A616A;
+  --highlight-text: #5FD3C8;
+  --highlight-ring: rgb(43 179 169 / 0.4);
+
+  --select-solid-bg: #ECEDEF;
+  --select-solid-text: #121417;
+  --select-group-bg: rgb(255 255 255 / 0.04);
+  --select-group-border: #3A4048;
+  --select-row-bg: #252A30;
+  --select-row-border: #4A5058;
+
   /* --- 4. Typography --- */
-  --text-h: oklch(95% 0.01 250); /* High Contrast */
-  --text-m: oklch(70% 0.02 250); /* Medium Contrast */
-  --text-l: oklch(50% 0.01 250); /* Low Contrast */
- 
+  --text-h: #ECEDEF; /* High Contrast */
+  --text-m: #B4B8BF; /* Medium Contrast */
+  --text-l: #858A92; /* Low Contrast (AA on ink) */
+
   /* --- 9. Dark Mode Shadows --- */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.384);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.38);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -1px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -2px rgb(0 0 0 / 0.4);
 }
  
 /* --- TAILWIND THEME LOADER --- */
@@ -261,6 +290,11 @@
   --color-medium: var(--sev-medium);
   --color-low: var(--sev-low);
   --color-info: var(--sev-info);
+
+  /* Brand */
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-soft: var(--brand-accent-soft);
  
   /* Danger Actions */
   --color-danger-main: var(--danger-main);
@@ -361,48 +395,43 @@
 
 /* -- TrueSignal Custom Styles -- */
 [x-cloak] { display: none !important; }
-body { font-family: 'Inter', sans-serif; }
-.mono { font-family: 'JetBrains Mono', monospace; }
+body { font-family: var(--font-sans); background-color: var(--bg); color: var(--text-h); }
+.mono { font-family: var(--font-mono); }
 
-/* Preserved Theme: Severity Bleeds */
-.bleed-critical { border-left-color: #f43f5e !important; background-image: linear-gradient(90deg, rgba(244, 63, 94, 0.08) 0%, transparent 100%); }
-.bleed-high { border-left-color: #fb923c !important; background-image: linear-gradient(90deg, rgba(251, 146, 60, 0.06) 0%, transparent 100%); }
-.bleed-medium { border-left-color: #facc15 !important; background-image: linear-gradient(90deg, rgba(250, 204, 21, 0.05) 0%, transparent 100%); }
-.bleed-low { border-left-color: #3b82f6 !important; background-image: linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, transparent 100%); }
-.bleed-info { border-left-color: #64748b !important; background-image: linear-gradient(90deg, rgba(100, 116, 139, 0.05) 0%, transparent 100%); }
+/* Severity Bleeds (row accents): follow the theme's severity tokens */
+.bleed-critical { border-left-color: var(--sev-critical) !important; background-image: linear-gradient(90deg, color-mix(in srgb, var(--sev-critical) 8%, transparent) 0%, transparent 100%); }
+.bleed-high { border-left-color: var(--sev-high) !important; background-image: linear-gradient(90deg, color-mix(in srgb, var(--sev-high) 6%, transparent) 0%, transparent 100%); }
+.bleed-medium { border-left-color: var(--sev-medium) !important; background-image: linear-gradient(90deg, color-mix(in srgb, var(--sev-medium) 6%, transparent) 0%, transparent 100%); }
+.bleed-low { border-left-color: var(--sev-low) !important; background-image: linear-gradient(90deg, color-mix(in srgb, var(--sev-low) 5%, transparent) 0%, transparent 100%); }
+.bleed-info { border-left-color: var(--sev-info) !important; background-image: linear-gradient(90deg, color-mix(in srgb, var(--sev-info) 5%, transparent) 0%, transparent 100%); }
 
 button {
     cursor: pointer;
 }
 
-/* Preserved Theme: Functional Badges */
-.severity-critical { color: #e11d48; border-color: rgba(225, 29, 72, 0.3); }
-.dark .severity-critical { color: #f43f5e; border-color: rgba(244, 63, 94, 0.3); }
-.severity-high { color: #ea580c; border-color: rgba(234, 88, 12, 0.3); }
-.dark .severity-high { color: #fb923c; border-color: rgba(251, 146, 60, 0.3); }
-.severity-medium { color: #ca8a04; border-color: rgba(202, 138, 4, 0.3); }
-.dark .severity-medium { color: #facc15; border-color: rgba(250, 204, 21, 0.3); }
-.severity-low { color: #2563eb; border-color: rgba(37, 99, 235, 0.3); }
-.dark .severity-low { color: #3b82f6; border-color: rgba(59, 130, 246, 0.3); }
-.severity-info { color: #64748b; border-color: rgba(100, 116, 139, 0.3); }
-.dark .severity-info { color: #a1a1aa; border-color: rgba(161, 161, 170, 0.3); }
+/* Functional Badges: text from the AA severity-text tokens */
+.severity-critical { color: var(--sev-critical-text); border-color: color-mix(in srgb, var(--sev-critical) 35%, transparent); }
+.severity-high { color: var(--sev-high-text); border-color: color-mix(in srgb, var(--sev-high) 35%, transparent); }
+.severity-medium { color: var(--sev-medium-text); border-color: color-mix(in srgb, var(--sev-medium) 35%, transparent); }
+.severity-low { color: var(--sev-low-text); border-color: color-mix(in srgb, var(--sev-low) 35%, transparent); }
+.severity-info { color: var(--sev-info-text); border-color: color-mix(in srgb, var(--sev-info) 35%, transparent); }
 
 /* Standardized Scrollbar */
 .custom-scroll::-webkit-scrollbar { height: 14px; width: 14px; }
 .custom-scroll::-webkit-scrollbar-track { background: transparent; }
 .custom-scroll::-webkit-scrollbar-thumb { 
-    background-color: #989fa8; 
+    background-color: #B8B3A5; 
     border-radius: 10px; 
     border: 4px solid transparent; 
     background-clip: padding-box; 
 }
 .dark .custom-scroll::-webkit-scrollbar-thumb { 
-    background-color: #3f3f46; 
+    background-color: #3A4048; 
     border: 4px solid transparent; 
     background-clip: padding-box; 
 }
-.custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
-.dark .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #52525b; }
+.custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #9A9586; }
+.dark .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #4A5058; }
 .custom-scroll::-webkit-scrollbar-corner { display: none; background: transparent; }
 
 .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -411,8 +440,8 @@ button {
 /* Tactical Grid Background */
 .bg-grid {
     background-size: 40px 40px;
-    background-image: linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-image: linear-gradient(to right, rgb(18 22 28 / 0.045) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgb(18 22 28 / 0.045) 1px, transparent 1px);
 }
 .dark .bg-grid {
     background-image: linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),

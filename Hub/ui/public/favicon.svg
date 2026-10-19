@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
   <title>TrueSignal</title>
-  <rect width="64" height="64" rx="14" fill="#141A24"/>
-  <circle cx="32" cy="32" r="22" fill="none" stroke="#FFFFFF" stroke-width="4"/>
-  <path d="M13 34H23L27.5 25L32 44L36.5 16L41 34H51" fill="none" stroke="#22D3EE" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="64" height="64" rx="14" fill="#F7F6F2"/>
+  <circle cx="32" cy="32" r="22" fill="none" stroke="#12161C" stroke-width="4"/>
+  <circle cx="32" cy="32" r="11" fill="none" stroke="#12161C" stroke-width="4"/>
+  <circle cx="45" cy="19" r="7.5" fill="#0B7A75" stroke="#F7F6F2" stroke-width="2.5"/>
 </svg>

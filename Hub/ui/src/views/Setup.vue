@@ -71,7 +71,7 @@ const doSetup = async () => {
             </div>
 
             <BaseCard class="relative overflow-hidden transition-all duration-normal">
-                <div class="absolute top-0 left-0 right-0 h-1 opacity-90" style="background: linear-gradient(to right, var(--sev-info), var(--sev-low), var(--sev-medium), var(--sev-high), var(--sev-critical))"></div>
+                <div class="absolute top-0 left-0 right-0 h-1 bg-brand-accent"></div>
 
                 <form @submit.prevent="doSetup" class="mt-4 space-y-6">
                     
