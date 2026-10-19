@@ -1,6 +1,6 @@
 module github.com/truesignal/sensors/networkscandetector
 
-go 1.25.0
+go 1.26.0
 
 replace github.com/truesignal/sdk-go => ../../../SDKs/go-truesignal
 

@@ -171,7 +171,7 @@ Run `truesignal firedrill` to make the TrueSignal sensors send a mock event to t
 
 
 ## Tech Stack
-* **Backend:** Go 1.25, `net/http` with the `go-chi/chi` router, SQLite (ModernC Pure Go Driver)
+* **Backend:** Go 1.26, `net/http` with the `go-chi/chi` router, SQLite (ModernC Pure Go Driver)
 * **Frontend:** Vue 3 (Composition API), TailwindCSS, Chart.js
 * **Infrastructure:** Docker, Docker Compose v5.0.0+
 

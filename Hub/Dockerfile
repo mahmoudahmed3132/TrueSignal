@@ -11,7 +11,7 @@ COPY ui/ ./
 RUN npm run build
 
 # STAGE 2: Go Builder
-FROM golang:1.25 AS go-builder
+FROM golang:1.26 AS go-builder
 WORKDIR /build
 
 # Cache Go modules

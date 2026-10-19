@@ -10,7 +10,7 @@ To maintain a stable, secure, and cohesive platform, all contributions to TrueSi
 *   **Variable Naming Conventions:** Variable names that go on disk (e.g., JSON payloads, database columns, config files) must use `snake_case`. Variable names that stay in memory (e.g., Go structs, TypeScript interfaces, local variables) must use `camelCase`.
 
 ### Go (Backend, Wizard, SDKs)
-*   **Version:** Pure Go 1.25. No CGO is permitted.
+*   **Version:** Pure Go 1.26. No CGO is permitted.
 *   **Formatting:** All code must be formatted using `go fmt`.
 *   **Separation of Concerns (Hub):** HTTP handlers (`internal/api/`) must contain *zero* business logic. All logic must reside in `internal/services/`.
 

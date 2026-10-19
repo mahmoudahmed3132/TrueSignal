@@ -49,7 +49,7 @@ Status values: **Fixed** (code changed and tested), **Docs** (documentation corr
 | C25 | Python template calls `set_test_payload(event_trigger=...)` | `Sensors/templates/python-sensor/sensor.py:66-75` | SDK signature is `set_test_payload(trigger, ...)` (`truesignal/__init__.py:144`), so a TypeError on start (code-read, untested) | Template broken | **Fixed** |
 | C26 | Manifest versions 2.0.1/2.0.2/2.1.2 | `Sensors/official/*/*.json` | The catalog's boot-time mock index advertises 2.2.0 for every sensor (`Hub/internal/catalog/service.go:41-56`) | Phantom versions until the first registry refresh | **Fixed**: mock index removed |
 | C27 | `is_armed` default | `Hub/internal/store/sqlite.go:65` = true | `Hub/cmd/hub/main.go:104` falls back to false; `config/service.go:260` falls back to true | Inconsistent fallbacks | **Fixed**: fallbacks agree (`true`) |
-| C28 | Gitea sensor build uses Go 1.21 | `.gitea/workflows/build-sensor-dev.yml:26` | All go.mod files declare `go 1.25.0` | Toolchain mismatch | **Fixed**: Go 1.25 |
+| C28 | Gitea sensor build uses Go 1.21 | `.gitea/workflows/build-sensor-dev.yml:26` | All go.mod files declare `go 1.25.0` | Toolchain mismatch | **Fixed**: all modules and CI on Go 1.26 |
 
 ---
 
