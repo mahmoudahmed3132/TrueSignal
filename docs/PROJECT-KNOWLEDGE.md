@@ -35,7 +35,7 @@ Upstream's own description: a "Distributed High-Signal Security Early-Warning Sy
 
 | # | Component | Language / runtime | Status | Source |
 |---|---|---|---|---|
-| 1 | Hub API + store + workers | Go 1.25, chi v5, modernc SQLite (WAL, FK on), gorilla/websocket | IMPL | `Hub/cmd/hub/main.go`, `Hub/go.mod` |
+| 1 | Hub API + store + workers | Go 1.26, chi v5, modernc SQLite (WAL, FK on), gorilla/websocket | IMPL | `Hub/cmd/hub/main.go`, `Hub/go.mod` |
 | 2 | Hub UI | Vue 3 + Pinia + Tailwind + Chart.js, embedded via `go:embed` | IMPL | `Hub/ui/`, `Hub/ui/embed.go` |
 | 3 | Wizard CLI (`truesignal`) | Go, must run as root | IMPL | `wizard/cmd/wizard/main.go:34-36` |
 | 4 | Official sensors (5) | Go static binaries, distroless | IMPL | `Sensors/official/*` |

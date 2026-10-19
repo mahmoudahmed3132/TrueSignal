@@ -51,6 +51,9 @@
 * `truesignal uninstall` now lists the lure files it leaves on disk; `discover` skips lure paths it can't place.
 * Wizard config/state directories created `0750`.
 
+### Toolchain
+* **Go 1.26** for every module, Dockerfile and CI job (was 1.25). Needed for `golang.org/x/net` v0.60.0 (CVE-2026-78669) in the wizard and ICMP canary; `golang.org/x/mod` v0.40.0 in the Hub (CVE-2026-56864/56865).
+
 ### UI: Ledger brand
 * New Ledger identity for the Hub UI, light and dark: warm paper/ink neutrals with one deep-teal accent (`#0B7A75`, `#2BB3A9` in dark), kept out of the severity hues so chrome never reads as an alert. All text/background pairs meet WCAG AA.
 * New mark (two rings and a tripped point) in `components/ui/branding/BrandMark.vue`, used by the header, login/setup and the favicon.

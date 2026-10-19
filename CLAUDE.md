@@ -70,7 +70,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 - Paths: node `/opt/truesignal/sensors/truesignal-compose.yml` (0600), `/etc/truesignal/config.json` (0600); Hub `/data/truesignal.db`.
 - Env: all sensor config is `TS_*`. Reserved (user cannot override): `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, `TS_SENSOR_ID`, `TS_CONFIG_REV`, `TS_TEST_MODE` (`Hub/internal/compose/env.go`).
 - Severity enum: `info|low|medium|high|critical`. The sensor sets it from `TS_SEVERITY`; the Hub maps anything else to `medium` (`models.NormalizeSeverity`).
-- Code style (`Docs/development/contributionRules.md`): snake_case on disk, camelCase in memory; no global state; handlers hold no business logic; pure Go 1.25, no CGO; Vue `<script setup>`; mutate Pinia state in place.
+- Code style (`Docs/development/contributionRules.md`): snake_case on disk, camelCase in memory; no global state; handlers hold no business logic; pure Go 1.26, no CGO; Vue `<script setup>`; mutate Pinia state in place.
 - Tags on nodes are free-form JSON strings. No taxonomy is in the repo.
 - Rule naming: no SIEM rules exist. The de-facto detection keys are `eventTrigger` values (§2).
 

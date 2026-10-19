@@ -7,7 +7,7 @@ For advanced CI/CD simulation (e.g., local Gitea and private Docker registries),
 ## Prerequisites
 
 Ensure the following are installed on your development machine:
-- **Go** 1.25+
+- **Go** 1.26+
 - **Node.js** (v20+) and **npm**
 - **Docker** v5.0+
 
