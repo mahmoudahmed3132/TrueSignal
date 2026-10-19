@@ -49,16 +49,23 @@ func (m *MockNodeStore) GetConfigValue(key string) (string, error) {
 
 // Unused methods required by interface
 func (m *MockNodeStore) CreateNode(alias, tags string) (string, string, error) { return "", "", nil }
-func (m *MockNodeStore) UpdateNodeMeta(nodeID, alias, tags string, publicIP, privateIP *string) error { return nil }
-func (m *MockNodeStore) AddSensorToNode(nodeID, sensorID, customName string, configValues map[string]interface{}) error { return nil }
-func (m *MockNodeStore) UpdateNodeSensor(nodeID, sensorID, customName string, configValues map[string]interface{}) error { return nil }
+func (m *MockNodeStore) UpdateNodeMeta(nodeID, alias, tags string, publicIP, privateIP *string) error {
+	return nil
+}
+func (m *MockNodeStore) AddSensorToNode(nodeID, sensorID, customName string, configValues map[string]interface{}) error {
+	return nil
+}
+func (m *MockNodeStore) UpdateNodeSensor(nodeID, sensorID, customName string, configValues map[string]interface{}) error {
+	return nil
+}
 func (m *MockNodeStore) RemoveNodeSensor(nodeID, sensorID string) error { return nil }
-func (m *MockNodeStore) SetNodePendingConfig(nodeID string) error { return nil }
-func (m *MockNodeStore) ClearNodePendingConfig(nodeID string) error { return nil }
-func (m *MockNodeStore) DeleteNode(nodeID string) error { return nil }
-func (m *MockNodeStore) RotateNodeKey(nodeID string) (string, error) { return "ts_key_new", nil }
+func (m *MockNodeStore) SetNodePendingConfig(nodeID string) error       { return nil }
+func (m *MockNodeStore) ClearNodePendingConfig(nodeID string) error     { return nil }
+func (m *MockNodeStore) DeleteNode(nodeID string) error                 { return nil }
+func (m *MockNodeStore) RotateNodeKey(nodeID string) (string, error)    { return "ts_key_new", nil }
 
 type MockNodeBroadcaster struct{}
+
 func (m *MockNodeBroadcaster) Broadcast(eventType string, payload interface{}) {}
 
 func TestGetNodeDetailsStrictHashMatch(t *testing.T) {

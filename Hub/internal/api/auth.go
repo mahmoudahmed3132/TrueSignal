@@ -44,7 +44,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	
 	ttl := h.service.SessionTTL()
 	http.SetCookie(w, &http.Cookie{
 		Name:     AuthCookieName,
@@ -64,7 +63,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(AuthCookieName); err == nil {
 		h.service.DeleteSession(cookie.Value)
 	}
-	
+
 	clearAuthCookie(w, h.Cfg)
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)

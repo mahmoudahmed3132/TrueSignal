@@ -26,7 +26,7 @@ type NodeAuthenticator interface {
 type contextKey string
 
 const (
-	NodeIDKey     contextKey = "nodeID"
+	NodeIDKey contextKey = "nodeID"
 )
 
 // RateLimiter controls the frequency of requests on a per-node basis.
@@ -112,9 +112,13 @@ func AgentAuthMiddleware(auth NodeAuthenticator, rateLimiter *RateLimiter) func(
 			wizardVersionStr := r.Header.Get("X-Wizard-Version")
 			if wizardVersionStr != "" {
 				reqVer := strings.TrimSpace(wizardVersionStr)
-				if !strings.HasPrefix(reqVer, "v") { reqVer = "v" + reqVer }
+				if !strings.HasPrefix(reqVer, "v") {
+					reqVer = "v" + reqVer
+				}
 				curVer := models.HubVersion
-				if !strings.HasPrefix(curVer, "v") { curVer = "v" + curVer }
+				if !strings.HasPrefix(curVer, "v") {
+					curVer = "v" + curVer
+				}
 
 				if !semver.IsValid(reqVer) {
 					http.Error(w, "Invalid X-Wizard-Version format", http.StatusBadRequest)

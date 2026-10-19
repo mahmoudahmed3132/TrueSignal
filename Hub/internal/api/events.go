@@ -118,7 +118,7 @@ func (h *EventHandler) ExportEvents(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Disposition", "attachment; filename=truesignal_events.json")
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if err := json.NewEncoder(w).Encode(events); err != nil {
 		http.Error(w, "Failed to encode events", http.StatusInternalServerError)
 		return

@@ -3,9 +3,9 @@ package compose
 import (
 	"testing"
 
-	"github.com/truesignal/hub/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/truesignal/hub/internal/models"
 )
 
 func TestBuildService_SecurityDefaults(t *testing.T) {
@@ -28,8 +28,8 @@ func TestBuildService_SecurityDefaults(t *testing.T) {
 func TestBuildService_CapabilityFiltering(t *testing.T) {
 	manifest := models.SensorManifest{
 		Deployment: models.Deployment{
-			ImageRepository:  "test-image",
-			CapAdd: []string{"NET_RAW", "SYS_ADMIN"}, // SYS_ADMIN is not allowed
+			ImageRepository: "test-image",
+			CapAdd:          []string{"NET_RAW", "SYS_ADMIN"}, // SYS_ADMIN is not allowed
 		},
 	}
 	compose, err := BuildService("test-sensor", manifest, map[string]string{})

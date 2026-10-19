@@ -152,8 +152,8 @@ func (s *SQLiteStore) FactoryResetDryRun() (map[string]int, error) {
 	queries := map[string]string{
 		"events":                "SELECT COUNT(*) FROM events",
 		"sensor_status_changes": "SELECT COUNT(*) FROM sensor_status_changes",
-		"node_sensors":      "SELECT COUNT(*) FROM node_sensors",
-		"nodes":             "SELECT COUNT(*) FROM nodes",
+		"node_sensors":          "SELECT COUNT(*) FROM node_sensors",
+		"nodes":                 "SELECT COUNT(*) FROM nodes",
 	}
 
 	for key, query := range queries {
@@ -166,4 +166,3 @@ func (s *SQLiteStore) FactoryResetDryRun() (map[string]int, error) {
 
 	return stats, nil
 }
-

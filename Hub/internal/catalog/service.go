@@ -62,7 +62,7 @@ func (s *Service) RefreshIndex() error {
 
 	indexURL := strings.TrimRight(registryURL, "/") + "/index.json"
 	var idx RegistryIndex
-	
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(indexURL)
 	if err != nil {
@@ -81,17 +81,16 @@ func (s *Service) RefreshIndex() error {
 		return err
 	}
 
-
 	s.mu.Lock()
 	var oldJSON, newJSON []byte
 	if s.indexCache != nil {
 		oldJSON, _ = json.Marshal(s.indexCache)
 	}
 	newJSON, _ = json.Marshal(&idx)
-	
+
 	changed := string(oldJSON) != string(newJSON)
 	s.indexCache = &idx
-	
+
 	var hook func()
 	if changed {
 		hook = s.onChange

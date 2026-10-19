@@ -1,16 +1,16 @@
 package schema
 
 type SensorManifest struct {
-	ID               string        `json:"id"`
-	Version          string        `json:"version"`
-	Name             string        `json:"name"`
-	Category         string        `json:"category"`
-	OSILayer         string        `json:"osi_layer"`
-	IconSVG          string        `json:"icon_svg"`
-	Description      string        `json:"description"`
-	Documentation    Documentation `json:"documentation"`
-	Heuristics       Heuristics    `json:"heuristics"`
-	Deployment       Deployment    `json:"deployment"`
+	ID            string        `json:"id"`
+	Version       string        `json:"version"`
+	Name          string        `json:"name"`
+	Category      string        `json:"category"`
+	OSILayer      string        `json:"osi_layer"`
+	IconSVG       string        `json:"icon_svg"`
+	Description   string        `json:"description"`
+	Documentation Documentation `json:"documentation"`
+	Heuristics    Heuristics    `json:"heuristics"`
+	Deployment    Deployment    `json:"deployment"`
 }
 
 type Documentation struct {

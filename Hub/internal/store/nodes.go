@@ -421,5 +421,3 @@ func (s *SQLiteStore) SetNodePendingConfig(nodeID string) error {
 	_, err := s.DB.Exec("UPDATE nodes SET pending_config = 1 WHERE id = ?", nodeID)
 	return err
 }
-
-

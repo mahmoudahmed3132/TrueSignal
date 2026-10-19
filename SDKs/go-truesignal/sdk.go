@@ -240,12 +240,12 @@ func (s *Sensor) RunTestMode() bool {
 
 	// 2. Synchronously send the payload to guarantee delivery before the program exits
 	payload := map[string]any{
-		"sensorId":        s.SensorID,
-		"severity":        s.Severity,
-		"eventTrigger":    trigger,
-		"source":          source,
-		"target":          target,
-		"details":         details,
+		"sensorId":     s.SensorID,
+		"severity":     s.Severity,
+		"eventTrigger": trigger,
+		"source":       source,
+		"target":       target,
+		"details":      details,
 	}
 
 	resp, err := s.postToHub("/api/v2/event", payload)
@@ -300,12 +300,12 @@ func (s *Sensor) ReportEventSeverity(severity, trigger, source, target string, d
 		severity = s.Severity
 	}
 	payload := map[string]any{
-		"sensorId":        s.SensorID,
-		"severity":        severity,
-		"eventTrigger":    trigger,
-		"source":          source,
-		"target":          target,
-		"details":         details,
+		"sensorId":     s.SensorID,
+		"severity":     severity,
+		"eventTrigger": trigger,
+		"source":       source,
+		"target":       target,
+		"details":      details,
 	}
 
 	select {
@@ -412,8 +412,8 @@ func (s *Sensor) heartbeatLoop() {
 
 func (s *Sensor) sendHeartbeat() (*http.Response, error) {
 	payload := map[string]any{
-		"sensorId":        s.SensorID,
-		"configRev":       s.ConfigRev,
+		"sensorId":  s.SensorID,
+		"configRev": s.ConfigRev,
 	}
 	return s.postToHub("/api/v2/heartbeat", payload)
 }
@@ -421,8 +421,6 @@ func (s *Sensor) sendHeartbeat() (*http.Response, error) {
 // ==========================================
 // UTILITIES
 // ==========================================
-
-
 
 func (s *Sensor) GoOffline(reason string) {
 	fastClient := &http.Client{Timeout: 2 * time.Second}

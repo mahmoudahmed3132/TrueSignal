@@ -5,9 +5,9 @@ import (
 )
 
 type mockStore struct {
-	latestStatus string
+	latestStatus   string
 	insertedStatus []string
-	lastHeartbeat string
+	lastHeartbeat  string
 }
 
 func (m *mockStore) ProcessHeartbeat(nodeID, sensorID, configRev, nowStr string) (bool, error) {

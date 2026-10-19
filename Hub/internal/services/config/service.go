@@ -246,18 +246,18 @@ func (s *Service) GetConfig() (models.ConfigPayload, error) {
 	}
 
 	return models.ConfigPayload{
-		HubEndpoint:             kv["hub_endpoint"],
-		RegistryURL:             kv["registry_url"],
-		AutoArchiveDays:         archiveDays,
-		AutoPurgeDays:           purgeDays,
-		AutoPurgeHeartbeatsDays: purgeHeartbeatsDays,
+		HubEndpoint:              kv["hub_endpoint"],
+		RegistryURL:              kv["registry_url"],
+		AutoArchiveDays:          archiveDays,
+		AutoPurgeDays:            purgeDays,
+		AutoPurgeHeartbeatsDays:  purgeHeartbeatsDays,
 		UpdateCheckIntervalHours: updateCheckIntervalHours,
-		WebhookURL:              kv["webhook_url"],
-		WebhookType:             kv["webhook_type"],
-		WebhookEvents:           events,
-		SiemAddress:             kv["siem_address"],
-		SiemProtocol:            kv["siem_protocol"],
-		WhitelistedSources:      kv["whitelisted_sources"],
+		WebhookURL:               kv["webhook_url"],
+		WebhookType:              kv["webhook_type"],
+		WebhookEvents:            events,
+		SiemAddress:              kv["siem_address"],
+		SiemProtocol:             kv["siem_protocol"],
+		WhitelistedSources:       kv["whitelisted_sources"],
 	}, nil
 }
 
@@ -320,18 +320,18 @@ func (s *Service) UpdateConfig(req map[string]interface{}) error {
 	// Safely map incoming camelCase API fields to snake_case DB columns
 	dbUpdates := make(map[string]interface{})
 	mapping := map[string]string{
-		"hubEndpoint":     "hub_endpoint",
-		"registryUrl":     "registry_url",
-		"autoArchiveDays":         "auto_archive_days",
-		"autoPurgeDays":           "auto_purge_days",
-		"autoPurgeHeartbeatsDays": "auto_purge_heartbeats_days",
+		"hubEndpoint":              "hub_endpoint",
+		"registryUrl":              "registry_url",
+		"autoArchiveDays":          "auto_archive_days",
+		"autoPurgeDays":            "auto_purge_days",
+		"autoPurgeHeartbeatsDays":  "auto_purge_heartbeats_days",
 		"updateCheckIntervalHours": "update_check_interval_hours",
-		"webhookType":     "webhook_type",
-		"webhookUrl":      "webhook_url",
-		"webhookEvents":   "webhook_events",
-		"siemAddress":     "siem_address",
-		"siemProtocol":    "siem_protocol",
-		"whitelistedSources": "whitelisted_sources",
+		"webhookType":              "webhook_type",
+		"webhookUrl":               "webhook_url",
+		"webhookEvents":            "webhook_events",
+		"siemAddress":              "siem_address",
+		"siemProtocol":             "siem_protocol",
+		"whitelistedSources":       "whitelisted_sources",
 	}
 	for camelKey, snakeKey := range mapping {
 		if val, exists := req[camelKey]; exists {

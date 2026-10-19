@@ -170,4 +170,3 @@ func LoadCurrentState() (*SystemState, error) {
 
 	return state, nil
 }
-

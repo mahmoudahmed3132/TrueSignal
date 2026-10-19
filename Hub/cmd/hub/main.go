@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
-	"sync"
 
 	"github.com/truesignal/hub/internal/api"
 	"github.com/truesignal/hub/internal/catalog"
@@ -145,7 +145,6 @@ func main() {
 	siemProtocol := loadConfigSafe(dbStore, "siem_protocol", "tcp")
 	siemService.UpdateConfig(siemAddress, siemProtocol)
 
-
 	go eventSvc.StartRetentionWorker(rootCtx)
 
 	// 4. Start HTTP Server
@@ -186,18 +185,18 @@ func main() {
 
 	// 3. Wait for critical telemetry pipelines to flush
 	// We wait for them concurrently to speed up the shutdown process.
-	// Since both services have hard internal 5-second drain timeouts, 
+	// Since both services have hard internal 5-second drain timeouts,
 	// this is guaranteed to never hang the system indefinitely.
 	log.Println("[*] Waiting for SIEM and Notification workers to flush remaining events...")
-	
+
 	var shutdownWg sync.WaitGroup
-	
+
 	shutdownWg.Add(1)
 	go func() {
 		defer shutdownWg.Done()
 		siemService.Wait()
 	}()
-	
+
 	shutdownWg.Add(1)
 	go func() {
 		defer shutdownWg.Done()

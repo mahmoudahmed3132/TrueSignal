@@ -14,8 +14,8 @@ import (
 )
 
 type MockStore struct {
-	RegistryURL string
-	AssignedRevision string
+	RegistryURL           string
+	AssignedRevision      string
 	ShouldFailSetRevision bool
 }
 
@@ -85,10 +85,10 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		
+
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"id":             "ts-sensor-test",
-			"version":        version,
+			"id":      "ts-sensor-test",
+			"version": version,
 			"deployment": map[string]interface{}{
 				"image_repository": "test",
 				"image_tag":        version,
@@ -104,9 +104,9 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 	svc := composesvc.NewService(store, catSvc)
 
 	// VERSIONING ARCHITECTURE EXPLANATION (SENSOR REGISTRY):
-	// The Compose service automatically parses the registry's index.json and steps backwards 
+	// The Compose service automatically parses the registry's index.json and steps backwards
 	// through the versions array to find the absolute highest sensor image tag that is compatible
-	// with the currently executing Hub. If the Hub's API is too old for the absolute latest 
+	// with the currently executing Hub. If the Hub's API is too old for the absolute latest
 	// sensor release, it gracefully injects the previous compatible tag into the docker-compose YAML.
 	t.Run("Perfect Match Resolution (Hub API 2)", func(t *testing.T) {
 		// Hub API 2 should select v2.5.0
@@ -114,7 +114,7 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected success, got error: %v", err)
 		}
-		
+
 		if !contains(yamlData, "image: test:2.5.0") {
 			t.Errorf("Expected to deploy v2.5.0, got yaml:\n%s", string(yamlData))
 		}
@@ -159,7 +159,7 @@ func TestComposeSmartVersionSelection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected cache fallback success, got error: %v", err)
 		}
-		
+
 		if !contains(yamlData, "image: test:2.5.0") {
 			t.Errorf("Expected cached fallback to v2.5.0, got yaml:\n%s", string(yamlData))
 		}

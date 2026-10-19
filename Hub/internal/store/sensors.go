@@ -253,4 +253,3 @@ func (s *SQLiteStore) GetSensorLatestStatus(nodeID, sensorID string) (string, er
 	}
 	return status.String, nil
 }
-

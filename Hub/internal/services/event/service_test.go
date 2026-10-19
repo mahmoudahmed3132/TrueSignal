@@ -21,8 +21,8 @@ func (f *fakeStore) InsertEvent(e *models.Event, _ string, details string) (int,
 	return len(f.inserted), nil
 }
 func (f *fakeStore) UpdateNodeLastHeartbeat(string, string, string) error { return nil }
-func (f *fakeStore) IsSensorRegistered(string, string) (bool, error)    { return f.registered, nil }
-func (f *fakeStore) IsSensorSilenced(string, string) (bool, error)      { return false, nil }
+func (f *fakeStore) IsSensorRegistered(string, string) (bool, error)      { return f.registered, nil }
+func (f *fakeStore) IsSensorSilenced(string, string) (bool, error)        { return false, nil }
 func (f *fakeStore) GetEvents(int, string, string) ([]models.Event, error) {
 	return nil, nil
 }

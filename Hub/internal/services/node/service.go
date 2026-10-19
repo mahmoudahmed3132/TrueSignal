@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sort"
-	"fmt"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -137,13 +137,13 @@ func (s *Service) GetNodes() ([]models.Node, error) {
 	if s.catalog != nil {
 		for i := range nodes {
 			for j, sensor := range nodes[i].InstalledSensors {
-				latest, err := s.catalog.GetLatestCompatibleVersion(sensor.ID, models.HubVersion) 
+				latest, err := s.catalog.GetLatestCompatibleVersion(sensor.ID, models.HubVersion)
 				if err == nil && latest != "" {
 					deployedVer := strings.TrimSpace(sensor.DeployedVersion)
 					if !strings.HasPrefix(deployedVer, "v") && deployedVer != "" {
 						deployedVer = "v" + deployedVer
 					}
-					
+
 					latestVer := strings.TrimSpace(latest)
 					if !strings.HasPrefix(latestVer, "v") && latestVer != "" {
 						latestVer = "v" + latestVer
@@ -176,7 +176,7 @@ func (s *Service) GetNodeDetails(nodeID string) (*models.Node, error) {
 				if !strings.HasPrefix(deployedVer, "v") && deployedVer != "" {
 					deployedVer = "v" + deployedVer
 				}
-				
+
 				latestVer := strings.TrimSpace(latest)
 				if !strings.HasPrefix(latestVer, "v") && latestVer != "" {
 					latestVer = "v" + latestVer

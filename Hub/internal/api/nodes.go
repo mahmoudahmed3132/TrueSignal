@@ -103,11 +103,11 @@ func (h *NodeHandler) GetNodeDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SendJSON(w, http.StatusOK, map[string]interface{}{
-		"nodeId":           node.ID,
-		"alias":            node.Alias,
-		"activeRevision":   node.ActiveRevision,
-		"desiredRevision":  node.DesiredRevision,
-		"publicIp":         node.PublicIP,
+		"nodeId":             node.ID,
+		"alias":              node.Alias,
+		"activeRevision":     node.ActiveRevision,
+		"desiredRevision":    node.DesiredRevision,
+		"publicIp":           node.PublicIP,
 		"privateIp":          node.PrivateIP,
 		"tags":               node.Tags,
 		"hasPendingConfig":   node.HasPendingConfig,
@@ -257,12 +257,12 @@ func (h *NodeHandler) GetCurrentNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SendJSON(w, http.StatusOK, map[string]interface{}{
-		"nodeId":           node.ID,
-		"alias":            node.Alias,
-		"activeRevision":   node.ActiveRevision,
-		"desiredRevision":  node.DesiredRevision,
-		"publicIp":         node.PublicIP,
-		"privateIp":        node.PrivateIP,
+		"nodeId":             node.ID,
+		"alias":              node.Alias,
+		"activeRevision":     node.ActiveRevision,
+		"desiredRevision":    node.DesiredRevision,
+		"publicIp":           node.PublicIP,
+		"privateIp":          node.PrivateIP,
 		"tags":               node.Tags,
 		"hasPendingConfig":   node.HasPendingConfig,
 		"hasUpdateAvailable": node.HasUpdateAvailable,

@@ -16,7 +16,5 @@ func DecodeManifestStrict(r io.Reader) (models.SensorManifest, error) {
 		return manifest, fmt.Errorf("strict decode failed: %w", err)
 	}
 
-
-
 	return manifest, nil
 }

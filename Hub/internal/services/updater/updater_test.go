@@ -21,8 +21,8 @@ func (m *mockStore) GetConfigValue(key string) (string, error) {
 	return m.values[key], nil
 }
 
-func (m *mockStore) CompleteSetup(adminHash, hubEndpoint string) error { return nil }
-func (m *mockStore) GetAllConfig() (map[string]string, error) { return m.values, nil }
+func (m *mockStore) CompleteSetup(adminHash, hubEndpoint string) error      { return nil }
+func (m *mockStore) GetAllConfig() (map[string]string, error)               { return m.values, nil }
 func (m *mockStore) UpdateConfigBatch(updates map[string]interface{}) error { return nil }
 func (m *mockStore) UpdateConfigValue(key, value string) error {
 	if m.values == nil {
@@ -31,7 +31,7 @@ func (m *mockStore) UpdateConfigValue(key, value string) error {
 	m.values[key] = value
 	return nil
 }
-func (m *mockStore) FactoryReset() error { return nil }
+func (m *mockStore) FactoryReset() error                         { return nil }
 func (m *mockStore) FactoryResetDryRun() (map[string]int, error) { return nil, nil }
 
 type mockCatalog struct {

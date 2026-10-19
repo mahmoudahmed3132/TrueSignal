@@ -11,7 +11,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-
 type SQLiteStore struct {
 	DB *sql.DB
 }
@@ -66,15 +65,15 @@ func InitializeDefaultConfig(db *sql.DB) error {
 
 func initializeDefaultConfigTx(tx *sql.Tx) error {
 	defaults := map[string]string{
-		"is_armed":          "true",
-		"webhook_type":      "ntfy",
-		"webhook_url":       "",
-		"webhook_events":    "critical,high,medium,low",
-		"auto_archive_days": "0",
-		"auto_purge_days":   "0",
-		"siem_address":      "",
-		"siem_protocol":     "tcp",
-		"registry_url": "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages",
+		"is_armed":                    "true",
+		"webhook_type":                "ntfy",
+		"webhook_url":                 "",
+		"webhook_events":              "critical,high,medium,low",
+		"auto_archive_days":           "0",
+		"auto_purge_days":             "0",
+		"siem_address":                "",
+		"siem_protocol":               "tcp",
+		"registry_url":                "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages",
 		"acknowledged_wizard_release": "",
 	}
 

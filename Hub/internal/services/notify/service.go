@@ -10,8 +10,8 @@ import (
 
 	// codeql[go/insecure-randomness] Non-cryptographic use case.
 	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
-	"math/rand"
 	"github.com/truesignal/hub/internal/models"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"

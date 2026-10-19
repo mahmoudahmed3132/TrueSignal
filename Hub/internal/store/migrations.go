@@ -92,11 +92,11 @@ CREATE INDEX IF NOT EXISTS idx_ssc_time ON sensor_status_changes(node_id, sensor
 
 // WARNING: Schema Migrations & Foreign Keys
 //
-// TrueSignal uses ON DELETE CASCADE for critical tables (e.g., deleting a node_sensor 
+// TrueSignal uses ON DELETE CASCADE for critical tables (e.g., deleting a node_sensor
 // automatically deletes all its events).
-// 
+//
 // When altering schemas, NEVER use the legacy SQLite workaround of creating a new table,
-// copying data, and dropping the old table. If foreign keys are enabled, dropping the 
+// copying data, and dropping the old table. If foreign keys are enabled, dropping the
 // old table will instantly trigger the cascade and permanently delete all dependent rows.
 //
 // ALWAYS use native SQLite 3.35.0+ ALTER TABLE statements (e.g., ADD COLUMN or DROP COLUMN)

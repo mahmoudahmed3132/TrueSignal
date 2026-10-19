@@ -23,7 +23,7 @@ const (
 	stoppedEscalation = 5 * time.Minute
 	// escalationWindow bounds re-alerting after a Hub restart to recent outages.
 	escalationWindow = 24 * time.Hour
-	triggerLost       = "sensor_heartbeat_lost"
+	triggerLost      = "sensor_heartbeat_lost"
 )
 
 type StateMonitor struct {

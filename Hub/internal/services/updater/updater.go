@@ -263,7 +263,6 @@ func (s *Service) CheckForUpdates() error {
 		}
 	}
 
-
 	hubMajor := semver.Major(currV)
 	ackWizard, _ := s.configService.GetAcknowledgedWizardRelease()
 	if ackWizard != "" && !strings.HasPrefix(ackWizard, "v") {
