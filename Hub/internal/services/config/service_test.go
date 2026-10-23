@@ -24,6 +24,9 @@ func TestValidateConfigUpdate(t *testing.T) {
 		{"good siem address", map[string]interface{}{"siemAddress": "siem.local:6514"}, false},
 		{"negative retention", map[string]interface{}{"autoPurgeDays": -1.0}, true},
 		{"non-http registry", map[string]interface{}{"registryUrl": "file:///etc"}, true},
+		{"unknown snake_case key", map[string]interface{}{"registry_url": "http://x"}, true},
+		{"unknown typo key", map[string]interface{}{"webhookUrlx": "http://x"}, true},
+		{"known key alongside unknown", map[string]interface{}{"webhookType": "ntfy", "bogus": 1.0}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

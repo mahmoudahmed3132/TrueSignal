@@ -380,3 +380,37 @@ func TestCompose_RejectsPortConflict(t *testing.T) {
 		t.Fatalf("expected port_conflict, got: %v", err)
 	}
 }
+
+// manifestFromMap round-trips the test helper's map into a typed SensorManifest
+// so it can be embedded in a PreviewRequest the way the UI sends it.
+func manifestFromMap(m map[string]interface{}) models.SensorManifest {
+	var out models.SensorManifest
+	b, _ := json.Marshal(m)
+	_ = json.Unmarshal(b, &out)
+	return out
+}
+
+func TestPreview_RejectsPortConflict(t *testing.T) {
+	svc := composesvc.NewService(&MockStore{}, catalog.NewService(&MockStore{}, nil))
+
+	run := func(alphaPorts, betaPorts string) error {
+		req := composesvc.PreviewRequest{
+			HubEndpoint: "http://localhost",
+			HubKey:      "k",
+			Sensors: []composesvc.DeployableSensor{
+				{SensorID: "ts-sensor-alpha", EnvValues: map[string]string{}, Manifest: manifestFromMap(portClashManifest("alpha", alphaPorts))},
+				{SensorID: "ts-sensor-beta", EnvValues: map[string]string{}, Manifest: manifestFromMap(portClashManifest("beta", betaPorts))},
+			},
+		}
+		_, err := svc.GeneratePreviewCompose(req)
+		return err
+	}
+
+	if err := run("ldap:389,ldaps:636", "rdp:3389,mysql:3306"); err != nil {
+		t.Fatalf("distinct ports must render in preview, got: %v", err)
+	}
+	err := run("ldap:389,ldaps:636", "ldap:389")
+	if err == nil || !strings.Contains(err.Error(), "port_conflict") {
+		t.Fatalf("expected preview port_conflict, got: %v", err)
+	}
+}

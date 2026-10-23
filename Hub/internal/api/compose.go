@@ -94,7 +94,9 @@ func (h *ComposeHandler) GenerateCompose(w http.ResponseWriter, r *http.Request)
 
 	yamlData, err := h.service.GeneratePreviewCompose(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		// Same reason-bearing mapping as node compose: port_conflict,
+		// invalid_manifest, build_failed, etc. surface as 422, not a flat 400.
+		respondComposeError(w, err)
 		return
 	}
 
