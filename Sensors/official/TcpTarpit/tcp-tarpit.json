@@ -138,6 +138,9 @@
     ],
     "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-tcptarpit",
     "image_tag": "dev",
-    "image_digest": ""
+    "image_digest": "",
+    "listen_ports_env": [
+      "TS_DECOY_PORTS"
+    ]
   }
 }

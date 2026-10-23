@@ -23,6 +23,7 @@ jobs:
           - SDKs/go-truesignal
           - Sensors/official/FileCanary
           - Sensors/official/IcmpCanary
+          - Sensors/official/IdentityDecoy
           - Sensors/official/NetworkScanDetector
           - Sensors/official/TcpTarpit
           - Sensors/official/WebRouterDecoy

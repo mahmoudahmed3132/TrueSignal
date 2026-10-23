@@ -304,3 +304,79 @@ func TestFetchSpecificManifest_RejectsPathInjection(t *testing.T) {
 		}
 	}
 }
+
+// portClashStore is a node with two host-netns sensors whose manifests declare
+// listen_ports_env, used to exercise the Hub's port-conflict check.
+type portClashStore struct {
+	RegistryURL string
+	samePort    bool
+}
+
+func (m *portClashStore) GetConfigValue(key string) (string, error) {
+	switch key {
+	case "registry_url":
+		return m.RegistryURL, nil
+	case "hub_endpoint":
+		return "http://localhost:8080", nil
+	}
+	return "", nil
+}
+func (m *portClashStore) GetNodeByKey(token string) (string, error) { return "node-1", nil }
+func (m *portClashStore) GetNodeDetails(nodeID string) (*models.Node, error) {
+	return &models.Node{
+		ID: "node-1",
+		InstalledSensors: []models.NodeSensor{
+			{ID: "ts-sensor-alpha", DeployedVersion: "1.0.0"},
+			{ID: "ts-sensor-beta", DeployedVersion: "1.0.0"},
+		},
+		DesiredRevision: "rev",
+	}, nil
+}
+func (m *portClashStore) SetNodeDesiredRevision(nodeID, rev string) error   { return nil }
+func (m *portClashStore) SetNodeSensorDeployedVersion(n, s, v string) error { return nil }
+func (m *portClashStore) ApplyNodeRevision(nodeID, revision string) error   { return nil }
+
+func portClashManifest(name, portsDefault string) map[string]interface{} {
+	return map[string]interface{}{
+		"id":      "ts-sensor-" + name,
+		"version": "1.0.0",
+		"deployment": map[string]interface{}{
+			"image_repository": name,
+			"image_tag":        "1.0.0",
+			"image_digest":     testDigest,
+			"network_mode":     "host",
+			"listen_ports_env": []string{"TS_SERVICES"},
+			"env_vars": []map[string]interface{}{
+				{"name": "TS_SERVICES", "default": portsDefault, "type": "string"},
+			},
+		},
+	}
+}
+
+func TestCompose_RejectsPortConflict(t *testing.T) {
+	run := func(alphaPorts, betaPorts string) error {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/alpha-v1.0.0.json":
+				json.NewEncoder(w).Encode(portClashManifest("alpha", alphaPorts))
+			case "/beta-v1.0.0.json":
+				json.NewEncoder(w).Encode(portClashManifest("beta", betaPorts))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer ts.Close()
+		store := &portClashStore{RegistryURL: ts.URL}
+		svc := composesvc.NewService(store, catalog.NewService(store, nil))
+		_, err := svc.GetNodeCompose("dummy", "http://localhost", "1.0.0")
+		return err
+	}
+
+	if err := run("ldap:389,ldaps:636", "rdp:3389,mysql:3306"); err != nil {
+		t.Fatalf("distinct ports must render, got: %v", err)
+	}
+	err := run("ldap:389,ldaps:636", "ldap:389")
+	if err == nil || !strings.Contains(err.Error(), "port_conflict") {
+		t.Fatalf("expected port_conflict, got: %v", err)
+	}
+}

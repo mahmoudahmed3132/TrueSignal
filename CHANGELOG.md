@@ -1,3 +1,16 @@
+# [Unreleased] - Identity Decoy sensor (2026-10-23)
+
+### New sensor: Identity Decoy (AD services trap)
+* New `ts-sensor-identity-decoy` emulates Windows identity services so lateral movement trips a decoy. One container serves several ports via `TS_SERVICES` (default `ldap:389,ldaps:636,rdp:3389`).
+  * **LDAP / LDAPS:** answers directory binds like a domain controller. A simple bind is recorded as `ldap_login` / `ldaps_login` (critical) and the bad-password reply uses an AD-style `data 52e` error; anonymous binds and searches are recorded as `*_query` (medium) and get an empty, non-erroring directory so scanners keep probing. LDAPS generates its TLS certificate in memory (read-only rootfs).
+  * **RDP:** records the username from the X.224 `mstshash` cookie as `rdp_login` (critical) and answers with the connection-confirm bytes a real Windows host returns. (NLA/CredSSP hash capture is a later increment.)
+  * Bare connections are `*_connection` (low). Captured passwords are a keyed HMAC by default (`TS_CAPTURE_PASSWORDS=hash|plain|none`, `TS_CAPTURE_HASH_KEY`), never cleartext.
+  * Shared persona across all services via `TS_PERSONA_HOSTNAME` (default `DC01`) and `TS_PERSONA_DOMAIN` (`corp.local`).
+  * Ported in concept from Trapster Community (0xBallpoint, AGPLv3+); Go code and capture policy are TrueSignal's. See `NOTICE`.
+
+### Hub
+* **Port-conflict check:** a manifest may declare `listen_ports_env` (the env vars holding its listening ports). The Hub now rejects a node whose sensors bind the same host port with HTTP 422 `port_conflict`, instead of letting the second container crash-loop and trigger a rollback. The TCP Tarpit (`TS_DECOY_PORTS`) and Web Router Decoy (`TS_BIND_PORT`) manifests now declare it.
+
 # [Unreleased] - Security & correctness pass (2026-10-19)
 
 ### ⚠️ Breaking / operator action required
