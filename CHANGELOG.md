@@ -1,3 +1,15 @@
+# [Unreleased] - LDAP NTLM bind capture (2026-10-23)
+
+### Identity Decoy: LDAP/LDAPS NTLM binds
+* The LDAP decoy now captures NTLM binds, not just simple binds. Most AD tooling authenticates this way, so these attempts were previously answered "success" and lost.
+  * **Sicily** (MS-ADTS 5.1.1.1.3; ldap3-based tools such as BloodHound.py, ldapdomaindump and NetExec's LDAP module): package discovery returns `NTLM`, the NEGOTIATE gets a persona CHALLENGE in `matchedDN`, and the AUTHENTICATE is recorded.
+  * **SASL GSS-SPNEGO** (impacket raw NTLMSSP; Windows/.NET clients such as SharpHound, SPNEGO-framed): the CHALLENGE goes back in `serverSaslCreds` with `saslBindInProgress`, matching the client's framing. A client that opens with an optimistic Kerberos token is steered to NTLM. Other SASL mechanisms (GSSAPI, DIGEST-MD5, EXTERNAL) are recorded as `*_query` with `sasl_mechanism` and refused.
+  * The AUTHENTICATE is reported as critical `ldap_login`/`ldaps_login` with `username` (`DOMAIN\user`), `workstation` and `auth` (`sicily_ntlm` | `sasl_ntlm`), then refused with the AD `data 52e` diagnostic. Anonymous NTLM is a medium `*_query`.
+* `TS_CAPTURE_NTLM` now governs LDAP as well as RDP: `identity` (default) records who tried; `hash` adds the NetNTLMv2 (hashcat 5600) response, which is crackable credential material (keep out of PCI scope); `off` refuses NTLM binds with `authMethodNotSupported`.
+* LDAP messages split across TCP reads are now reassembled; previously such a message closed the connection.
+* NetNTLMv2 formatting skips 24-byte NTLMv1 responses instead of emitting an invalid mode-5600 line (affected RDP `hash` mode too).
+* Verified against ldap3 (LDAP and LDAPS) and impacket. The captured mode-5600 lines verify against the client passwords.
+
 # [Unreleased] - Private repository access (2026-10-23)
 
 ### Distribution: token-authenticated pulls

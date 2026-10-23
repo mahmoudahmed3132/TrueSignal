@@ -143,27 +143,8 @@ func (h *rdpHandler) runNLA(conn net.Conn, srcIP string) {
 }
 
 func (h *rdpHandler) reportNLA(srcIP string, c ntlm3, challenge []byte) {
-	identity := c.user
-	if c.domain != "" {
-		identity = c.domain + "\\" + c.user
-	}
-	details := sdk.EventDetails{
-		{Key: "protocol", Value: "rdp"},
-		{Key: "dst_port", Value: h.port},
-		{Key: "username", Value: identity},
-		{Key: "workstation", Value: c.workstation},
-		{Key: "auth", Value: "nla_ntlm"},
-	}
-	// The NetNTLMv2 response is crackable with our known challenge, so it is
-	// only recorded when the operator opts in. "identity" records who tried.
-	if h.ntlmMode == "hash" {
-		if hashcat := netNTLMv2(c, challenge); hashcat != "" {
-			details = append(details,
-				sdk.EventDetail{Key: "netntlmv2", Value: hashcat},
-				sdk.EventDetail{Key: "hashcat_mode", Value: 5600})
-		}
-	}
-	h.ts.ReportEventSeverity("critical", "rdp_login", srcIP, h.target(), details)
+	h.ts.ReportEventSeverity("critical", "rdp_login", srcIP, h.target(),
+		ntlmLoginDetails("rdp", h.port, c, challenge, h.ntlmMode, "nla_ntlm"))
 }
 
 // parseNegReq returns the requestedProtocols bitmask from an RDP Negotiation

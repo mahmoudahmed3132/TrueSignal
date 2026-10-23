@@ -29,10 +29,18 @@ const (
 	appSearchResultDone = 0x65 // [APPLICATION 5] constructed
 	appUnbindRequest    = 0x42 // [APPLICATION 2] primitive
 
-	authSimple = 0x80 // [0] simple authentication (primitive)
+	authSimple     = 0x80 // [0] simple authentication (primitive)
+	authSASL       = 0xA3 // [3] SaslCredentials (constructed)
+	authSicilyDisc = 0x89 // [9] sicilyPackageDiscovery (MS-ADTS 5.1.1.1.3)
+	authSicilyNeg  = 0x8A // [10] sicilyNegotiate: NTLM NEGOTIATE
+	authSicilyResp = 0x8B // [11] sicilyResponse: NTLM AUTHENTICATE
+
+	tagServerSaslCreds = 0x87 // bindResponse serverSaslCreds [7]
 
 	resultSuccess            = 0
+	resultAuthMethodNotSupp  = 7
 	resultInvalidCredentials = 49
+	resultSaslBindInProgress = 14
 
 	// AD-style diagnostic for a bad password (data 52e = ERROR_LOGON_FAILURE),
 	// so a bind failure reads like a real domain controller.
@@ -113,10 +121,13 @@ type bindResult struct {
 	password string
 	simple   bool // simple-bind credentials were present
 	anon     bool // anonymous (empty-password) bind
+	authTag  byte // authentication CHOICE tag
+	authVal  []byte
 }
 
 // parseBind reads a bindRequest body: version INTEGER, name OCTET STRING,
-// authentication. Only simple authentication is extracted here.
+// authentication. Simple credentials are extracted here; other mechanisms
+// keep their raw value for handleNTLMBind.
 func parseBind(body []byte) (bindResult, bool) {
 	r := &berReader{buf: body}
 	if _, _, ok := r.readTLV(); !ok { // version
@@ -130,13 +141,43 @@ func parseBind(body []byte) (bindResult, bool) {
 	if !ok {
 		return bindResult{}, false
 	}
-	res := bindResult{name: sanitizeUTF8(string(name))}
+	res := bindResult{name: sanitizeUTF8(string(name)), authTag: tag, authVal: val}
 	if tag == authSimple {
 		res.simple = true
 		res.password = string(val)
 		res.anon = len(val) == 0
 	}
 	return res, true
+}
+
+// berElementLen returns the total size of the first BER element in buf.
+// complete is false while more bytes are needed; ok is false when the header
+// is malformed or the element exceeds ldapMaxMessage.
+func berElementLen(buf []byte) (total int, complete, ok bool) {
+	if len(buf) < 2 {
+		return 0, false, true
+	}
+	n := int(buf[1])
+	hdr := 2
+	if n&0x80 != 0 {
+		count := n & 0x7f
+		if count == 0 || count > 4 {
+			return 0, false, false
+		}
+		if len(buf) < 2+count {
+			return 0, false, true
+		}
+		n = 0
+		for i := 0; i < count; i++ {
+			n = n<<8 | int(buf[2+i])
+		}
+		hdr += count
+	}
+	if n < 0 || n > ldapMaxMessage {
+		return 0, false, false
+	}
+	total = hdr + n
+	return total, len(buf) >= total, true
 }
 
 // ldapHandler serves one LDAP (or LDAPS) connection.
@@ -146,6 +187,10 @@ type ldapHandler struct {
 	port    int
 	cap     credcapture
 	persona persona
+
+	ntlmMode  string // TS_CAPTURE_NTLM: identity | hash | off
+	challenge []byte // server challenge of the NTLM exchange in progress
+	spnego    bool   // the SASL exchange is SPNEGO-framed
 }
 
 func (h *ldapHandler) serve(conn net.Conn) {
@@ -156,6 +201,7 @@ func (h *ldapHandler) serve(conn net.Conn) {
 		sdk.EventDetails{{Key: "protocol", Value: h.proto}, {Key: "dst_port", Value: h.port}})
 
 	buf := make([]byte, 8192)
+	var pending []byte
 	deadline := time.Now().Add(60 * time.Second)
 	for {
 		conn.SetReadDeadline(deadline)
@@ -163,8 +209,18 @@ func (h *ldapHandler) serve(conn net.Conn) {
 		if err != nil || n == 0 {
 			return
 		}
-		r := &berReader{buf: buf[:n]}
-		for !r.done() {
+		// A message (an NTLM AUTHENTICATE in particular) can span reads, so
+		// buffer until each LDAPMessage is complete.
+		pending = append(pending, buf[:n]...)
+		for len(pending) > 0 {
+			total, complete, ok := berElementLen(pending)
+			if !ok {
+				return
+			}
+			if !complete {
+				break
+			}
+			r := &berReader{buf: pending[:total]}
 			tag, body, ok := r.readTLV() // LDAPMessage SEQUENCE
 			if !ok || tag != tagSequence {
 				return
@@ -172,6 +228,7 @@ func (h *ldapHandler) serve(conn net.Conn) {
 			if !h.handleMessage(conn, body) {
 				return
 			}
+			pending = pending[total:]
 		}
 	}
 }
@@ -210,6 +267,10 @@ func (h *ldapHandler) handleBind(conn net.Conn, msgID, body []byte) bool {
 	if !ok {
 		return false
 	}
+	switch res.authTag {
+	case authSicilyDisc, authSicilyNeg, authSicilyResp, authSASL:
+		return h.handleNTLMBind(conn, msgID, res)
+	}
 
 	var code int
 	var diag string
@@ -233,14 +294,23 @@ func (h *ldapHandler) handleBind(conn net.Conn, msgID, body []byte) bool {
 			sdk.EventDetails{{Key: "protocol", Value: h.proto}, {Key: "anonymous_bind_dn", Value: res.name}})
 	}
 
-	resp := berTLV(appBindResponse, concat(
-		berInt(tagEnumerated, code),
-		berTLV(tagOctetStr, nil),          // matchedDN
-		berTLV(tagOctetStr, []byte(diag)), // diagnosticMessage
-	))
-	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	conn.Write(berTLV(tagSequence, concat(msgID, resp)))
+	h.writeBindResponse(conn, msgID, code, nil, diag, nil)
 	return true
+}
+
+// writeBindResponse sends a bindResponse. matchedDN carries the Sicily
+// package list or NTLM challenge; saslCreds, when non-nil, is serverSaslCreds.
+func (h *ldapHandler) writeBindResponse(conn net.Conn, msgID []byte, code int, matchedDN []byte, diag string, saslCreds []byte) {
+	fields := concat(
+		berInt(tagEnumerated, code),
+		berTLV(tagOctetStr, matchedDN),
+		berTLV(tagOctetStr, []byte(diag)),
+	)
+	if saslCreds != nil {
+		fields = concat(fields, berTLV(tagServerSaslCreds, saslCreds))
+	}
+	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	conn.Write(berTLV(tagSequence, concat(msgID, berTLV(appBindResponse, fields))))
 }
 
 func (h *ldapHandler) handleSearch(conn net.Conn, msgID, body []byte) {

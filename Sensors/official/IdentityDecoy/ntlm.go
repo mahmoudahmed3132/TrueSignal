@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"strings"
 	"unicode/utf16"
+
+	sdk "github.com/truesignal/sdk-go"
 )
 
-// Minimal NTLM for the RDP decoy: build a CHALLENGE (Type 2) and parse an
+// Minimal NTLM for the RDP and LDAP decoys: build a CHALLENGE (Type 2) and parse an
 // AUTHENTICATE (Type 3) to recover the account the client tried. The NTLMv2
 // response in a Type 3 is a challenge/response; with our known server
 // challenge it is a crackable NetNTLMv2 artifact, so it is only recorded when
@@ -153,7 +156,9 @@ func parseNTLMType3(msg []byte) (ntlm3, bool) {
 // netNTLMv2 formats the hashcat mode 5600 string so a captured response can be
 // handed to offline analysis: user::domain:serverChallenge:NTProofStr:blob.
 func netNTLMv2(c ntlm3, serverChallenge []byte) string {
-	if len(c.ntResponse) < 16 {
+	// A 24-byte response is NTLMv1, which is not mode 5600; an NTLMv2
+	// response is the 16-byte NTProofStr plus a blob of at least 28 bytes.
+	if len(c.ntResponse) <= 24 {
 		return ""
 	}
 	ntProof := c.ntResponse[:16]
@@ -179,4 +184,57 @@ func randomChallenge() []byte {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return b
+}
+
+// findNTLM locates an NTLM message inside a GSS/SPNEGO/CredSSP token by its
+// signature, which is robust across the ways clients frame it. spnego reports
+// whether the token carried the SPNEGO OID (only a NegTokenInit does).
+func findNTLM(data []byte) (msg []byte, msgType uint32, spnego bool, ok bool) {
+	idx := bytes.Index(data, ntlmSignature)
+	if idx < 0 || idx+12 > len(data) {
+		return nil, 0, bytes.Contains(data, spnegoOID), false
+	}
+	msg = data[idx:]
+	msgType = binary.LittleEndian.Uint32(msg[8:12])
+	return msg, msgType, bytes.Contains(data[:idx], spnegoOID), true
+}
+
+// spnegoNTLMResp wraps an NTLM token in a SPNEGO NegTokenResp that selects
+// NTLM: { negState [0] accept-incomplete, supportedMech [1] NTLM,
+// responseToken [2] token }. A nil token only selects the mechanism, which
+// makes a client that opened with Kerberos retry with NTLM.
+func spnegoNTLMResp(token []byte) []byte {
+	negState := ctx(0, berTLV(tagEnumerated, []byte{0x01}))
+	supported := ctx(1, ntlmOID)
+	inner := concat(negState, supported)
+	if token != nil {
+		inner = concat(inner, ctx(2, berTLV(tagOctetStr, token)))
+	}
+	return ctx(1, berTLV(tagSequence, inner))
+}
+
+// ntlmLoginDetails is the event detail set for a captured NTLM authenticate.
+// The NetNTLMv2 response is crackable with our known challenge, so it is only
+// recorded when the operator opts in (mode "hash"); "identity" records who
+// tried and from which workstation.
+func ntlmLoginDetails(proto string, port int, c ntlm3, challenge []byte, mode, auth string) sdk.EventDetails {
+	identity := c.user
+	if c.domain != "" {
+		identity = c.domain + "\\" + c.user
+	}
+	details := sdk.EventDetails{
+		{Key: "protocol", Value: proto},
+		{Key: "dst_port", Value: port},
+		{Key: "username", Value: identity},
+		{Key: "workstation", Value: c.workstation},
+		{Key: "auth", Value: auth},
+	}
+	if mode == "hash" {
+		if hashcat := netNTLMv2(c, challenge); hashcat != "" {
+			details = append(details,
+				sdk.EventDetail{Key: "netntlmv2", Value: hashcat},
+				sdk.EventDetail{Key: "hashcat_mode", Value: 5600})
+		}
+	}
+	return details
 }
