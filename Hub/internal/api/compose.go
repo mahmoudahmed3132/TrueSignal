@@ -73,7 +73,7 @@ func (h *ComposeHandler) GetNodeComposeForDashboard(w http.ResponseWriter, r *ht
 // instead of a generic 500. These messages contain no secrets.
 func respondComposeError(w http.ResponseWriter, err error) {
 	msg := err.Error()
-	for _, prefix := range []string{"invalid_manifest", "manifest_unavailable", "incompatible_sensor", "build_failed"} {
+	for _, prefix := range []string{"invalid_manifest", "manifest_unavailable", "incompatible_sensor", "port_conflict", "build_failed"} {
 		if strings.HasPrefix(msg, prefix) {
 			RespondError(w, "Failed to generate compose file: "+msg, http.StatusUnprocessableEntity)
 			return

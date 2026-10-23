@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -254,6 +255,7 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 	}
 
 	var finalCompose composeEngine.ComposeFile
+	portOwner := map[int]string{}
 
 	for _, sensor := range nodeDetails.InstalledSensors {
 		targetVersion := sensor.DeployedVersion
@@ -323,6 +325,17 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 		}
 
 		envMap := composeEngine.BuildEnv(manifest, userVars, sysVars)
+
+		// Reject two sensors on the same node binding the same host port. All
+		// decoys run in the host network namespace, so a clash crash-loops the
+		// container and `apply` would roll the node back.
+		for _, p := range listenPortsFromEnv(manifest.Deployment.ListenPortsEnv, envMap) {
+			if other, dup := portOwner[p]; dup && other != sensor.ID {
+				return nil, fmt.Errorf("port_conflict: sensors %s and %s both bind port %d", other, sensor.ID, p)
+			}
+			portOwner[p] = sensor.ID
+		}
+
 		svcCompose, err := composeEngine.BuildService(sensor.ID, manifest, envMap)
 		if err != nil {
 			log.Printf("[ERROR] Compose build failed for sensor %s (Node %s): %v", sensor.ID, nodeID, err)
@@ -332,6 +345,28 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 	}
 
 	return yaml.Marshal(&finalCompose)
+}
+
+// listenPortsFromEnv extracts the ports a sensor binds, from the resolved values
+// of the env vars its manifest declares in listen_ports_env. Each value is a
+// comma-separated list whose items are "proto:port" or "port".
+func listenPortsFromEnv(envNames []string, envMap map[string]string) []int {
+	var ports []int
+	for _, name := range envNames {
+		for _, item := range strings.Split(envMap[name], ",") {
+			item = strings.TrimSpace(item)
+			if item == "" {
+				continue
+			}
+			if _, after, ok := strings.Cut(item, ":"); ok {
+				item = strings.TrimSpace(after)
+			}
+			if p, err := strconv.Atoi(item); err == nil && p >= 1 && p <= 65535 {
+				ports = append(ports, p)
+			}
+		}
+	}
+	return ports
 }
 
 func (s *Service) GeneratePreviewCompose(req PreviewRequest) ([]byte, error) {

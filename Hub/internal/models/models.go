@@ -156,9 +156,13 @@ type Deployment struct {
 	CapDrop         []string         `json:"cap_drop,omitempty"`
 	SecurityOpt     []string         `json:"security_opt,omitempty"`
 	PortAssignments []PortAssignment `json:"port_assignments,omitempty"`
-	VolumeMounts    []VolumeMount    `json:"volume_mounts,omitempty"`
-	InitContainers  []InitContainer  `json:"init_containers,omitempty"`
-	EnvVars         []ConfigVar      `json:"env_vars,omitempty"`
+	// ListenPortsEnv names the env vars whose values hold the TCP/UDP ports this
+	// sensor binds (comma-separated; each item may be "proto:port" or "port").
+	// The Hub uses it to reject two sensors on one node binding the same port.
+	ListenPortsEnv []string        `json:"listen_ports_env,omitempty"`
+	VolumeMounts   []VolumeMount   `json:"volume_mounts,omitempty"`
+	InitContainers []InitContainer `json:"init_containers,omitempty"`
+	EnvVars        []ConfigVar     `json:"env_vars,omitempty"`
 }
 
 type InitContainer struct {
