@@ -372,6 +372,7 @@ func listenPortsFromEnv(envNames []string, envMap map[string]string) []int {
 func (s *Service) GeneratePreviewCompose(req PreviewRequest) ([]byte, error) {
 	var finalCompose composeEngine.ComposeFile
 
+	portOwner := map[int]string{}
 	for _, sensor := range req.Sensors {
 		if valErr := security.ValidateManifest(sensor.Manifest); valErr != nil {
 			log.Printf("[ERROR] Preview manifest validation failed for sensor %s: %v", sensor.SensorID, valErr)
@@ -385,6 +386,16 @@ func (s *Service) GeneratePreviewCompose(req PreviewRequest) ([]byte, error) {
 			"TS_SENSOR_ID":    sensor.SensorID,
 			"TS_TEST_MODE":    "false",
 		})
+
+		// Reject two sensors binding the same host port, mirroring the real
+		// node-compose compile so the UI preview surfaces the clash the node
+		// sync would later reject (422 port_conflict).
+		for _, p := range listenPortsFromEnv(sensor.Manifest.Deployment.ListenPortsEnv, envMap) {
+			if other, dup := portOwner[p]; dup && other != sensor.SensorID {
+				return nil, fmt.Errorf("port_conflict: sensors %s and %s both bind port %d", other, sensor.SensorID, p)
+			}
+			portOwner[p] = sensor.SensorID
+		}
 
 		svcCompose, err := composeEngine.BuildService(sensor.SensorID, sensor.Manifest, envMap)
 		if err != nil {

@@ -282,7 +282,22 @@ func validateHTTPURL(field string, v interface{}) error {
 	return nil
 }
 
+// knownConfigKeys is the set of camelCase fields UpdateConfig knows how to
+// persist. Anything else is rejected so a typo'd or snake_case key can't return
+// success while silently applying nothing.
+var knownConfigKeys = map[string]struct{}{
+	"hubEndpoint": {}, "registryUrl": {}, "autoArchiveDays": {},
+	"autoPurgeDays": {}, "autoPurgeHeartbeatsDays": {}, "updateCheckIntervalHours": {},
+	"webhookType": {}, "webhookUrl": {}, "webhookEvents": {},
+	"siemAddress": {}, "siemProtocol": {}, "whitelistedSources": {},
+}
+
 func validateConfigUpdate(req map[string]interface{}) error {
+	for k := range req {
+		if _, ok := knownConfigKeys[k]; !ok {
+			return &ValidationError{fmt.Sprintf("unknown config field: %s", k)}
+		}
+	}
 	for _, f := range []string{"hubEndpoint", "webhookUrl", "registryUrl"} {
 		if v, ok := req[f]; ok {
 			if err := validateHTTPURL(f, v); err != nil {
