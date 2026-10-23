@@ -18,5 +18,14 @@ Modifications (AGPLv3 section 5(a))
             (hw_auth -> ts_auth), and distribution endpoints (images,
             sensor registry, installer, release checks).
 
+2026-10-23  Added the Identity Decoy sensor (Sensors/official/IdentityDecoy),
+            a Go reimplementation of the LDAP, LDAPS and RDP honeypot
+            concepts from Trapster Community
+            (https://github.com/0xBallpoint/trapster-community) by
+            0xBallpoint, GNU Affero General Public License v3 or later.
+            The protocol behaviour is re-derived; no Trapster source is
+            copied. The Go code, the TrueSignal SDK integration and the
+            credential-capture policy are TrueSignal's.
+
 Source for any network-accessible deployment of TrueSignal must be made
 available to its users as required by AGPLv3 section 13.

@@ -22,6 +22,7 @@ yarn-error.log*
 /Sensors/official/IcmpCanary/icmpcanary
 /Sensors/official/NetworkScanDetector/networkscandetector
 /Sensors/official/TcpTarpit/tcptarpit
+/Sensors/official/IdentityDecoy/identitydecoy
 /Sensors/official/WebRouterDecoy/webrouterdecoy
 /wizard/wizard
 

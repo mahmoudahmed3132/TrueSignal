@@ -6,7 +6,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 ## 1. What it is and current state
 
 - TrueSignal is a fork of **HoneyWire v2.1.0** (AGPLv3, Andrea Termine), a Docker-based deception platform. It was fully rebranded on 2026-10-19: names, UI/logo, Go modules, paths, `TS_`/`ts-` protocol prefixes, distribution endpoints. Attribution lives in `NOTICE` and the README "Credits & License". The same day a security/correctness pass diverged it from upstream v2.1.0 (key hashing, setup token, digest pinning, liveness alerts, evidence retention; see CHANGELOG).
-- It has a Go Hub (API + SQLite + Vue UI), 5 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
+- It has a Go Hub (API + SQLite + Vue UI), 6 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
 - Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and syslog (TCP/UDP).
 - **No SIEM rules, no honeytokens, no network/subnet layout and no node inventory** are in the repo. Kashier-specific config is [NOT IN PROJECT].
 - Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet, and the repo is **private**, so anonymous node pulls fail. See §6.
@@ -23,6 +23,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 | Network Scan Detector | `Sensors/official/NetworkScanDetector/` | node, host netns, UID 0, +NET_RAW, AF_PACKET (inbound frames only) | `network_scan_detected` | Hub |
 | File Canary (FIM) | `Sensors/official/FileCanary/` | node; hardened init container creates lure files with content, main container uses inotify | `decoy_file_tampered`, `decoy_file_accessed` (`TS_ALERT_ON_OPEN` default true; dedupe `TS_ALERT_COOLDOWN`) | Hub |
 | Web Router Decoy | `Sensors/official/WebRouterDecoy/` | node, host netns, UID 0, HTTP on `TS_BIND_PORT` | `web_login_attempt` (password hashed by default, `TS_CAPTURE_PASSWORDS=hash\|plain\|none`), `web_page_view`, `web_path_probe` | Hub |
+| Identity Decoy | `Sensors/official/IdentityDecoy/` | node, host netns, UID 0, +NET_BIND_SERVICE, ports via `TS_SERVICES` (default `ldap:389,ldaps:636,rdp:3389`) | `ldap_login`/`ldaps_login`/`rdp_login` (critical), `*_query` (medium), `*_connection` (low); passwords keyed-HMAC (`TS_CAPTURE_PASSWORDS`); persona via `TS_PERSONA_HOSTNAME`/`TS_PERSONA_DOMAIN` | Hub |
 | Liveness (Hub-generated) | `Hub/internal/services/{sensor,statemonitor}` | Hub | `sensor_stopped` (low), `sensor_heartbeat_lost` (high), `sensor_recovered` (info); source `truesignal-hub` | same pipeline as events |
 | Go SDK | `SDKs/go-truesignal/sdk.go` | linked into every sensor | event queue (1000, 7 retries); heartbeat every 30s | Hub |
 | Python SDK | `SDKs/python-truesignal/` | community/template sensors only | same contract | Hub |
@@ -81,6 +82,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 3. Mounts must be absolute, not `/`, and outside the denylist in `security/validate.go` (`/run`, `/var/run`, `/proc`, `/sys`, `/dev`, `/boot`, `/etc`, `/root`, `/usr`, `/bin`, `/sbin`, `/lib*`, `/var/lib/{docker,containerd,kubelet}`).
 4. No interpolation (`$`, `{{`) in image, network_mode, volume or init-command fields; `$` in env values is escaped to `$$`.
 4a. Every image (main and init) must carry an `@sha256:` digest; a missing/invalid manifest fails the compose (422) rather than dropping the decoy.
+4b. A manifest may declare `listen_ports_env` (env vars holding its listen ports). The Hub rejects a node whose sensors bind the same host port (422 `port_conflict`). Tarpit, Web Router Decoy and Identity Decoy declare it.
 5. Distroless images only. Non-root preferred; UID 65532 is the template default.
 6. No sensor-to-sensor communication. Telemetry flows one way to the Hub.
 7. Wizard discovery must be passive: no active probing (`Docs/development/wizard.md` §2).
