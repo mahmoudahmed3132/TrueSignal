@@ -59,6 +59,10 @@ func run() error {
 		return commands.HandleStatus()
 	case "relink":
 		return commands.HandleRelink(args[1:], *forcePtr)
+	case "registry-login":
+		return commands.HandleRegistryLogin()
+	case "registry-logout":
+		return commands.HandleRegistryLogout()
 	case "uninstall":
 		return commands.HandleTeardown(*forcePtr)
 	default:

@@ -13,6 +13,7 @@ import (
 
 	"github.com/truesignal/hub/internal/api"
 	"github.com/truesignal/hub/internal/catalog"
+	"github.com/truesignal/hub/internal/ghauth"
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/auth"
 	composesvc "github.com/truesignal/hub/internal/services/compose"
@@ -66,7 +67,11 @@ func main() {
 	wsService := websocket.NewService()
 	authService := auth.NewService(dbStore, cfg.DashboardPassword, auth.SessionPolicy{TTL: cfg.SessionTTL, Idle: cfg.SessionIdle})
 
+	// Registry, manifest and release requests share one client that adds
+	// TS_GITHUB_TOKEN to GitHub hosts only.
+	githubClient := ghauth.NewClient(cfg.GitHubToken, 10*time.Second)
 	catalogService := catalog.NewService(dbStore, wsService)
+	catalogService.SetHTTPClient(githubClient)
 
 	nodeSvc := node.NewService(dbStore, wsService, catalogService, authService)
 	siemService := siem.NewService(nodeSvc, siem.Options{PEN: cfg.SyslogPEN, CAFile: cfg.SIEMCAFile})
@@ -76,6 +81,7 @@ func main() {
 	configService := config.NewService(dbStore, authService, siemService, notifyService, cfg.DashboardPassword, cfg.Version)
 	composeService := composesvc.NewService(dbStore, catalogService)
 	composeService.AllowUnpinnedImages(cfg.AllowUnpinnedImages)
+	composeService.SetHTTPClient(githubClient)
 	if cfg.AllowUnpinnedImages {
 		log.Println("[WARNING] TS_ALLOW_UNPINNED_IMAGES=true: sensor images are not required to be digest-pinned. Do not use in production.")
 	}
@@ -99,7 +105,7 @@ func main() {
 	sensorHandler := api.NewSensorHandler(sensorSvc, composeService)
 	eventsHandler := api.NewEventHandler(eventSvc, cfg)
 	analyticsHandler := api.NewAnalyticsHandler(dbStore)
-	updaterSvc := updater.NewService(configService, catalogService)
+	updaterSvc := updater.NewService(configService, catalogService, githubClient)
 	configHandler := api.NewConfigHandler(configService, cfg, updaterSvc)
 	composeHandler := api.NewComposeHandler(composeService)
 

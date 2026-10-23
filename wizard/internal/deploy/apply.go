@@ -29,6 +29,7 @@ func performRollback(reason string, hasBackup bool, backupPath, composePath stri
 			// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 			rollbackCmd := exec.CommandContext(rollbackCtx, rollbackArgs[0], rollbackArgs[1:]...)
 			rollbackCmd.Dir = DeployDir
+			rollbackCmd.Env = dockerEnv()
 			rollbackCmd.Stdout = os.Stdout
 			rollbackCmd.Stderr = os.Stderr
 
@@ -91,6 +92,7 @@ func Apply(ctx context.Context, composeData []byte) error {
 	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	pullCmd := exec.CommandContext(pullCtx, pullArgs[0], pullArgs[1:]...)
 	pullCmd.Dir = DeployDir
+	pullCmd.Env = dockerEnv()
 	pullCmd.Stdout = os.Stdout
 	pullCmd.Stderr = os.Stderr
 
@@ -106,6 +108,7 @@ func Apply(ctx context.Context, composeData []byte) error {
 	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	upCmd := exec.CommandContext(upCtx, upArgs[0], upArgs[1:]...)
 	upCmd.Dir = DeployDir
+	upCmd.Env = dockerEnv()
 	upCmd.Stdout = os.Stdout
 	upCmd.Stderr = os.Stderr
 
@@ -124,6 +127,7 @@ func Apply(ctx context.Context, composeData []byte) error {
 	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	checkCmd := exec.CommandContext(checkCtx, checkArgs[0], checkArgs[1:]...)
 	checkCmd.Dir = DeployDir
+	checkCmd.Env = dockerEnv()
 
 	output, _ := checkCmd.Output()
 	failedServices := strings.TrimSpace(string(output))

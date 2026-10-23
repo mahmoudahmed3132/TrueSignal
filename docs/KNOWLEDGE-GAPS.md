@@ -9,7 +9,7 @@ Status values: **Fixed** (code changed and tested), **Docs** (documentation corr
    - Manifests and images are not signed. Digest pinning is now enforced (`Hub/internal/compose/security/validate.go` `RequirePinnedImages`) and the sandbox is tighter (no `NET_ADMIN`, larger mount denylist, hardened init containers). But the digest comes from the same registry an attacker would write to.
    - Anyone who can push a `sensor/*` tag or write `registry-pages` can still ship a manifest that every node runs as root in the host netns at its next `truesignal apply`.
    - Fix needs cosign/sigstore keys plus Hub-side verification. **Open**: owner decision.
-2. **Distribution isn't operational.** The repo is private and nothing is published (no `registry-pages`, ghcr images or wizard release), so nodes can't install. **Open**: owner decides between public repo, token auth or an internal mirror.
+2. **Distribution isn't operational.** The repo is private and nothing is published (no `registry-pages`, ghcr images or wizard release), so nodes can't install. **Decided (2026-10-23)**: private repo + token auth (`Docs/operations.md` §10). Publishing is still open.
 3. **No detection content.** The SIEM feed is now RFC 5424-valid, escaped, optionally TLS, and carries liveness and audit records. But the repo still has no Elastic/LogScale parser or rules **[NOT IN PROJECT]**.
 4. **Single admin, no MFA/RBAC; Hub serves plain HTTP.** Mitigations now in place: 12-character minimum password, 12h absolute + 15m idle sessions, setup token, and audit records to the SIEM. A TLS reverse proxy is still mandatory and not in the repo.
 5. **Decoy hosts hold a node key and may hold the dashboard password.**
@@ -129,7 +129,7 @@ None of the five sensors has a SIEM rule, dashboard, or response action in the r
 ## 5. Open questions for the owner
 
 1. What is TrueSignal for, concretely? Kashier internal deception in the CDE / corporate network, a product, or a lab? This decides whether §4 items are blockers.
-2. The repo is private. Will the repo and packages go public, or will nodes authenticate to GitHub/GHCR (token), or will you mirror to an internal registry (e.g. Harbor)?
+2. ~~Public vs token vs mirror~~ Answered: private + tokens. Remaining: switch the repo's visibility to private in GitHub settings (it was still public on 2026-10-23), and create the machine account and tokens.
 3. Which SIEM is the system of record for these alerts: Elastic, LogScale, or both? Via which collector (Logstash/Elastic Agent/LogScale Collector/Vector)? Who owns triage?
 4. Where will nodes sit (VDC segments, CDE vs non-CDE), and what egress is allowed from decoy hosts?
 5. Web Router Decoy now hashes captured passwords by default (`TS_CAPTURE_PASSWORDS=hash`). Is `plain` ever needed (for example, for credential-stuffing intel), and under what data-handling rule?
