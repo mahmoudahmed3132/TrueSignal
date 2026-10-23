@@ -52,7 +52,7 @@ func TestConfigHandler_CheckForUpdatesManual(t *testing.T) {
 
 		store := &mockConfigStore{values: map[string]string{}}
 		cfgSvc := config.NewService(store, nil, nil, nil, "", "2.1.0")
-		upSvc := updater.NewService(cfgSvc, &mockCatalog{})
+		upSvc := updater.NewService(cfgSvc, &mockCatalog{}, nil)
 		cfg := &config.Config{Env: "test"}
 		handler := NewConfigHandler(cfgSvc, cfg, upSvc)
 
@@ -75,7 +75,7 @@ func TestConfigHandler_CheckForUpdatesManual(t *testing.T) {
 
 		store := &mockConfigStore{values: map[string]string{}}
 		cfgSvc := config.NewService(store, nil, nil, nil, "", "2.1.0")
-		upSvc := updater.NewService(cfgSvc, &mockCatalog{}) // Catalog succeeds
+		upSvc := updater.NewService(cfgSvc, &mockCatalog{}, nil) // Catalog succeeds
 		cfg := &config.Config{Env: "test"}
 		handler := NewConfigHandler(cfgSvc, cfg, upSvc)
 
@@ -97,7 +97,7 @@ func TestConfigHandler_CheckForUpdatesManual(t *testing.T) {
 
 		store := &mockConfigStore{values: map[string]string{}}
 		cfgSvc := config.NewService(store, nil, nil, nil, "", "2.1.0")
-		upSvc := updater.NewService(cfgSvc, &mockCatalog{err: fmt.Errorf("catalog offline")}) // Both fail
+		upSvc := updater.NewService(cfgSvc, &mockCatalog{err: fmt.Errorf("catalog offline")}, nil) // Both fail
 		cfg := &config.Config{Env: "test"}
 		handler := NewConfigHandler(cfgSvc, cfg, upSvc)
 

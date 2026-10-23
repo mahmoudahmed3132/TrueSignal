@@ -6,6 +6,15 @@
 #   curl -fsSL <raw>/install.sh | sh
 #   curl -fsSL <raw>/install.sh | TS_NODE_API_KEY=<key> sh -s -- --link <hub>
 #
+# Private repository: export TS_GITHUB_TOKEN (read-only Contents token) and
+# fetch the script with it; the installer then resolves and downloads the
+# wizard through the GitHub API. The token is not stored on the node.
+#   export TS_GITHUB_TOKEN=<token>
+#   printf 'Authorization: token %s\n' "$TS_GITHUB_TOKEN" \
+#     | curl -fsSL -H @- <raw>/install.sh | sh -s -- --link <hub>
+# Private sensor images: also export TS_REGISTRY_USER and TS_REGISTRY_TOKEN
+# (read:packages); the wizard stores them in /etc/truesignal/docker.
+#
 # Options:
 #   --version <vX.Y.Z>   Install a specific wizard release.
 #   --link <hub-url>     Link this node to a Hub after installing.
@@ -79,6 +88,25 @@ do_install() {
     command -v curl >/dev/null 2>&1 || fail "'curl' is required. Aborting."
     command -v sha256sum >/dev/null 2>&1 || fail "'sha256sum' is required. Aborting."
 
+    TMP_DIR=$(mktemp -d)
+    trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
+
+    # GitHub requests carry TS_GITHUB_TOKEN from a 0600 header file, so the
+    # token never appears in curl's argv. curl drops it on the redirect to
+    # GitHub's asset storage host.
+    GH_TOKEN="${TS_GITHUB_TOKEN:-}"
+    GH_HDR="$TMP_DIR/gh-auth"
+    : > "$GH_HDR"
+    chmod 600 "$GH_HDR"
+    if [ -n "$GH_TOKEN" ]; then
+        case "$GH_TOKEN" in
+            *[!A-Za-z0-9_]*) fail "TS_GITHUB_TOKEN contains unexpected characters." ;;
+        esac
+        printf 'Authorization: token %s\n' "$GH_TOKEN" > "$GH_HDR"
+        info "Using TS_GITHUB_TOKEN for the private repository."
+    fi
+    gh_curl() { curl -H "@$GH_HDR" "$@"; }
+
     ARCH=$(uname -m)
     case "$ARCH" in
         x86_64)        BIN_ARCH="amd64" ;;
@@ -102,13 +130,13 @@ do_install() {
         if [ -n "$HUB_VER" ]; then
             HUB_MAJOR=$(printf '%s' "$HUB_VER" | sed -E 's/^v?([0-9]+).*/\1/')
             info "Hub major version identified: ${BOLD}v$HUB_MAJOR"
-            LATEST_TAG=$(curl -fsS --max-time 30 "$RELEASES_API" 2>/dev/null | grep -o "\"tag_name\": *\"wizard/v$HUB_MAJOR\.[^\"]*" | head -n 1 | sed 's/.*"//' || true)
+            LATEST_TAG=$(gh_curl -fsS --max-time 30 "$RELEASES_API" 2>/dev/null | grep -o "\"tag_name\": *\"wizard/v$HUB_MAJOR\.[^\"]*" | head -n 1 | sed 's/.*"//' || true)
         fi
     fi
 
     if [ -z "$LATEST_TAG" ]; then
         info "Fetching latest release info from GitHub..."
-        LATEST_TAG=$(curl -fsS --max-time 30 "$RELEASES_API" 2>/dev/null | grep -o '"tag_name": *"wizard/[^"]*' | head -n 1 | sed 's/.*"//' || true)
+        LATEST_TAG=$(gh_curl -fsS --max-time 30 "$RELEASES_API" 2>/dev/null | grep -o '"tag_name": *"wizard/[^"]*' | head -n 1 | sed 's/.*"//' || true)
     fi
 
     [ -n "$LATEST_TAG" ] || fail "Could not determine the Wizard release version from GitHub. Aborting."
@@ -125,15 +153,32 @@ do_install() {
     BINARY_NAME="truesignal-linux-$BIN_ARCH"
     INSTALL_PATH="/usr/local/bin/truesignal"
 
-    TMP_DIR=$(mktemp -d)
-    trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
     cd "$TMP_DIR"
 
+    # releases/download/ URLs do not accept token auth on a private repo, so
+    # with a token the assets come from the API asset endpoint instead.
+    if [ -n "$GH_TOKEN" ]; then
+        gh_curl -fsS --max-time 30 "$RELEASES_API" -o releases.json || fail "Could not list releases with TS_GITHUB_TOKEN."
+        asset_url() {
+            tr -d '\n' < releases.json | tr ',' '\n' | tr -d ' ' | awk -v tag="$LATEST_TAG" -v want="$1" '
+                /^"tag_name":"/ { t=$0; sub(/^"tag_name":"/, "", t); sub(/"$/, "", t); cur=t; au="" }
+                /"url":"https:\/\/api\.github\.com\/repos\/[^"]*\/releases\/assets\/[0-9]+"$/ { u=$0; sub(/.*"url":"/, "", u); sub(/"$/, "", u); au=u }
+                $0 == "\"name\":\"" want "\"" && cur == tag && au != "" { print au; exit }'
+        }
+        fetch_asset() {
+            URL=$(asset_url "$1")
+            [ -n "$URL" ] || fail "Release $LATEST_TAG has no asset named $1."
+            gh_curl -fsSL --proto '=https' --tlsv1.2 -H "Accept: application/octet-stream" "$URL" -o "$1"
+        }
+    else
+        fetch_asset() { curl -fsSL --proto '=https' --tlsv1.2 "$BASE_URL/$1" -o "$1"; }
+    fi
+
     info "Downloading ${BOLD}$LATEST_TAG${RESET}${CYAN}..."
-    curl -fsSL --proto '=https' --tlsv1.2 "$BASE_URL/$BINARY_NAME" -o "$BINARY_NAME"
+    fetch_asset "$BINARY_NAME"
 
     info "Downloading checksums..."
-    curl -fsSL --proto '=https' --tlsv1.2 "$BASE_URL/checksums.txt" -o checksums.txt
+    fetch_asset checksums.txt
 
     info "Verifying checksum..."
     EXPECTED_HASH=$(awk -v f="$BINARY_NAME" '$2 == f || $2 == "*" f {print $1; exit}' checksums.txt)
@@ -166,17 +211,16 @@ do_install() {
         if [ -r /dev/tty ] && (: < /dev/tty) 2>/dev/null; then
             STDIN_SRC=/dev/tty
         fi
+        # Secrets reach the wizard through the environment, not argv. The
+        # GitHub token is only needed for this download; sudo does not pass it on.
         if [ -n "$API_KEY" ]; then
-            # Pass the key through the environment, not argv.
             TS_NODE_API_KEY="$API_KEY"
             export TS_NODE_API_KEY
-            if [ -n "$SUDO" ]; then
-                $SUDO --preserve-env=TS_NODE_API_KEY "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
-            else
-                "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
-            fi
+        fi
+        if [ -n "$SUDO" ]; then
+            $SUDO --preserve-env=TS_NODE_API_KEY,TS_REGISTRY,TS_REGISTRY_USER,TS_REGISTRY_TOKEN "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
         else
-            $SUDO "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
+            "$INSTALL_PATH" --link "$LINK_URL" < "$STDIN_SRC"
         fi
         printf '\n%s%s==> Node Successfully Deployed!%s\n' "$GREEN" "$BOLD" "$RESET"
     else

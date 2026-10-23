@@ -42,6 +42,10 @@ type Config struct {
 	// SD-IDs (truesignal@<PEN>). Defaults to 32473, the RFC 5612
 	// documentation PEN; set your organisation's registered PEN.
 	SyslogPEN string
+	// GitHubToken is a read-only token (TS_GITHUB_TOKEN) for a private
+	// sensor registry and release repository on GitHub. It is sent only to
+	// raw.githubusercontent.com and api.github.com.
+	GitHubToken string
 }
 
 // IsDevelopment reports whether the Hub runs outside production mode.
@@ -92,6 +96,7 @@ func Load() *Config {
 		AllowUnpinnedImages: getBool("TS_ALLOW_UNPINNED_IMAGES"),
 		SIEMCAFile:          getEnv("TS_SIEM_CA_FILE", ""),
 		SyslogPEN:           getEnv("TS_SYSLOG_PEN", "32473"),
+		GitHubToken:         strings.TrimSpace(getEnv("TS_GITHUB_TOKEN", "")),
 	}
 }
 

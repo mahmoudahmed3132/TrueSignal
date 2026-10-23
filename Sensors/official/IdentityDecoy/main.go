@@ -134,7 +134,7 @@ func main() {
 func serveFunc(ts *sdk.Sensor, s service, cap credcapture, per persona, ntlmMode string, tlsConfig *tls.Config) func(net.Conn) {
 	switch s.proto {
 	case "ldap", "ldaps":
-		h := &ldapHandler{ts: ts, proto: s.proto, port: s.port, cap: cap, persona: per}
+		h := &ldapHandler{ts: ts, proto: s.proto, port: s.port, cap: cap, persona: per, ntlmMode: ntlmMode}
 		return h.serve
 	case "rdp":
 		h := &rdpHandler{ts: ts, port: s.port, persona: per, cap: cap, ntlmMode: ntlmMode, tlsConfig: tlsConfig}

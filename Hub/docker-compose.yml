@@ -45,3 +45,6 @@ services:
     environment:
       - TS_PORT=8080
       - TS_DB_PATH=/data/truesignal.db
+      # Read-only GitHub token for the private sensor registry and release
+      # check (Docs/operations.md §10). Set it in the host env or .env.
+      - TS_GITHUB_TOKEN=${TS_GITHUB_TOKEN:-}

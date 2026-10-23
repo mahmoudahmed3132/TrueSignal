@@ -44,12 +44,26 @@ type Service struct {
 	state          UpdateState
 	retryTriggerCh chan time.Duration
 	stopChan       chan struct{}
+	httpClient     *http.Client
 }
 
-func NewService(cfgSvc *config.Service, catalog CatalogRefresher) *Service {
+// NewService starts the update checker. client may be nil; pass one from
+// ghauth.NewClient when the release repository is private.
+func (s *Service) client() *http.Client {
+	if s.httpClient == nil {
+		return &http.Client{Timeout: 10 * time.Second}
+	}
+	return s.httpClient
+}
+
+func NewService(cfgSvc *config.Service, catalog CatalogRefresher, client *http.Client) *Service {
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
 	s := &Service{
 		configService:  cfgSvc,
 		catalog:        catalog,
+		httpClient:     client,
 		retryTriggerCh: make(chan time.Duration, 5),
 		stopChan:       make(chan struct{}),
 	}
@@ -181,7 +195,6 @@ func (s *Service) CheckForUpdates() error {
 	var latestWizardURL string
 	var wizardUpdateAvailable bool
 
-	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", githubAPIURL, nil)
 	if err != nil {
 		log.Printf("[Updater] Failed to create request: %v", err)
@@ -190,7 +203,7 @@ func (s *Service) CheckForUpdates() error {
 		req.Header.Set("Accept", "application/vnd.github.v3+json")
 		req.Header.Set("User-Agent", "TrueSignal-Hub-Updater")
 
-		resp, err := client.Do(req)
+		resp, err := s.client().Do(req)
 		if err != nil {
 			log.Printf("[Updater] Failed to fetch releases: %v", err)
 			releasesErr = fmt.Errorf("Unable to connect to update servers: %w", err)

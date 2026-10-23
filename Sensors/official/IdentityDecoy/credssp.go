@@ -1,7 +1,5 @@
 package main
 
-import "bytes"
-
 // CredSSP (MS-CSSP) carries SPNEGO/NTLM inside a DER TSRequest over TLS. The
 // decoy only needs to: pull the NTLM message out of an inbound TSRequest, and
 // wrap our NTLM challenge in an outbound TSRequest. For the inbound direction
@@ -40,13 +38,11 @@ func parseTSRequest(data []byte) (credsspMessage, bool) {
 		}
 	}
 
-	idx := bytes.Index(data, ntlmSignature)
-	if idx < 0 || idx+12 > len(data) {
+	msg, typ, spnego, ok := findNTLM(data)
+	if !ok {
 		return m, false
 	}
-	m.ntlm = data[idx:]
-	m.ntlmType = uint32(m.ntlm[8]) | uint32(m.ntlm[9])<<8 | uint32(m.ntlm[10])<<16 | uint32(m.ntlm[11])<<24
-	m.spnego = bytes.Contains(data[:idx], spnegoOID)
+	m.ntlm, m.ntlmType, m.spnego = msg, typ, spnego
 	return m, true
 }
 
@@ -56,12 +52,7 @@ func parseTSRequest(data []byte) (credsspMessage, bool) {
 func buildChallengeTSRequest(version int, ntlmType2 []byte, spnego bool) []byte {
 	token := ntlmType2
 	if spnego {
-		// NegTokenResp [1] { negState [0] accept-incomplete(1), supportedMech
-		// [1] NTLM-OID, responseToken [2] OCTET STRING(Type2) }
-		negState := ctx(0, berTLV(tagEnumerated, []byte{0x01}))
-		supported := ctx(1, ntlmOID)
-		respToken := ctx(2, berTLV(tagOctetStr, ntlmType2))
-		token = ctx(1, berTLV(tagSequence, concat(negState, supported, respToken)))
+		token = spnegoNTLMResp(ntlmType2)
 	}
 	// negoTokens [1] SEQUENCE OF SEQUENCE { negoToken [0] OCTET STRING }
 	negoData := berTLV(tagSequence, berTLV(tagSequence, ctx(0, berTLV(tagOctetStr, token))))

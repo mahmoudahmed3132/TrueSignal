@@ -9,7 +9,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 - It has a Go Hub (API + SQLite + Vue UI), 6 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
 - Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and syslog (TCP/UDP).
 - **No SIEM rules, no honeytokens, no network/subnet layout and no node inventory** are in the repo. Kashier-specific config is [NOT IN PROJECT].
-- Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet, and the repo is **private**, so anonymous node pulls fail. See §6.
+- Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. Owner decision (2026-10-23): the repo stays **private** and pulls use tokens (`TS_GITHUB_TOKEN`, `TS_REGISTRY_USER`/`TS_REGISTRY_TOKEN`). See §6.
 - Project purpose was left as the literal placeholder `{{WHAT IT IS FOR}}` in the onboarding request. Ask the owner.
 
 ## 2. Component map
@@ -23,7 +23,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 | Network Scan Detector | `Sensors/official/NetworkScanDetector/` | node, host netns, UID 0, +NET_RAW, AF_PACKET (inbound frames only) | `network_scan_detected` | Hub |
 | File Canary (FIM) | `Sensors/official/FileCanary/` | node; hardened init container creates lure files with content, main container uses inotify | `decoy_file_tampered`, `decoy_file_accessed` (`TS_ALERT_ON_OPEN` default true; dedupe `TS_ALERT_COOLDOWN`) | Hub |
 | Web Router Decoy | `Sensors/official/WebRouterDecoy/` | node, host netns, UID 0, HTTP on `TS_BIND_PORT` | `web_login_attempt` (password hashed by default, `TS_CAPTURE_PASSWORDS=hash\|plain\|none`), `web_page_view`, `web_path_probe` | Hub |
-| Identity Decoy | `Sensors/official/IdentityDecoy/` | node, host netns, UID 0, +NET_BIND_SERVICE, ports via `TS_SERVICES` (default `ldap:389,ldaps:636,rdp:3389`) | `ldap_login`/`ldaps_login`/`rdp_login` (critical), `*_query` (medium), `*_connection` (low); RDP captures `mstshash` and NLA/NTLM identity (`TS_CAPTURE_NTLM=identity\|hash\|off`); passwords keyed-HMAC (`TS_CAPTURE_PASSWORDS`); persona via `TS_PERSONA_HOSTNAME`/`TS_PERSONA_DOMAIN` | Hub |
+| Identity Decoy | `Sensors/official/IdentityDecoy/` | node, host netns, UID 0, +NET_BIND_SERVICE, ports via `TS_SERVICES` (default `ldap:389,ldaps:636,rdp:3389`) | `ldap_login`/`ldaps_login`/`rdp_login` (critical), `*_query` (medium), `*_connection` (low); RDP captures `mstshash` and NLA/NTLM identity; LDAP/LDAPS capture NTLM binds (Sicily + SASL GSS-SPNEGO, `ldapntlm.go`); both under `TS_CAPTURE_NTLM=identity\|hash\|off`; passwords keyed-HMAC (`TS_CAPTURE_PASSWORDS`); persona via `TS_PERSONA_HOSTNAME`/`TS_PERSONA_DOMAIN` | Hub |
 | Liveness (Hub-generated) | `Hub/internal/services/{sensor,statemonitor}` | Hub | `sensor_stopped` (low), `sensor_heartbeat_lost` (high), `sensor_recovered` (info); source `truesignal-hub` | same pipeline as events |
 | Go SDK | `SDKs/go-truesignal/sdk.go` | linked into every sensor | event queue (1000, 7 retries); heartbeat every 30s | Hub |
 | Python SDK | `SDKs/python-truesignal/` | community/template sensors only | same contract | Hub |
@@ -42,7 +42,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 
 **Hub** (`Docs/operations.md` §7, `Hub/docker-compose.yml`)
 - Deploy: `docker compose up -d`, then complete setup in the UI with the **one-time setup token printed in the Hub log** (or `TS_SETUP_TOKEN`), a ≥12-char password and the Hub endpoint. Or set `TS_DASHBOARD_PASSWORD` to lock setup.
-- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473).
+- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473), `TS_GITHUB_TOKEN` (read-only; sent only to `raw.githubusercontent.com`/`api.github.com`, `Hub/internal/ghauth`).
 - Update: `docker compose pull && docker compose up -d`. Schema migrations run on boot and take a `*.pre-vN-*.bak` VACUUM snapshot first (`Hub/internal/store/migrations.go:304-306`).
 - Roll back: [NOT IN PROJECT]. No documented procedure. Restore the pre-migration `.bak` and pin the old image tag (inference).
 - TLS: the Hub serves plain HTTP. A reverse proxy is required by the docs, but no proxy config is in the repo.
@@ -93,14 +93,14 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 Not stated anywhere in the repo, so treat as [NOT IN PROJECT]: decoy egress restrictions, a "no real data on decoys" rule, network segmentation of decoys, a data classification of captured credentials.
 Residual gaps (unsigned manifests/images, root + host netns sensors, single admin without MFA) are in KNOWLEDGE-GAPS §4.
 
-## 6. Distribution endpoints (owner GitHub; repo is private; nothing published yet)
+## 6. Distribution endpoints (owner GitHub; private repo with token pulls; nothing published yet)
 
-- `registry_url` default is `https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages` (`Hub/internal/store/sqlite.go:73`). The branch doesn't exist until the first `sensor/*` tag is published.
-- Sensor images are `ghcr.io/mahmoudahmed3132/truesignal-*` (all `Sensors/official/*/*.json`). The Hub image is `ghcr.io/mahmoudahmed3132/truesignal-hub:latest` (`Hub/docker-compose.yml`, `README.md`). None are pushed yet.
-- Installer: `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash` (UI). The wizard comes from this repo's Releases (`install.sh:92-108`).
-- The Hub update check polls `api.github.com/repos/mahmoudahmed3132/TrueSignal/releases` every 24h (`Hub/internal/services/updater/updater.go:18`). It returns 404 while the repo is private; that only logs and retries.
-- The Python template pip-installs the SDK from this repo `@main` (`Sensors/templates/python-sensor/requirements.txt`).
-- Private repo means raw, releases and ghcr pulls need a token or public visibility. This is unresolved and the owner must decide.
+- Visibility: on 2026-10-23 GitHub still reported the repo as **public**; the owner chose private + tokens. Flipping visibility is a manual GitHub setting.
+- `registry_url` default is `https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages` (`Hub/internal/store/sqlite.go`). The branch doesn't exist until the first `sensor/*` tag is published. The Hub fetches it with `TS_GITHUB_TOKEN` (fine-grained, Contents: read).
+- Sensor images are `ghcr.io/mahmoudahmed3132/truesignal-*` (all `Sensors/official/*/*.json`). The Hub image is `ghcr.io/mahmoudahmed3132/truesignal-hub:latest` (`Hub/docker-compose.yml`, `README.md`). None are pushed yet. Nodes pull with a classic `read:packages` PAT stored by `truesignal registry-login` (or `--link` with `TS_REGISTRY_USER`/`TS_REGISTRY_TOKEN`) in `/etc/truesignal/docker` and used as `DOCKER_CONFIG` for pull/up only (`wizard/internal/deploy/registry.go`). Never distribute it through the Hub: sensors hold the node key.
+- Installer: `install.sh` takes `TS_GITHUB_TOKEN` (not persisted) and downloads the wizard via the API asset endpoint. Full command: UI `FleetDeployModal.vue`, `Docs/operations.md` §1/§10.
+- The Hub update check polls `api.github.com/repos/mahmoudahmed3132/TrueSignal/releases` every 24h (`Hub/internal/services/updater/updater.go`) with the same token.
+- The Python template pip-installs the SDK from this repo `@main` (`Sensors/templates/python-sensor/requirements.txt`); with a private repo that needs git credentials.
 - Brand rule: never reintroduce `HoneyWire`, `HW_` or `hw-` identifiers. Upstream's name appears only in `NOTICE`, the README credits and the CHANGELOG "Upstream history" section.
 
 ## 7. Where things live / what to read
@@ -123,6 +123,6 @@ Residual gaps (unsigned manifests/images, root + host netns sensors, single admi
 
 - This repo is the platform only. Never invent hostnames, IPs, subnets, node lists or SIEM rule logic. Ask, or mark [NOT IN PROJECT].
 - Secrets are never in git. At runtime they live in: the Hub DB (bcrypt admin hash, sha256 node-key hashes, webhook URLs incl. tokens), the node `/etc/truesignal/config.json` and `TS_HUB_KEY` in the node compose file (plaintext node key), the `TS_DASHBOARD_PASSWORD`/`TS_SETUP_TOKEN` env vars, and the GitHub secret `DELETE_PACKAGES_TOKEN`. Reference them by location only.
-- Tests: Hub, wizard, Go SDK and all five sensors have Go tests; `.github/workflows/test.yml` runs `go vet` + `go test -race` per module. No UI unit tests, no Python SDK tests.
+- Tests: Hub, wizard, Go SDK and all six sensors have Go tests; `.github/workflows/test.yml` runs `go vet` + `go test -race` per module. No UI unit tests, no Python SDK tests.
 - Changing the event shape, the syslog format (RFC 5424, `Hub/internal/services/siem/service.go` `formatSyslog`/`formatAudit`) or `eventTrigger` names breaks downstream SIEM parsing. Treat them as a contract.
 - The licence is AGPLv3 (inherited from HoneyWire). Keep `LICENSE`, `NOTICE` and the README credits intact. Modified network-served versions must offer their source.

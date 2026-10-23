@@ -7,7 +7,7 @@
   "icon_svg": "M12 11c0-1.1.9-2 2-2s2 .9 2 2-2 4-2 4m-5 4v-1a7 7 0 0114 0v1M12 7a4 4 0 100-8 4 4 0 000 8z",
   "description": "Emulates Windows identity services (LDAP, LDAPS, RDP) so intruders enumerating or authenticating against them are detected and their usernames and credentials recorded.",
   "documentation": {
-    "summary": "The Identity Decoy answers like a domain controller: it serves LDAP/LDAPS directory binds and accepts RDP connections, then reports every authentication attempt. It targets the lateral-movement phase, where an attacker tries directory enumeration (ldapsearch, BloodHound) and credential reuse against RDP. Captured passwords are stored as a keyed hash by default, never in cleartext.",
+    "summary": "The Identity Decoy answers like a domain controller: it serves LDAP/LDAPS directory binds and accepts RDP connections, then reports every authentication attempt, including NTLM binds from tools such as BloodHound.py, impacket and SharpHound. It targets the lateral-movement phase, where an attacker tries directory enumeration (ldapsearch, BloodHound) and credential reuse against RDP. Captured passwords are stored as a keyed hash by default, never in cleartext.",
     "sections": [
       {
         "title": "Features",
@@ -136,7 +136,7 @@
       },
       {
         "name": "TS_CAPTURE_NTLM",
-        "description": "RDP NLA capture: identity (default, record DOMAIN\\\\user + workstation), hash (also record the crackable NetNTLMv2; for threat intel, avoid in PCI scope), off (no NLA, mstshash cookie only).",
+        "description": "NTLM capture for RDP NLA and LDAP/LDAPS NTLM binds (Sicily and SASL GSS-SPNEGO): identity (default, record DOMAIN\\\\user + workstation), hash (also record the crackable NetNTLMv2; for threat intel, avoid in PCI scope), off (RDP mstshash cookie only; LDAP refuses NTLM with authMethodNotSupported).",
         "default": "identity",
         "type": "string",
         "required": false,
