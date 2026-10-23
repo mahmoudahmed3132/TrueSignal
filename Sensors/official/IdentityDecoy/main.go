@@ -76,22 +76,34 @@ func main() {
 		os.Getenv("TS_CAPTURE_HASH_KEY"),
 		os.Getenv("TS_HUB_KEY"),
 	)
+	ntlmMode := strings.ToLower(getEnv("TS_CAPTURE_NTLM", "identity"))
+	switch ntlmMode {
+	case "off", "identity", "hash":
+	default:
+		ntlmMode = "identity"
+	}
 
 	services, err := parseServices(getEnv("TS_SERVICES", "ldap:389,ldaps:636,rdp:3389"))
 	if err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
 
+	// LDAPS, and RDP with NLA, both need a server certificate. Build one if any
+	// such service is configured.
 	var tlsConfig *tls.Config
+	needTLS := false
 	for _, s := range services {
-		if s.proto == "ldaps" {
-			cfg, err := selfSignedTLS(per)
-			if err != nil {
-				log.Fatalf("[!] FATAL: ldaps certificate: %v", err)
-			}
-			tlsConfig = cfg
+		if s.proto == "ldaps" || (s.proto == "rdp" && ntlmMode != "off") {
+			needTLS = true
 			break
 		}
+	}
+	if needTLS {
+		cfg, err := selfSignedTLS(per)
+		if err != nil {
+			log.Fatalf("[!] FATAL: certificate: %v", err)
+		}
+		tlsConfig = cfg
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -107,7 +119,7 @@ func main() {
 			ln = tls.NewListener(ln, tlsConfig)
 		}
 		log.Printf("[+] IdentityDecoy serving %s on port %d as %s.%s", s.proto, s.port, per.hostname, per.domain)
-		go accept(ctx, ln, serveFunc(ts, s, cap, per))
+		go accept(ctx, ln, serveFunc(ts, s, cap, per, ntlmMode, tlsConfig))
 	}
 
 	if err := ts.Start(); err != nil {
@@ -119,13 +131,13 @@ func main() {
 	log.Println("[*] IdentityDecoy shutting down.")
 }
 
-func serveFunc(ts *sdk.Sensor, s service, cap credcapture, per persona) func(net.Conn) {
+func serveFunc(ts *sdk.Sensor, s service, cap credcapture, per persona, ntlmMode string, tlsConfig *tls.Config) func(net.Conn) {
 	switch s.proto {
 	case "ldap", "ldaps":
 		h := &ldapHandler{ts: ts, proto: s.proto, port: s.port, cap: cap, persona: per}
 		return h.serve
 	case "rdp":
-		h := &rdpHandler{ts: ts, port: s.port, persona: per}
+		h := &rdpHandler{ts: ts, port: s.port, persona: per, cap: cap, ntlmMode: ntlmMode, tlsConfig: tlsConfig}
 		return h.serve
 	}
 	return func(c net.Conn) { c.Close() }

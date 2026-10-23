@@ -1,3 +1,10 @@
+# [Unreleased] - RDP NLA/NTLM capture (2026-10-24)
+
+### Identity Decoy: RDP Network Level Authentication
+* The RDP decoy now captures the account from an NLA (CredSSP/NTLM) login, not just the pre-auth `mstshash` cookie. When a client requests NLA, the decoy selects HYBRID, completes the TLS handshake with its in-memory certificate, runs the CredSSP/NTLM exchange, and records `DOMAIN\user` and the workstation as a critical `rdp_login` (`auth: nla_ntlm`), then answers with a logon-failure NTSTATUS like a real host.
+* `TS_CAPTURE_NTLM` controls it: `identity` (default — record who tried, no crackable material), `hash` (also record the NetNTLMv2 response in hashcat mode-5600 format, for threat intel; keep out of PCI scope), `off` (no NLA; `mstshash` cookie only). The NTLM parsing/building is re-derived from MS-NLMP/MS-CSSP; no third-party code.
+* The challenge presents a realistic TargetInfo built from the persona (`TS_PERSONA_HOSTNAME`/`TS_PERSONA_DOMAIN`), so NTLMv2-capable clients proceed to authenticate.
+
 # [Unreleased] - Identity Decoy sensor (2026-10-23)
 
 ### New sensor: Identity Decoy (AD services trap)
