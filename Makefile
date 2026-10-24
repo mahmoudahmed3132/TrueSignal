@@ -34,6 +34,7 @@ push-tags:
 		if printf '%s\n' "$$remote" | grep -qx "refs/tags/$$t"; then \
 			echo "   = $$t already on origin"; \
 		else \
-			git push -q origin "refs/tags/$$t" && echo "   ^ $$t"; \
+			git push -q origin "refs/tags/$$t" || { echo "   ! $$t push failed"; exit 1; }; \
+			echo "   ^ $$t"; \
 		fi; \
 	done

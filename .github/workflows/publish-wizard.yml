@@ -6,6 +6,14 @@ on:
       - 'wizard/v*.*.*'
   workflow_dispatch:
 
+# Runs for the same tag (a tag push and a manual dispatch, or two
+# dispatches) queue instead of overlapping, so the later one's
+# re-release check sees what the first published. Different tags still
+# run in parallel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   packages: write
