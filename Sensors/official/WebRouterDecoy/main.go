@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"html"
 	"log"
 	"net"
 	"net/http"
@@ -20,14 +19,21 @@ import (
 	"github.com/truesignal/sdk-go"
 )
 
-var (
-	port         string
-	routerBrand  string
+// reporter is the slice of the SDK the handlers use, so they can be tested
+// with a fake. *sdk.Sensor satisfies it.
+type reporter interface {
+	ReportEventSeverity(severity, trigger, source, target string, details sdk.EventDetails) bool
+}
+
+// decoy serves one skin.
+type decoy struct {
+	ts           reporter
+	skin         Skin
 	passwordMode string
 	passwordKey  []byte
-	ts           *sdk.Sensor
-	probes       = newProbeLimiter(60 * time.Second)
-)
+	probes       *probeLimiter
+	loginDelay   time.Duration
+}
 
 // brandProfiles keeps the page footer consistent with the advertised brand;
 // a "Netgear" header over a Cisco model number is an instant tell.
@@ -47,229 +53,8 @@ func brandProfile(brand string) (model, firmware string) {
 	return "GW-2200", "2.4.1"
 }
 
-// The HTML template: %[1]s brand, %[2]s error block display, %[3]s model, %[4]s firmware
-const loginHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>%[1]s Router Login</title>
-
-<style>
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: Arial, Helvetica, sans-serif;
-    background: #dfe3e8;
-    color: #333;
-}
-
-.header {
-    height: 64px;
-    background: linear-gradient(to bottom, #3b6ea5, #2c5d90);
-    border-bottom: 1px solid #21486f;
-    display: flex;
-    align-items: center;
-    padding: 0 24px;
-    color: white;
-}
-
-.brand {
-    font-size: 24px;
-    font-weight: bold;
-    letter-spacing: 0.5px;
-}
-
-.container {
-    width: 100%%;
-    max-width: 520px;
-    margin: 80px auto;
-}
-
-.panel {
-    background: white;
-    border: 1px solid #b7bec8;
-}
-
-.panel-header {
-    background: #f2f4f7;
-    border-bottom: 1px solid #d3d8de;
-    padding: 12px 16px;
-    font-weight: bold;
-    color: #444;
-}
-
-.panel-body {
-    padding: 24px;
-}
-
-.info {
-    margin-bottom: 20px;
-    font-size: 13px;
-    color: #666;
-    line-height: 1.5;
-}
-
-.error {
-    display: %[2]s;
-    background: #fff2f2;
-    border: 1px solid #d77;
-    color: #a00000;
-    padding: 10px;
-    margin-bottom: 18px;
-    font-size: 13px;
-}
-
-.form-row {
-    margin-bottom: 16px;
-}
-
-label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 13px;
-    font-weight: bold;
-}
-
-input {
-    width: 100%%;
-    height: 34px;
-    padding: 0 10px;
-    border: 1px solid #aeb6bf;
-    font-size: 13px;
-}
-
-input:focus {
-    outline: none;
-    border-color: #3b6ea5;
-}
-
-.actions {
-    margin-top: 20px;
-}
-
-button {
-    min-width: 100px;
-    height: 34px;
-    border: 1px solid #1f4d79;
-    background: linear-gradient(to bottom, #4a7ab0, #2f5f95);
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-button:hover {
-    background: linear-gradient(to bottom, #5385bc, #35689f);
-}
-
-.footer {
-    margin-top: 14px;
-    padding: 12px;
-    background: #f7f7f7;
-    border: 1px solid #cfd4da;
-    font-size: 12px;
-    color: #666;
-    line-height: 1.6;
-}
-
-.footer-row {
-    display: flex;
-    justify-content: space-between;
-}
-
-@media (max-width: 600px) {
-    .container {
-        margin: 20px;
-    }
-}
-</style>
-</head>
-
-<body>
-
-<div class="header">
-    <div class="brand">%[1]s</div>
-</div>
-
-<div class="container">
-
-    <div class="panel">
-
-        <div class="panel-header">
-            Router Login
-        </div>
-
-        <div class="panel-body">
-
-            <div class="info">
-                Enter administrator credentials to access the device management interface.
-            </div>
-
-            <div class="error">
-                Login failed. Incorrect username or password.
-            </div>
-
-            <form method="post" action="/login">
-
-                <div class="form-row">
-                    <label for="username">Username</label>
-                    <input
-                        id="username"
-                        name="username"
-                        type="text"
-                        autocomplete="username"
-                        required
-                    >
-                </div>
-
-                <div class="form-row">
-                    <label for="password">Password</label>
-                    <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        autocomplete="current-password"
-                        required
-                    >
-                </div>
-
-                <div class="actions">
-                    <button type="submit">Login</button>
-                </div>
-
-            </form>
-
-        </div>
-    </div>
-
-    <div class="footer">
-        <div class="footer-row">
-            <span>Model</span>
-            <span>%[3]s</span>
-        </div>
-
-        <div class="footer-row">
-            <span>Firmware Version</span>
-            <span>%[4]s</span>
-        </div>
-
-        <div class="footer-row">
-            <span>Hardware Version</span>
-            <span>1.0</span>
-        </div>
-    </div>
-
-</div>
-
-</body>
-</html>`
-
 func main() {
-	var err error
-	ts, err = sdk.NewSensor()
+	ts, err := sdk.NewSensor()
 	if err != nil {
 		log.Fatalf("[!] FATAL: %v", err)
 	}
@@ -282,16 +67,28 @@ func main() {
 			{Key: "test_message", Value: "Wizard triggered a synthetic event firedrill."},
 			{Key: "user_agent", Value: "TrueSignal-Firedrill/1.0"},
 			{Key: "attempted_username", Value: "admin"},
-			{Key: "attempted_password", Value: "password123"},
+			{Key: "attempted_password_hmac", Value: "firedrill"},
+			{Key: "skin", Value: "router"},
+			{Key: "auth", Value: "form"},
 			{Key: "action_taken", Value: "logged"},
 		},
 	)
 
 	// Load environment variables AFTER the SDK loads the .env file
-	port = getEnv("TS_BIND_PORT", "8080")
-	routerBrand = getEnv("TS_ROUTER_BRAND", "Netgear")
-	passwordMode = strings.ToLower(getEnv("TS_CAPTURE_PASSWORDS", "hash"))
-	passwordKey = passwordHashKey(os.Getenv("TS_CAPTURE_HASH_KEY"), os.Getenv("TS_HUB_KEY"))
+	port := getEnv("TS_BIND_PORT", "8080")
+	brand := getEnv("TS_ROUTER_BRAND", "Netgear")
+	skin, err := loadSkin(getEnv("TS_SKIN", "router"), os.Getenv("TS_SKIN_PRODUCT"), brand, os.Getenv("TS_SKIN_JSON"))
+	if err != nil {
+		log.Fatalf("[!] FATAL: %v", err)
+	}
+	d := &decoy{
+		ts:           ts,
+		skin:         skin,
+		passwordMode: strings.ToLower(getEnv("TS_CAPTURE_PASSWORDS", "hash")),
+		passwordKey:  passwordHashKey(os.Getenv("TS_CAPTURE_HASH_KEY"), os.Getenv("TS_HUB_KEY")),
+		probes:       newProbeLimiter(60 * time.Second),
+		loginDelay:   1500 * time.Millisecond,
+	}
 
 	if ts.TestMode {
 		if ts.RunTestMode() {
@@ -300,13 +97,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleRoot)
-	mux.HandleFunc("/login", handleLogin)
-
 	server := &http.Server{
 		Addr:              fmt.Sprintf("0.0.0.0:%s", port),
-		Handler:           limitBody(mux),
+		Handler:           limitBody(d.routes()),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -320,7 +113,7 @@ func main() {
 			log.Fatalf("[!] FATAL: Web server failed: %v", err)
 		}
 	}()
-	log.Printf("[*] TrueSignal Web Router Decoy | Brand: %s | Port: %s | Password capture: %s", routerBrand, port, passwordMode)
+	log.Printf("[*] TrueSignal Web Decoy | Skin: %s (%s) | Port: %s | Password capture: %s", skin.Name, skin.Product, port, d.passwordMode)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -355,71 +148,130 @@ func userAgent(r *http.Request) string {
 	return "Unknown"
 }
 
-// renderLogin writes the login page; errorDisplay is "none" or "block".
-func renderLogin(w http.ResponseWriter, status int, errorDisplay string) {
-	model, firmware := brandProfile(routerBrand)
+func (d *decoy) routes() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", d.handleRoot)
+	if !d.skin.Basic {
+		mux.HandleFunc(d.skin.LoginPath, d.handleLogin)
+	}
+	return mux
+}
+
+func (d *decoy) setHeaders(w http.ResponseWriter) {
+	if d.skin.ServerHeader != "" {
+		w.Header().Set("Server", d.skin.ServerHeader)
+	}
+}
+
+// renderLogin writes the skin's login page, with the error block after a
+// failed attempt.
+func (d *decoy) renderLogin(w http.ResponseWriter, status int, failed bool) {
+	d.setHeaders(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	// codeql[go/xss] Honeypot decoy rendering; all interpolated values are HTML-escaped.
-	// nosemgrep: go.lang.security.audit.xss.no-fprintf-to-responsewriter.no-fprintf-to-responsewriter
-	fmt.Fprintf(w, loginHTML, html.EscapeString(routerBrand), errorDisplay, html.EscapeString(model), html.EscapeString(firmware))
+	loginTemplate.Execute(w, pageData{Skin: d.skin, Failed: failed})
+}
+
+// challenge answers a Basic-auth skin request with 401 and the realm.
+func (d *decoy) challenge(w http.ResponseWriter) {
+	d.setHeaders(w)
+	w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", d.skin.Realm))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusUnauthorized)
+	basicTemplate.Execute(w, d.skin)
 }
 
 // handleRoot serves the login page and records reconnaissance: page views and
 // probes for other paths (/.env, /admin, /cgi-bin/...) at medium severity,
 // rate-limited per source so a directory brute-force yields a few events.
-func handleRoot(w http.ResponseWriter, r *http.Request) {
+// Basic-auth skins challenge every path and record any credentials sent.
+func (d *decoy) handleRoot(w http.ResponseWriter, r *http.Request) {
 	srcIP := clientIP(r)
-	if probes.allow(srcIP, time.Now()) {
+	if d.skin.Basic {
+		if user, pass, ok := r.BasicAuth(); ok {
+			d.reportLogin(r, user, pass, "basic", nil)
+			time.Sleep(d.loginDelay)
+			d.challenge(w)
+			return
+		}
+	}
+	if d.probes.allow(srcIP, time.Now()) {
 		trigger := "web_page_view"
 		if r.URL.Path != "/" {
 			trigger = "web_path_probe"
 		}
-		ts.ReportEventSeverity("medium", trigger, srcIP, "Web Interface", sdk.EventDetails{
+		d.ts.ReportEventSeverity("medium", trigger, srcIP, d.target(), sdk.EventDetails{
 			{Key: "method", Value: r.Method},
 			{Key: "path", Value: truncate(r.URL.RequestURI(), 512)},
 			{Key: "user_agent", Value: truncate(userAgent(r), 512)},
+			{Key: "skin", Value: d.skin.Name},
 		})
 	}
-
+	if d.skin.Basic {
+		d.challenge(w)
+		return
+	}
 	if r.URL.Path != "/" {
+		d.setHeaders(w)
 		http.NotFound(w, r)
 		return
 	}
-	renderLogin(w, http.StatusOK, "none")
+	d.renderLogin(w, http.StatusOK, false)
 }
 
-func handleLogin(w http.ResponseWriter, r *http.Request) {
+func (d *decoy) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		d.setHeaders(w)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	if err := r.ParseForm(); err != nil {
+		d.setHeaders(w)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
-	username := truncate(r.FormValue("username"), 256)
-	password := r.FormValue("password")
+	// Extra form fields (a VPN realm, a domain selector) are recorded too:
+	// they say what the attacker believes they are logging in to.
+	var extra sdk.EventDetails
+	for _, f := range d.skin.Fields {
+		if f.Name != d.skin.UserField && f.Name != d.skin.PassField {
+			if v := r.PostFormValue(f.Name); v != "" {
+				extra = append(extra, sdk.EventDetail{Key: "form_" + f.Name, Value: truncate(v, 256)})
+			}
+		}
+	}
+	d.reportLogin(r, r.PostFormValue(d.skin.UserField), r.PostFormValue(d.skin.PassField), "form", extra)
+
+	// Tarpit delay: an artificial backend processing delay slows automated
+	// scripts, then the same page comes back with the error shown.
+	time.Sleep(d.loginDelay)
+	d.renderLogin(w, http.StatusUnauthorized, true)
+}
+
+// reportLogin records a web_login_attempt. attempted_username is the key the
+// Hub matches honeytokens on.
+func (d *decoy) reportLogin(r *http.Request, user, password, auth string, extra sdk.EventDetails) {
 	srcIP := clientIP(r)
-
-	log.Printf("[!] Login attempt from %s (User: %q)", srcIP, username)
-
+	username := truncate(user, 256)
+	log.Printf("[!] Login attempt from %s (User: %q, skin %s)", srcIP, username, d.skin.Name)
 	details := sdk.EventDetails{
 		{Key: "user_agent", Value: truncate(userAgent(r), 512)},
 		{Key: "attempted_username", Value: username},
 	}
-	details = append(details, passwordDetails(password, passwordMode, passwordKey)...)
+	details = append(details, passwordDetails(password, d.passwordMode, d.passwordKey)...)
+	details = append(details,
+		sdk.EventDetail{Key: "skin", Value: d.skin.Name},
+		sdk.EventDetail{Key: "auth", Value: auth},
+		sdk.EventDetail{Key: "path", Value: truncate(r.URL.Path, 256)})
+	details = append(details, extra...)
 	details = append(details, sdk.EventDetail{Key: "action_taken", Value: "logged"})
+	// Empty severity: the sensor's TS_SEVERITY (critical by default).
+	d.ts.ReportEventSeverity("", "web_login_attempt", srcIP, d.target(), details)
+}
 
-	ts.ReportEvent("web_login_attempt", srcIP, "Web Interface", details)
-
-	// Tarpit delay: Add an artificial backend processing delay to slow down automated scripts
-	time.Sleep(1500 * time.Millisecond)
-
-	// Re-render the exact same login page, but cleanly display the red error block
-	renderLogin(w, http.StatusUnauthorized, "block")
+func (d *decoy) target() string {
+	return "Web Interface (" + d.skin.Product + ")"
 }
 
 // passwordDetails decides how much of a submitted password leaves the decoy.

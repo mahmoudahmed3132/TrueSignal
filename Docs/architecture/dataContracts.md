@@ -54,8 +54,8 @@ This is the standard telemetry payload that all sensors (official or community) 
 | `network_scan_detected` | Network Scan Detector | `TS_SEVERITY` | Port-scan pattern from one source (inbound frames only). |
 | `decoy_file_tampered` | File Canary | `TS_SEVERITY` | A lure was modified, had attributes changed, was moved or deleted. |
 | `decoy_file_accessed` | File Canary | `TS_SEVERITY` | A lure was opened or read (`TS_ALERT_ON_OPEN`, default `true`). Repeats within `TS_ALERT_COOLDOWN` seconds are suppressed. |
-| `web_login_attempt` | Web Router Decoy | `TS_SEVERITY` | `POST /login`. The password is recorded per `TS_CAPTURE_PASSWORDS`: `hash` (default: `attempted_password_hmac` (HMAC-SHA256 keyed by `TS_CAPTURE_HASH_KEY`, else derived from the node key), `attempted_password_length`, `hmac_key_id`), `none` (`password_submitted`), or `plain` (`attempted_password`). |
-| `web_page_view` | Web Router Decoy | `medium` | `GET /`. At most one recon event per source per 60 s. |
+| `web_login_attempt` | Web Router Decoy | `TS_SEVERITY` | Form `POST` to the skin's login path, or a Basic `Authorization` header (`basic` skin). `attempted_username`, `auth` (`form`\|`basic`), `skin`, `path`, `form_<field>` for extra fields (`Docs/sensors/web-skins.md`). The password is recorded per `TS_CAPTURE_PASSWORDS`: `hash` (default: `attempted_password_hmac` (HMAC-SHA256 keyed by `TS_CAPTURE_HASH_KEY`, else derived from the node key), `attempted_password_length`, `hmac_key_id`), `none` (`password_submitted`), or `plain` (`attempted_password`). |
+| `web_page_view` | Web Router Decoy | `medium` | `GET /` (`details.skin`). At most one recon event per source per 60 s. |
 | `web_path_probe` | Web Router Decoy | `medium` | Request for any other path (`/.env`, `/admin`, ...). Shares the per-source 60 s limit with `web_page_view`. |
 | `sensor_stopped` | Hub | `low` | The sensor reported a graceful shutdown (`POST /api/v2/offline`). `details.reason`. |
 | `sensor_recovered` | Hub | `info` | First heartbeat after an `offline` state. |

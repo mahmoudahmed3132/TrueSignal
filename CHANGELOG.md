@@ -1,3 +1,12 @@
+# [Unreleased] - Web Router Decoy skin engine (2026-10-24)
+
+* **Skins.** `TS_SKIN` picks the login surface: `router` (default, unchanged look; `TS_ROUTER_BRAND` still drives the footer), `nas`, `vpn` (SSL VPN with a realm selector, `/remote/login`), `webmail` (email field, `/mail/login`), `admin` (`/admin/login`) or `basic` (HTTP Basic challenge on every path; the `Authorization` header is captured). `TS_SKIN_PRODUCT` renames the product. Each skin sets a plausible `Server` header.
+* **Custom skins** via `TS_SKIN_JSON`, strictly validated (unknown keys, CSS/header injection, bad paths and field types are rejected at start). Guide: `Docs/sensors/web-skins.md`.
+* Pages are now rendered with `html/template` (context-aware escaping) instead of `fmt` with manual escaping.
+* Events keep their triggers and `attempted_username` (honeytoken matching). New details: `skin`, `auth` (`form`|`basic`), `path`, and `form_<field>` for extra fields such as a VPN realm. The firedrill payload no longer carries a cleartext password.
+* Handlers are testable with a fake reporter; new tests cover every skin, Basic auth, escaping and custom-skin validation. Manifest bumped to 2.1.0.
+* Removed a compiled `webrouterdecoy` binary that had been committed by mistake (it stays in git history).
+
 # [Unreleased] - Decoy hardening from review (2026-10-24)
 
 Follow-up to the database, remote-access and network-service decoys (review findings on PR #13):
