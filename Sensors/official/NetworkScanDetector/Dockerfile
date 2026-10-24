@@ -8,7 +8,7 @@ COPY Sensors/official/NetworkScanDetector ./Sensors/official/NetworkScanDetector
 WORKDIR /src/Sensors/official/NetworkScanDetector
 RUN go mod download
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o scan-detector ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o scan-detector .
 
 # STAGE 2: Distroless
 FROM gcr.io/distroless/static-debian12:latest

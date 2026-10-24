@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -29,6 +31,11 @@ type Config struct {
 	Version           string
 	Env               string
 	TrustProxy        bool
+	// TrustedProxies (TS_TRUSTED_PROXIES: comma-separated IPs or CIDRs)
+	// limits TrustProxy to requests whose TCP peer is one of these proxies.
+	// Empty means any peer, which lets a client that reaches the Hub
+	// directly spoof its IP; main warns at startup.
+	TrustedProxies []netip.Prefix
 
 	// SessionTTL / SessionIdle bound dashboard sessions (TS_SESSION_TTL,
 	// TS_SESSION_IDLE_TIMEOUT; Go durations, idle "0" disables).
@@ -43,6 +50,59 @@ type Config struct {
 	// SD-IDs (truesignal@<PEN>). Defaults to 32473, the RFC 5612
 	// documentation PEN; set your organisation's registered PEN.
 	SyslogPEN string
+}
+
+// TrustsProxyHeaders reports whether r's forwarding headers (X-Real-IP,
+// X-Forwarded-For, X-Forwarded-Host) may be believed: TS_TRUST_PROXY is on
+// and, when TS_TRUSTED_PROXIES is set, the TCP peer is one of those proxies.
+func (c *Config) TrustsProxyHeaders(r *http.Request) bool {
+	if c == nil || !c.TrustProxy {
+		return false
+	}
+	if len(c.TrustedProxies) == 0 {
+		return true
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return false
+	}
+	addr = addr.Unmap()
+	for _, p := range c.TrustedProxies {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseTrustedProxies parses a comma-separated list of IPs and CIDRs.
+func ParseTrustedProxies(raw string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "/") {
+			p, err := netip.ParsePrefix(part)
+			if err != nil {
+				return nil, fmt.Errorf("invalid TS_TRUSTED_PROXIES entry %q: %w", part, err)
+			}
+			out = append(out, p.Masked())
+			continue
+		}
+		a, err := netip.ParseAddr(part)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TS_TRUSTED_PROXIES entry %q: %w", part, err)
+		}
+		a = a.Unmap()
+		out = append(out, netip.PrefixFrom(a, a.BitLen()))
+	}
+	return out, nil
 }
 
 // IsDevelopment reports whether the Hub runs outside production mode.
@@ -79,6 +139,11 @@ func getEnv(key, fallback string) string {
 func Load() *Config {
 	trustProxyStr := strings.ToLower(getEnv("TS_TRUST_PROXY", "false"))
 	isProxyTrusted := trustProxyStr == "true" || trustProxyStr == "1"
+	// A typo here must not silently widen trust to every peer.
+	trustedProxies, err := ParseTrustedProxies(getEnv("TS_TRUSTED_PROXIES", ""))
+	if err != nil {
+		log.Fatalf("[FATAL] %v", err)
+	}
 
 	return &Config{
 		DashboardPassword: getEnv("TS_DASHBOARD_PASSWORD", ""),
@@ -87,6 +152,7 @@ func Load() *Config {
 		Version:           models.HubVersion,
 		Env:               getEnv("TS_ENV", "production"),
 		TrustProxy:        isProxyTrusted,
+		TrustedProxies:    trustedProxies,
 
 		SessionTTL:          getDuration("TS_SESSION_TTL", 12*time.Hour),
 		SessionIdle:         getDuration("TS_SESSION_IDLE_TIMEOUT", 15*time.Minute),

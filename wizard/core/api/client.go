@@ -14,7 +14,7 @@ import (
 )
 
 const wizardUserAgent = "TrueSignal-Wizard/2.0"
-const WizardVersion = "2.0.1"
+const WizardVersion = "2.1.0"
 
 type HubClient struct {
 	baseURL string

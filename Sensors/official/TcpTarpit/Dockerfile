@@ -9,7 +9,7 @@ WORKDIR /src/Sensors/official/TcpTarpit
 RUN go mod download
 
 # Pure Go, fully static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o tcp-tarpit ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o tcp-tarpit .
 
 # STAGE 2: Distroless
 # Back to the fully unprivileged nonroot container!

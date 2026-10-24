@@ -144,7 +144,7 @@ func (h *EventHandler) ArchiveAll(w http.ResponseWriter, r *http.Request) {
 
 func (h *EventHandler) ClearEvents(w http.ResponseWriter, r *http.Request) {
 	dryrun := r.URL.Query().Get("dryrun") == "true"
-	ip := GetRealIP(r, h.Cfg.TrustProxy)
+	ip := GetRealIP(r, h.Cfg.TrustsProxyHeaders(r))
 
 	count, err := h.service.ClearEvents(dryrun, ip)
 

@@ -16,6 +16,10 @@ jobs:
           - truesignal-icmpcanary
           - truesignal-webrouterdecoy
           - truesignal-filecanary
+          - truesignal-identitydecoy
+          - truesignal-databasedecoy
+          - truesignal-remoteaccessdecoy
+          - truesignal-networkservicedecoy
     steps:
       - name: Delete untagged versions for ${{ matrix.package }}
         uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0

@@ -9,7 +9,7 @@ WORKDIR /src/Sensors/official/IcmpCanary
 RUN go mod download
 
 # Pure Go, fully static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o icmp-canary ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o icmp-canary .
 
 # STAGE 2: Distroless
 # We use the standard image instead of :nonroot because raw sockets require UID 0

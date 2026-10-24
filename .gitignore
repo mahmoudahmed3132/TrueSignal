@@ -89,3 +89,6 @@ Hub/cmd/hub/hub
 
 # (Notice: .dockerignore is intentionally NOT here. It must be tracked by Git!)
 Hub/ui/.env.development
+
+# TLS material for Hub/docker-compose.tls.yml: never commit keys
+Hub/deploy/tls/

@@ -25,7 +25,7 @@ func NewService() *Service {
 	s := &Service{
 		clients: make(map[*gorillaws.Conn]*sync.Mutex),
 	}
-	s.upgrader.CheckOrigin = SameOrigin(nil, false)
+	s.upgrader.CheckOrigin = SameOrigin(nil, nil)
 	return s
 }
 
@@ -36,7 +36,7 @@ func (s *Service) SetOriginPolicy(p OriginPolicy) { s.upgrader.CheckOrigin = p }
 // or whose Origin host equals the request Host, the X-Forwarded-Host from a
 // trusted proxy, or one of the hosts returned by extraHosts (e.g. the
 // configured Hub endpoint). This blocks cross-site WebSocket hijacking.
-func SameOrigin(extraHosts func() []string, trustProxy bool) OriginPolicy {
+func SameOrigin(extraHosts func() []string, trustProxy func(*http.Request) bool) OriginPolicy {
 	return func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		if origin == "" {
@@ -47,7 +47,7 @@ func SameOrigin(extraHosts func() []string, trustProxy bool) OriginPolicy {
 			return false
 		}
 		allowed := []string{r.Host}
-		if trustProxy {
+		if trustProxy != nil && trustProxy(r) {
 			if fh := r.Header.Get("X-Forwarded-Host"); fh != "" {
 				allowed = append(allowed, strings.TrimSpace(strings.Split(fh, ",")[0]))
 			}

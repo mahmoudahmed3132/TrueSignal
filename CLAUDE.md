@@ -10,7 +10,8 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 - Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and one SIEM output: syslog streams (tcp/udp/tls, `siem_format` rfc5424|ecs) or HTTPS `elastic` (bulk) / `logscale` (HEC) with ECS (`Docs/siem-integration.md`).
 - **No network/subnet layout and no node inventory** are in the repo. The only SIEM content is the honeytoken rule and queries in `Docs/siem/`. Credential honeytokens exist (§2). Kashier-specific config is [NOT IN PROJECT].
 - Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. The repo is **public** (owner decision 2026-10-24, until further note), so anonymous pulls work once artifacts are published. See §6.
-- Project purpose was left as the literal placeholder `{{WHAT IT IS FOR}}` in the onboarding request. Ask the owner.
+- **Purpose** (owner, 2026-10-24): Early, high-fidelity detection of attacker activity inside the organisation's production environment, cloud or on-prem. Decoy VMs that mirror real production naming and specs sit in an isolated subnet; honeytokens cover the SaaS side. Any interaction with a decoy or token is treated as suspicious by design and raises an alert in the SIEM (LogScale or Elastic, whichever the Hub's SIEM output targets) for SOC triage. Secondary goals: evidence of internal intrusion-detection capability for PCI DSS and CBE reviews (a supporting control, not a mandated one), and validation of detection coverage through authorised internal testing.
+  - Gaps against this purpose: SaaS honeytokens are not built (only credential honeytokens planted in File Canary lures); the decoy subnet, VM naming and specs are [NOT IN PROJECT].
 
 ## 2. Component map
 
@@ -45,10 +46,10 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 
 **Hub** (`Docs/operations.md` §7, `Hub/docker-compose.yml`)
 - Deploy: `docker compose up -d`, then complete setup in the UI with the **one-time setup token printed in the Hub log** (or `TS_SETUP_TOKEN`), a ≥12-char password and the Hub endpoint. Or set `TS_DASHBOARD_PASSWORD` to lock setup.
-- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473).
+- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_TRUSTED_PROXIES` (IPs/CIDRs whose forwarding headers are believed; empty = any peer, warned at startup; invalid = fatal), `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473).
 - Update: `docker compose pull && docker compose up -d`. Schema migrations run on boot and take a `*.pre-vN-*.bak` VACUUM snapshot first (`Hub/internal/store/migrations.go:304-306`).
-- Roll back: [NOT IN PROJECT]. No documented procedure. Restore the pre-migration `.bak` and pin the old image tag (inference).
-- TLS: the Hub serves plain HTTP. A reverse proxy is required by the docs, but no proxy config is in the repo.
+- Roll back: `Docs/operations.md` §7. No schema change → pin the old `TS_HUB_VERSION`. Schema migrated → the old Hub refuses the newer DB, so stop, move `truesignal.db{,-wal,-shm}` aside (evidence), copy the `pre-vN` `.bak` in, start the old image; data since the upgrade is lost from the Hub and node keys rotated since the snapshot are valid again (rotate them).
+- TLS: the Hub serves plain HTTP. `Hub/docker-compose.tls.yml` adds a digest-pinned unprivileged nginx (`Hub/deploy/nginx/truesignal.conf`) and unpublishes 8080; `TS_BIND_ADDR` limits the published port for an external proxy. F5 BIG-IP: `Docs/operations.md` §11 (iRule to replace, not append, X-Real-IP/XFF; WebSocket profile).
 
 **Node / sensors** (`Docs/operations.md` §1-5)
 - Link: `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | TS_NODE_API_KEY=<key> bash -s -- --link <hub>` (UI `FleetDeployModal.vue`; installer = `install.sh`, optional `--sha256 <hash>` pin). `--api-key` still works but exposes the key in `ps`.
@@ -63,7 +64,8 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 **Sensor release** (`Docs/development/maintainer-workflow.md` §4, `.github|.gitea/workflows/publish-sensor-registry.yml`)
 - Edit `Sensors/official/<Dir>/<name>.json`, then push tag `sensor/<name>/vX.Y.Z` (or `make tag-sensors VERSION=vX.Y.Z`). CI builds the image, injects `version`, tag and digest, and writes to `registry-pages`.
 - Tags are immutable. Never re-push a tag; bump the version instead.
-- Hub release: tag `hub/vX.Y.Z` (`publish-hub.yml`). Wizard release: tag `wizard/vX.Y.Z` (`publish-wizard.yml`, sha256 checksums).
+- Hub release: tag `hub/vX.Y.Z` (`publish-hub.yml`). Wizard release: tag `wizard/vX.Y.Z` (`publish-wizard.yml`, static binaries, sha256 checksums). `make tag-release` tags both from `HubVersion`/`WizardVersion`; `make tag-sensors` tags each sensor at its manifest version. Every publish workflow rejects a tag that doesn't match the version in code/manifest, and a sensor version already in `registry-pages` is never rebuilt. Parallel sensor jobs retry their `registry-pages` push (`scripts/publish-registry.sh`).
+- First publish: GHCR makes new packages under a personal account **private**; set each `truesignal-*` package to Public once, or anonymous pulls fail.
 
 ## 4. Conventions
 

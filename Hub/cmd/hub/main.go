@@ -53,6 +53,9 @@ func main() {
 	log.Printf("Starting TrueSignal Hub v%s initialization...\n", models.HubVersion)
 
 	cfg := config.Load()
+	if cfg.TrustProxy && len(cfg.TrustedProxies) == 0 {
+		log.Println("[WARNING] TS_TRUST_PROXY is on without TS_TRUSTED_PROXIES: any client that reaches the Hub directly can spoof its IP (login rate limit, audit log). Set TS_TRUSTED_PROXIES to your proxy's address.")
+	}
 
 	dbStore, err := store.NewStore(cfg.DBPath)
 	if err != nil {
@@ -96,7 +99,7 @@ func main() {
 				return []string{u.Host}
 			}
 			return nil
-		}, cfg.TrustProxy))
+		}, cfg.TrustsProxyHeaders))
 	}
 
 	authHandler := api.NewAuthHandler(authService, cfg)
@@ -121,7 +124,7 @@ func main() {
 		SessionValidator:  authService,
 		NodeAuthenticator: authService,
 		Auditor:           auditLogger{siem: siemService},
-		TrustProxy:        cfg.TrustProxy,
+		TrustProxy:        cfg.TrustsProxyHeaders,
 	})
 	if err != nil {
 		log.Fatalf("[FATAL] Router setup failed: %v", err)

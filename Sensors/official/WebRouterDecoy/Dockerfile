@@ -9,7 +9,7 @@ WORKDIR /src/Sensors/official/WebRouterDecoy
 RUN go mod download
 
 # Pure Go, fully static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o web-decoy ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o web-decoy .
 
 # STAGE 2: Distroless
 FROM gcr.io/distroless/static-debian12:nonroot

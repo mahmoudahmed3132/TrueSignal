@@ -197,7 +197,7 @@ type Auditor interface {
 // setup attempt) after it completes: method + route pattern, concrete path,
 // response status and client IP. Bodies are never recorded (they can carry
 // passwords).
-func AuditMiddleware(auditor Auditor, trustProxy bool) func(http.Handler) http.Handler {
+func AuditMiddleware(auditor Auditor, trustProxy func(*http.Request) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if auditor == nil || r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
@@ -215,7 +215,7 @@ func AuditMiddleware(auditor Auditor, trustProxy bool) func(http.Handler) http.H
 			if status == 0 {
 				status = http.StatusOK
 			}
-			auditor.Audit(r.Method+" "+pattern, r.URL.Path, status, GetRealIP(r, trustProxy))
+			auditor.Audit(r.Method+" "+pattern, r.URL.Path, status, GetRealIP(r, trustProxy != nil && trustProxy(r)))
 		})
 	}
 }

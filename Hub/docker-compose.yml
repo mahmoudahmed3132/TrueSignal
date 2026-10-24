@@ -23,8 +23,10 @@ services:
     restart: unless-stopped
     
     ports:
-      # Host port is configurable; the Hub always listens on 8080 inside.
-      - "${TS_PORT:-8080}:8080"
+      # Host address and port are configurable; the Hub always listens on
+      # 8080 inside. Behind an external proxy (F5), set TS_BIND_ADDR to the
+      # interface the proxy reaches so plain HTTP isn't exposed elsewhere.
+      - "${TS_BIND_ADDR:-0.0.0.0}:${TS_PORT:-8080}:8080"
       
     # --- SECURITY SANDBOX ---
     user: "65532:65532"

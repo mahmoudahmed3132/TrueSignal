@@ -41,7 +41,9 @@ type RouterConfig struct {
 	SessionValidator  SessionValidator
 	NodeAuthenticator NodeAuthenticator
 	Auditor           Auditor
-	TrustProxy        bool
+	// TrustProxy reports whether a request's forwarding headers come from a
+	// trusted reverse proxy (config.Config.TrustsProxyHeaders).
+	TrustProxy func(*http.Request) bool
 }
 
 const (

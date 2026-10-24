@@ -119,8 +119,10 @@ services:
     environment:
       - TS_PORT=8080
       - TS_DB_PATH=/data/truesignal.db
-      # Set to true only when a reverse proxy sets X-Forwarded-For / X-Real-IP
+      # Set both only when a reverse proxy sets X-Forwarded-For / X-Real-IP;
+      # TS_TRUSTED_PROXIES is the proxy's address as the Hub sees it
       # - TS_TRUST_PROXY=true
+      # - TS_TRUSTED_PROXIES=<proxy IP or CIDR>
       # Optional: choose the one-time setup token instead of reading it from the log
       # - TS_SETUP_TOKEN=<random string>
       # Optional: Hardcode the dashboard password (disables the UI password reset feature)
@@ -129,7 +131,7 @@ services:
       # - TS_ENV=development
 ```
 
-The Hub runs in production mode by default, which marks the session cookie `Secure`: browsers will only send it over HTTPS. Put a TLS reverse proxy (Nginx, Caddy, Traefik, F5, ...) in front of it. For a quick local trial over plain HTTP, uncomment `TS_ENV=development`, and never leave it set in production.
+The Hub runs in production mode by default, which marks the session cookie `Secure`: browsers will only send it over HTTPS. Put a TLS reverse proxy in front of it: `Hub/docker-compose.tls.yml` adds a hardened nginx (`docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d`), and [Operations §11](./Docs/operations.md#11-tls-in-front-of-the-hub) covers F5 BIG-IP. For a quick local trial over plain HTTP, uncomment `TS_ENV=development`, and never leave it set in production.
 
 Start the Hub:
 ```bash

@@ -24,7 +24,7 @@ func NewAuthHandler(svc *auth.Service, cfg *config.Config) *AuthHandler {
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	ip := GetRealIP(r, h.Cfg.TrustProxy)
+	ip := GetRealIP(r, h.Cfg.TrustsProxyHeaders(r))
 
 	var req struct {
 		Password string `json:"password"`
