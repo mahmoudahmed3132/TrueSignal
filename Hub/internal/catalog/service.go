@@ -39,19 +39,14 @@ type Service struct {
 	indexCache  *RegistryIndex
 	mu          sync.RWMutex
 	onChange    func()
-	httpClient  *http.Client
 }
 
 // NewService starts with no index; the first lookup or RefreshIndex loads it
 // from the registry. (A hard-coded bootstrap index previously advertised
 // sensor versions that do not exist.)
 func NewService(store Store, broadcaster Broadcaster) *Service {
-	return &Service{store: store, broadcaster: broadcaster, httpClient: &http.Client{Timeout: 10 * time.Second}}
+	return &Service{store: store, broadcaster: broadcaster}
 }
-
-// SetHTTPClient replaces the client used for registry requests (for example
-// one that authenticates to a private GitHub registry).
-func (s *Service) SetHTTPClient(c *http.Client) { s.httpClient = c }
 
 func (s *Service) SetOnChangeHook(hook func()) {
 	s.mu.Lock()
@@ -68,7 +63,8 @@ func (s *Service) RefreshIndex() error {
 	indexURL := strings.TrimRight(registryURL, "/") + "/index.json"
 	var idx RegistryIndex
 
-	resp, err := s.httpClient.Get(indexURL)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(indexURL)
 	if err != nil {
 		return fmt.Errorf("sensor registry unreachable: %w", err)
 	}

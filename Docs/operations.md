@@ -22,11 +22,9 @@ A **Node** is any physical or virtual machine where you want to deploy deceptive
 2. **Provisioning:** Once created, the Hub will generate a unique Node API Key and a setup command. **The key is shown only once.** The Hub stores only its SHA-256 hash, so it cannot show it again; if you lose it, rotate it (see §8).
 3. **Link the Node:** SSH into your target machine and run the provided command. This command is an all-in-one script that installs the Setup Wizard on the host and immediately links the node to the Hub, establishing trust for its first deployment and all future deployment updates:
    ```bash
-   export TS_GITHUB_TOKEN='<contents-read token>' TS_REGISTRY_USER='<ghcr user>' TS_REGISTRY_TOKEN='<read:packages token>'
-   printf 'Authorization: token %s\n' "$TS_GITHUB_TOKEN" | curl -fsSL -H @- https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh \
-     | TS_NODE_API_KEY=<key> bash -s -- --link <hub-url>
+   curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | TS_NODE_API_KEY=<key> bash -s -- --link <hub-url>
    ```
-   Secrets are passed in the environment rather than as arguments, so they do not show up in the process list. They still land in your shell history; clear it if that matters. The tokens are described in §10. With a public repository, drop the `export` line and the `printf ... -H @-` part.
+   The key is passed in the environment (`TS_NODE_API_KEY`) rather than as `--api-key`, so it does not show up in the process list. It still lands in your shell history; clear it if that matters.
 4. **Pin the binary (recommended):** `install.sh` verifies the download against the release's `checksums.txt`, which detects corruption but not a tampered release. Add `--sha256 <expected-hash>` to require a specific binary hash obtained out of band.
 
 ## 2. Sensor Deployment
@@ -78,8 +76,7 @@ To cleanly remove TrueSignal from a host:
 The Setup Wizard itself is updated independently from the sensors. The same curl script provided by the Hub to install the wizard can also be used to safely update it in place:
 
 ```bash
-export TS_GITHUB_TOKEN='<contents-read token>'
-printf 'Authorization: token %s\n' "$TS_GITHUB_TOKEN" | curl -fsSL -H @- https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash
 ```
 
 This will download the latest binary for your architecture and replace the existing installation without affecting any running sensors or node configurations.
@@ -121,25 +118,3 @@ Sensor liveness is reported through the normal event pipeline, so it reaches the
 | `sensor_recovered` | `info` | A sensor that was offline sent a heartbeat again. |
 
 A killed or stopped decoy is therefore visible in the SIEM. Sensors that were added but never deployed do not alert. Build a SIEM rule on `sensor_heartbeat_lost` rather than on `sensor_stopped`, which also fires on routine redeploys.
-
-## 10. Private Repository Access
-
-The repository, the `registry-pages` branch, the wizard releases and the `ghcr.io` images are private. Three credentials cover the three places that pull from GitHub. Create them on a dedicated GitHub machine account with read access to this repository only, not on a personal admin account.
-
-| Credential | Type and scope | Where it lives | Used for |
-|---|---|---|---|
-| `TS_GITHUB_TOKEN` (Hub) | Fine-grained PAT, this repository only, **Contents: read** (Metadata: read is implied) | Hub environment (`Hub/docker-compose.yml` reads it from the host env or `.env`) | Sensor registry (`registry_url` on `raw.githubusercontent.com`) and the release check (`api.github.com`). The Hub sends it **only** to those two hosts over HTTPS, so pointing `registry_url` elsewhere cannot leak it. |
-| `TS_GITHUB_TOKEN` (installer) | Same token type | Operator's shell, for the install only; never written to the node | Fetching `install.sh` and the wizard release through the API. |
-| `TS_REGISTRY_USER` / `TS_REGISTRY_TOKEN` (node) | **Classic** PAT with only `read:packages` (ghcr.io does not accept fine-grained PATs) | `/etc/truesignal/docker/config.json` (dir `0700`, file `0600`, root), used as `DOCKER_CONFIG` for the wizard's pull/up commands only | Pulling sensor images from `ghcr.io`. Sensor containers never receive it. |
-
-The Hub host also pulls `ghcr.io/mahmoudahmed3132/truesignal-hub`, so run `docker login ghcr.io` there with a `read:packages` token before `docker compose pull`.
-
-**Risk:** a classic `read:packages` token can read every package the issuing account can read, and it sits on every node. That is why it must come from a machine account that can see only these packages. A compromised node exposes it; rotate it on node compromise.
-
-**Rotate the node pull token:** issue a new token, then on each node run
-```bash
-sudo TS_REGISTRY_USER='<ghcr user>' TS_REGISTRY_TOKEN='<new token>' truesignal registry-login
-```
-(or run `sudo truesignal registry-login` and answer the prompts), then revoke the old token. `truesignal registry-logout` removes the credential; `truesignal uninstall` removes it too.
-
-**Rotate the Hub token:** update `TS_GITHUB_TOKEN` in the Hub environment and `docker compose up -d`.

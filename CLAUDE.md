@@ -9,7 +9,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 - It has a Go Hub (API + SQLite + Vue UI), 6 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
 - Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and syslog (TCP/UDP).
 - **No SIEM rules, no honeytokens, no network/subnet layout and no node inventory** are in the repo. Kashier-specific config is [NOT IN PROJECT].
-- Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. Owner decision (2026-10-23): the repo stays **private** and pulls use tokens (`TS_GITHUB_TOKEN`, `TS_REGISTRY_USER`/`TS_REGISTRY_TOKEN`). See §6.
+- Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. The repo is **public** (owner decision 2026-10-24, until further note), so anonymous pulls work once artifacts are published. See §6.
 - Project purpose was left as the literal placeholder `{{WHAT IT IS FOR}}` in the onboarding request. Ask the owner.
 
 ## 2. Component map
@@ -42,7 +42,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 
 **Hub** (`Docs/operations.md` §7, `Hub/docker-compose.yml`)
 - Deploy: `docker compose up -d`, then complete setup in the UI with the **one-time setup token printed in the Hub log** (or `TS_SETUP_TOKEN`), a ≥12-char password and the Hub endpoint. Or set `TS_DASHBOARD_PASSWORD` to lock setup.
-- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473), `TS_GITHUB_TOKEN` (read-only; sent only to `raw.githubusercontent.com`/`api.github.com`, `Hub/internal/ghauth`).
+- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473).
 - Update: `docker compose pull && docker compose up -d`. Schema migrations run on boot and take a `*.pre-vN-*.bak` VACUUM snapshot first (`Hub/internal/store/migrations.go:304-306`).
 - Roll back: [NOT IN PROJECT]. No documented procedure. Restore the pre-migration `.bak` and pin the old image tag (inference).
 - TLS: the Hub serves plain HTTP. A reverse proxy is required by the docs, but no proxy config is in the repo.
@@ -93,14 +93,14 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 Not stated anywhere in the repo, so treat as [NOT IN PROJECT]: decoy egress restrictions, a "no real data on decoys" rule, network segmentation of decoys, a data classification of captured credentials.
 Residual gaps (unsigned manifests/images, root + host netns sensors, single admin without MFA) are in KNOWLEDGE-GAPS §4.
 
-## 6. Distribution endpoints (owner GitHub; private repo with token pulls; nothing published yet)
+## 6. Distribution endpoints (owner GitHub; repo is public; nothing published yet)
 
-- Visibility: on 2026-10-23 GitHub still reported the repo as **public**; the owner chose private + tokens. Flipping visibility is a manual GitHub setting.
-- `registry_url` default is `https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages` (`Hub/internal/store/sqlite.go`). The branch doesn't exist until the first `sensor/*` tag is published. The Hub fetches it with `TS_GITHUB_TOKEN` (fine-grained, Contents: read).
-- Sensor images are `ghcr.io/mahmoudahmed3132/truesignal-*` (all `Sensors/official/*/*.json`). The Hub image is `ghcr.io/mahmoudahmed3132/truesignal-hub:latest` (`Hub/docker-compose.yml`, `README.md`). None are pushed yet. Nodes pull with a classic `read:packages` PAT stored by `truesignal registry-login` (or `--link` with `TS_REGISTRY_USER`/`TS_REGISTRY_TOKEN`) in `/etc/truesignal/docker` and used as `DOCKER_CONFIG` for pull/up only (`wizard/internal/deploy/registry.go`). Never distribute it through the Hub: sensors hold the node key.
-- Installer: `install.sh` takes `TS_GITHUB_TOKEN` (not persisted) and downloads the wizard via the API asset endpoint. Full command: UI `FleetDeployModal.vue`, `Docs/operations.md` §1/§10.
-- The Hub update check polls `api.github.com/repos/mahmoudahmed3132/TrueSignal/releases` every 24h (`Hub/internal/services/updater/updater.go`) with the same token.
-- The Python template pip-installs the SDK from this repo `@main` (`Sensors/templates/python-sensor/requirements.txt`); with a private repo that needs git credentials.
+- `registry_url` default is `https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages` (`Hub/internal/store/sqlite.go:73`). The branch doesn't exist until the first `sensor/*` tag is published.
+- Sensor images are `ghcr.io/mahmoudahmed3132/truesignal-*` (all `Sensors/official/*/*.json`). The Hub image is `ghcr.io/mahmoudahmed3132/truesignal-hub:latest` (`Hub/docker-compose.yml`, `README.md`). None are pushed yet.
+- Installer: `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash` (UI). The wizard comes from this repo's Releases (`install.sh:92-108`).
+- The Hub update check polls `api.github.com/repos/mahmoudahmed3132/TrueSignal/releases` every 24h (`Hub/internal/services/updater/updater.go:18`). It returns no wizard/hub releases until one is published; that only logs and retries.
+- The Python template pip-installs the SDK from this repo `@main` (`Sensors/templates/python-sensor/requirements.txt`).
+- Going private is deferred. Token-authenticated pulls (Hub `TS_GITHUB_TOKEN`, wizard `registry-login`, installer via API assets) were built in commit `4013e0d` and reverted on 2026-10-24 at the owner's request; revert the revert if the repo goes private.
 - Brand rule: never reintroduce `HoneyWire`, `HW_` or `hw-` identifiers. Upstream's name appears only in `NOTICE`, the README credits and the CHANGELOG "Upstream history" section.
 
 ## 7. Where things live / what to read

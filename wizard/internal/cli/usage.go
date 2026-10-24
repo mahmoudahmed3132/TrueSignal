@@ -25,8 +25,6 @@ func SetupUsage() {
 		printUsage("  %sstatus%s     Show linked node, sync state, and installed sensors\n", Cyan, Reset)
 		printUsage("  %srelink%s     Replace local node identity with a new node\n", Cyan, Reset)
 		printUsage("               ↳ Optional args: <hub_url> <api_key>\n")
-		printUsage("  %sregistry-login%s   Store or rotate the private image pull credential\n", Cyan, Reset)
-		printUsage("  %sregistry-logout%s  Remove the image pull credential\n", Cyan, Reset)
 		printUsage("  %suninstall%s  Tear down sensors and remove node identity\n", Red, Reset)
 
 		printUsage("\nBootstrap:\n")
@@ -40,9 +38,6 @@ func SetupUsage() {
 
 		printUsage("\nEnvironment:\n")
 		printUsage("  TS_DASHBOARD_PASSWORD  Dashboard password (non-interactive use)\n")
-		printUsage("  TS_NODE_API_KEY        Node API key for --link (keeps it out of the process list)\n")
-		printUsage("  TS_REGISTRY_USER       Image registry username (private sensor images)\n")
-		printUsage("  TS_REGISTRY_TOKEN      Image registry token, read:packages only; used by --link and registry-login\n")
-		printUsage("  TS_REGISTRY            Image registry host (default ghcr.io)\n\n")
+		printUsage("  TS_NODE_API_KEY        Node API key for --link (keeps it out of the process list)\n\n")
 	}
 }

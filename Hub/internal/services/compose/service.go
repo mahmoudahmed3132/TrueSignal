@@ -37,7 +37,6 @@ type Service struct {
 	cache         map[string]models.SensorManifest
 	mu            sync.RWMutex
 	allowUnpinned bool
-	httpClient    *http.Client
 }
 
 // maxManifestBytes bounds registry responses; real manifests are a few KB.
@@ -53,15 +52,11 @@ func (s *Service) AllowUnpinnedImages(allow bool) { s.allowUnpinned = allow }
 
 func NewService(store Store, catalogSvc *catalog.Service) *Service {
 	return &Service{
-		store:      store,
-		catalog:    catalogSvc,
-		cache:      make(map[string]models.SensorManifest),
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		store:   store,
+		catalog: catalogSvc,
+		cache:   make(map[string]models.SensorManifest),
 	}
 }
-
-// SetHTTPClient replaces the client used for manifest requests.
-func (s *Service) SetHTTPClient(c *http.Client) { s.httpClient = c }
 
 // --- DTOs ---
 
@@ -127,7 +122,8 @@ func (s *Service) fetchStrictCatalogManifests(currentHubVersion string) ([]model
 		sensorName := strings.TrimPrefix(sensor.ID, "ts-sensor-")
 		manifestURL := fmt.Sprintf("%s/%s-v%s.json", strings.TrimRight(registryURL, "/"), sensorName, targetVersion)
 
-		mResp, fetchErr := s.httpClient.Get(manifestURL)
+		client := &http.Client{Timeout: 10 * time.Second}
+		mResp, fetchErr := client.Get(manifestURL)
 		if fetchErr != nil {
 			log.Printf("[WARNING] Failed to fetch %s: %v", manifestURL, fetchErr)
 			continue
@@ -183,7 +179,8 @@ func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models
 		return &cached, nil
 	}
 
-	mResp, fetchErr := s.httpClient.Get(manifestURL)
+	client := &http.Client{Timeout: 10 * time.Second}
+	mResp, fetchErr := client.Get(manifestURL)
 	if fetchErr != nil {
 		log.Printf("[ERROR] FetchSpecificManifest network error: %v", fetchErr)
 		return nil, fetchErr
