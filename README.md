@@ -1,0 +1,1 @@
+# TrueSignal Sensor Registry
