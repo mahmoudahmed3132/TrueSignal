@@ -124,6 +124,16 @@ func TestECSLivenessAndFileMapping(t *testing.T) {
 	}
 }
 
+func TestECSHoneytokenUsed(t *testing.T) {
+	svc := NewService(nil)
+	doc := roundTrip(t, svc.ecsEvent(models.Event{EventTrigger: "honeytoken_used", Severity: "critical", Source: "10.1.2.3",
+		Details: json.RawMessage(`{"honeytoken_username":"svc_backup7f3a","planted_node_id":"node-a"}`)}))
+	cats, _ := get(doc, "event.category").([]any)
+	if get(doc, "user.name") != "svc_backup7f3a" || len(cats) != 2 || cats[1] != "authentication" || get(doc, "event.outcome") != "failure" {
+		t.Fatalf("honeytoken_used ECS = %v", doc)
+	}
+}
+
 func TestECSAuditMapping(t *testing.T) {
 	svc := NewService(nil)
 	doc := roundTrip(t, svc.ecsAudit(AuditRecord{Action: "POST /login", Path: "/login", Status: 401, ActorIP: "10.1.1.1"}))

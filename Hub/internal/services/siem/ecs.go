@@ -47,7 +47,7 @@ func ecsClassify(trigger string, whitelisted bool) (string, []string) {
 	case strings.HasPrefix(trigger, "sensor_"):
 		// Hub-generated liveness (sensor_stopped, sensor_heartbeat_lost, ...).
 		return "event", []string{"host"}
-	case strings.HasSuffix(trigger, "_login") || strings.HasPrefix(trigger, "web_login"):
+	case strings.HasSuffix(trigger, "_login") || strings.HasPrefix(trigger, "web_login") || trigger == "honeytoken_used":
 		return kind, []string{"intrusion_detection", "authentication"}
 	case strings.HasPrefix(trigger, "decoy_file_"):
 		return kind, []string{"intrusion_detection", "file"}
@@ -151,7 +151,7 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 // ecsUser extracts the attempted account. Secrets (passwords, HMACs, NTLM
 // responses) stay under truesignal.details only.
 func ecsUser(details map[string]any) map[string]any {
-	for _, key := range []string{"username", "attempted_username", "bind_dn"} {
+	for _, key := range []string{"honeytoken_username", "username", "attempted_username", "bind_dn"} {
 		name, ok := details[key].(string)
 		if !ok || name == "" {
 			continue

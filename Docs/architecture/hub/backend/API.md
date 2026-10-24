@@ -469,6 +469,14 @@ Returns a list of events, newest first.
 - `nodeId` — filter by node ID
 - `sensorId` — filter by sensor ID
 
+### GET /api/v2/honeytokens
+
+Lists the honeytokens the Hub has planted (one per File Canary instance, created on its first compose render). The secret and its HMAC are never returned; the secret is in the lure files.
+
+```json
+[{"id":"ht_956c6041","username":"svc_reports97ef","nodeId":"node-d41340e4","sensorId":"ts-sensor-file-canary","createdAt":"2026-10-24T02:19:11Z","lastUsedAt":"2026-10-24T02:19:40Z","useCount":2}]
+```
+
 ### GET /api/v2/events/export
 
 Exports events as a downloadable JSON file (`truesignal_events.json`).

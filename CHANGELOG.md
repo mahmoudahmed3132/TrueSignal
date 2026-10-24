@@ -1,3 +1,13 @@
+# [Unreleased] - Honeytokens (2026-10-24)
+
+### Credential honeytokens linked to the decoys
+* The Hub creates one fabricated credential per File Canary instance (username like `svc_reports97ef` plus a random password; new `honeytokens` table, schema migration v4, no foreign keys so attribution survives node/sensor deletion). It injects it as the reserved `TS_HONEYTOKEN`, and the provisioner writes it into lures it creates (`.env`, PHP config, `.pgpass`, SQL dump restore line, VPN config, generic backups). Existing host files are never modified.
+* Every incoming event is checked: attempted usernames (`DOMAIN\user`, UPN and bind DN forms) and password HMACs. A match raises a **critical `honeytoken_used`** naming the lure's node and sensor, the triggering event and what matched. It is not suppressed by the source whitelist; sensors that send it themselves get HTTP 400.
+* **Fleet capture key:** the Hub generates `capture_hash_key` and injects it as `TS_CAPTURE_HASH_KEY` into decoys that declare it (Identity Decoy, Web Router Decoy), so their password HMACs are comparable fleet-wide. A UI value is now ignored. Trade-off: root on one hashing node can dictionary-test HMACs from the whole fleet (see `THREATMODEL.md`).
+* `GET /api/v2/honeytokens` lists tokens, where they are planted and their use count. Secrets are never returned.
+* ECS output maps `honeytoken_used` to `intrusion_detection`/`authentication` with `user.name` = the honeytoken username.
+* Verified end to end with real binaries: File Canary planted the token on node A; ldap3 simple and NTLM binds with it against an Identity Decoy on node B raised `honeytoken_used` (`username+password`, then `username`).
+
 # [Unreleased] - ECS SIEM output (2026-10-24)
 
 ### Hub: ECS and HTTP SIEM outputs

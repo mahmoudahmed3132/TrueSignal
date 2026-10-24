@@ -37,6 +37,26 @@ type Service struct {
 	cache         map[string]models.SensorManifest
 	mu            sync.RWMutex
 	allowUnpinned bool
+	honeytokens   HoneytokenProvider
+}
+
+// HoneytokenProvider supplies the fleet capture key and each File Canary
+// instance's planted credential.
+type HoneytokenProvider interface {
+	CaptureKey() (string, error)
+	TokenFor(nodeID, sensorID string) (models.Honeytoken, error)
+}
+
+// SetHoneytokens enables injection of TS_CAPTURE_HASH_KEY and TS_HONEYTOKEN.
+func (s *Service) SetHoneytokens(p HoneytokenProvider) { s.honeytokens = p }
+
+func declaresEnv(m models.SensorManifest, name string) bool {
+	for _, v := range m.Deployment.EnvVars {
+		if v.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // maxManifestBytes bounds registry responses; real manifests are a few KB.
@@ -322,6 +342,25 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 		}
 		if effectiveRevision != "" {
 			sysVars["TS_CONFIG_REV"] = effectiveRevision
+		}
+		// Decoys that hash captured passwords get the fleet key, so their
+		// HMACs can be matched against honeytokens; File Canary instances get
+		// the credential to plant in their lures.
+		if s.honeytokens != nil {
+			if declaresEnv(manifest, "TS_CAPTURE_HASH_KEY") {
+				key, err := s.honeytokens.CaptureKey()
+				if err != nil {
+					return nil, fmt.Errorf("capture_key: %w", err)
+				}
+				sysVars["TS_CAPTURE_HASH_KEY"] = key
+			}
+			if declaresEnv(manifest, "TS_HONEYTOKEN") {
+				tok, err := s.honeytokens.TokenFor(nodeID, sensor.ID)
+				if err != nil {
+					return nil, fmt.Errorf("honeytoken: %w", err)
+				}
+				sysVars["TS_HONEYTOKEN"] = tok.Username + ":" + tok.Secret
+			}
 		}
 
 		envMap := composeEngine.BuildEnv(manifest, userVars, sysVars)

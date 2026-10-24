@@ -310,6 +310,31 @@ var migrations = []Migration{
 			return nil
 		},
 	},
+	{
+		Version:     4,
+		Description: "Honeytokens planted in lures",
+		Up: func(tx *sql.Tx) error {
+			// No foreign keys: a honeytoken must stay attributable after its
+			// node or sensor is deleted, because the lure that carries it can
+			// still be on disk (uninstall leaves lure files in place).
+			_, err := tx.Exec(`
+				CREATE TABLE IF NOT EXISTS honeytokens (
+					id           TEXT PRIMARY KEY,
+					username     TEXT NOT NULL UNIQUE COLLATE NOCASE,
+					secret       TEXT NOT NULL,
+					secret_hmac  TEXT NOT NULL,
+					node_id      TEXT NOT NULL,
+					sensor_id    TEXT NOT NULL,
+					created_at   TEXT NOT NULL,
+					last_used_at TEXT NOT NULL DEFAULT '',
+					use_count    INTEGER NOT NULL DEFAULT 0,
+					UNIQUE(node_id, sensor_id)
+				);
+				CREATE INDEX IF NOT EXISTS idx_honeytokens_hmac ON honeytokens(secret_hmac);
+			`)
+			return err
+		},
+	},
 }
 
 // RunMigrations applies all pending schema changes transactionally.

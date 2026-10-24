@@ -141,6 +141,14 @@
         "hidden": false
       },
       {
+        "name": "TS_HONEYTOKEN",
+        "description": "Set by the Hub: the fabricated user:password planted in newly created lures. Using it against any decoy raises honeytoken_used.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
         "name": "TS_ALERT_COOLDOWN",
         "description": "Seconds to collapse repeated identical file events (one read fires several inotify events).",
         "default": "10",

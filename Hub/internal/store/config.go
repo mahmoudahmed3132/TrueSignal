@@ -134,6 +134,7 @@ func (s *SQLiteStore) FactoryReset() error {
 		"DELETE FROM node_sensors",
 		"DELETE FROM nodes",
 		"DELETE FROM config",
+		"DELETE FROM honeytokens",
 		// Reset the autoincrement counter for the events table.
 		"DELETE FROM sqlite_sequence WHERE name = 'events'",
 	}
@@ -161,6 +162,7 @@ func (s *SQLiteStore) FactoryResetDryRun() (map[string]int, error) {
 		"sensor_status_changes": "SELECT COUNT(*) FROM sensor_status_changes",
 		"node_sensors":          "SELECT COUNT(*) FROM node_sensors",
 		"nodes":                 "SELECT COUNT(*) FROM nodes",
+		"honeytokens":           "SELECT COUNT(*) FROM honeytokens",
 	}
 
 	for key, query := range queries {

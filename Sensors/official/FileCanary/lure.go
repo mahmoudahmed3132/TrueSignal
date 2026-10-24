@@ -11,14 +11,31 @@ import (
 	"time"
 )
 
+// honeytoken is the fabricated credential the Hub assigns to this sensor
+// (TS_HONEYTOKEN="user:password"). Lures embed it so that a later login with
+// it on any decoy raises honeytoken_used and names this lure's sensor.
+type honeytoken struct{ user, password string }
+
+func parseHoneytoken(v string) (honeytoken, bool) {
+	user, pass, ok := strings.Cut(strings.TrimSpace(v), ":")
+	if !ok || user == "" || pass == "" {
+		return honeytoken{}, false
+	}
+	return honeytoken{user: user, password: pass}, true
+}
+
 // lureContent returns plausible, entirely fabricated content for a newly
 // created decoy file, chosen by file name. Nothing here is real data: every
-// secret is random and every host is loopback, so a lure can never leak
-// anything. An empty "dump.sql.bak" is an immediate tell; realistic content
-// invites the attacker to open, copy and use it.
-func lureContent(name string) []byte {
+// secret is random or a Hub-issued honeytoken, and every host is loopback, so
+// a lure can never leak anything. An empty "dump.sql.bak" is an immediate
+// tell; realistic content invites the attacker to open, copy and use it.
+func lureContent(name string, tok honeytoken) []byte {
 	lower := strings.ToLower(name)
 	secret := randHex(16)
+	user := "app"
+	if tok.user != "" {
+		user, secret = tok.user, tok.password
+	}
 	switch {
 	case strings.Contains(lower, ".env"):
 		return []byte(fmt.Sprintf(`APP_ENV=production
@@ -27,27 +44,32 @@ DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=app
-DB_USERNAME=app
+DB_USERNAME=%s
 DB_PASSWORD=%s
 REDIS_PASSWORD=%s
 AWS_ACCESS_KEY_ID=AKIA%s
 AWS_SECRET_ACCESS_KEY=%s
-`, randB64(32), secret, randHex(12), strings.ToUpper(randHex(8)), randB64(30)))
+`, randB64(32), user, secret, randHex(12), strings.ToUpper(randHex(8)), randB64(30)))
 	case strings.HasSuffix(lower, ".php"):
 		return []byte(fmt.Sprintf(`<?php
 // Backup of production configuration
 define('DB_NAME', 'app');
-define('DB_USER', 'app');
+define('DB_USER', '%s');
 define('DB_PASSWORD', '%s');
 define('DB_HOST', 'localhost');
 define('AUTH_KEY', '%s');
-`, secret, randHex(32)))
+`, user, secret, randHex(32)))
 	case strings.Contains(lower, "pgpass"):
-		return []byte(fmt.Sprintf("localhost:5432:*:postgres:%s\n", secret))
+		pgUser := "postgres"
+		if tok.user != "" {
+			pgUser = tok.user
+		}
+		return []byte(fmt.Sprintf("localhost:5432:*:%s:%s\n", pgUser, secret))
 	case strings.Contains(lower, ".sql"), strings.HasSuffix(lower, ".bak"):
 		return []byte(fmt.Sprintf(`-- MySQL dump 10.13  Distrib 8.0.36
 -- Host: localhost    Database: app
 -- Dump completed on %s
+-- Restore: mysql -h 127.0.0.1 -u %s -p'%s' app < dump.sql
 
 DROP TABLE IF EXISTS `+"`users`"+`;
 CREATE TABLE `+"`users`"+` (
@@ -57,9 +79,10 @@ CREATE TABLE `+"`users`"+` (
   PRIMARY KEY (`+"`id`"+`)
 );
 INSERT INTO `+"`users`"+` VALUES (1,'admin@localhost','$2y$10$%s');
-`, time.Now().UTC().Format("2006-01-02 15:04:05"), randB64(40)))
+`, time.Now().UTC().Format("2006-01-02 15:04:05"), user, secret, randB64(40)))
 	case strings.Contains(lower, "vpn") || strings.Contains(lower, "wg") || strings.Contains(lower, "key"):
-		return []byte(fmt.Sprintf(`[Interface]
+		return []byte(fmt.Sprintf(`# Provisioned for %s (portal password: %s)
+[Interface]
 PrivateKey = %s
 Address = 10.66.0.2/32
 
@@ -67,9 +90,9 @@ Address = 10.66.0.2/32
 PublicKey = %s
 AllowedIPs = 10.66.0.0/24
 Endpoint = 127.0.0.1:51820
-`, randB64(32), randB64(32)))
+`, user, secret, randB64(32), randB64(32)))
 	default:
-		return []byte(fmt.Sprintf("# backup %s\ntoken=%s\n", time.Now().UTC().Format(time.RFC3339), secret))
+		return []byte(fmt.Sprintf("# backup %s\nusername=%s\npassword=%s\ntoken=%s\n", time.Now().UTC().Format(time.RFC3339), user, secret, randHex(16)))
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	composesvc "github.com/truesignal/hub/internal/services/compose"
 	"github.com/truesignal/hub/internal/services/config"
 	"github.com/truesignal/hub/internal/services/event"
+	"github.com/truesignal/hub/internal/services/honeytoken"
 	"github.com/truesignal/hub/internal/services/node"
 	"github.com/truesignal/hub/internal/services/notify"
 	"github.com/truesignal/hub/internal/services/sensor"
@@ -72,10 +73,13 @@ func main() {
 	siemService := siem.NewService(nodeSvc, siem.Options{PEN: cfg.SyslogPEN, CAFile: cfg.SIEMCAFile})
 	notifyService := notify.NewService(nodeSvc)
 	eventSvc := event.NewService(dbStore, wsService, siemService, notifyService)
+	honeytokenSvc := honeytoken.NewService(dbStore)
+	eventSvc.SetHoneytokenMatcher(honeytokenSvc)
 	sensorSvc := sensor.NewService(dbStore, wsService, eventSvc)
 	configService := config.NewService(dbStore, authService, siemService, notifyService, cfg.DashboardPassword, cfg.Version)
 	composeService := composesvc.NewService(dbStore, catalogService)
 	composeService.AllowUnpinnedImages(cfg.AllowUnpinnedImages)
+	composeService.SetHoneytokens(honeytokenSvc)
 	if cfg.AllowUnpinnedImages {
 		log.Println("[WARNING] TS_ALLOW_UNPINNED_IMAGES=true: sensor images are not required to be digest-pinned. Do not use in production.")
 	}
@@ -111,6 +115,7 @@ func main() {
 		Analytics:         analyticsHandler,
 		Config:            configHandler,
 		Compose:           composeHandler,
+		Honeytokens:       api.NewHoneytokenHandler(honeytokenSvc),
 		WSService:         wsService,
 		SessionValidator:  authService,
 		NodeAuthenticator: authService,

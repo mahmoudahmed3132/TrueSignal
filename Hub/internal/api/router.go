@@ -36,6 +36,7 @@ type RouterConfig struct {
 	Analytics         *AnalyticsHandler
 	Config            *ConfigHandler
 	Compose           *ComposeHandler
+	Honeytokens       *HoneytokenHandler
 	WSService         *websocket.Service
 	SessionValidator  SessionValidator
 	NodeAuthenticator NodeAuthenticator
@@ -115,6 +116,9 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Patch("/api/v2/events/read", cfg.Events.MarkEventsRead)
 		r.Patch("/api/v2/events/{eventId}/read", cfg.Events.MarkSingleEventRead)
 		r.Get("/api/v2/events/export", cfg.Events.ExportEvents)
+		if cfg.Honeytokens != nil {
+			r.Get("/api/v2/honeytokens", cfg.Honeytokens.ListHoneytokens)
+		}
 		r.Delete("/api/v2/events", cfg.Events.ClearEvents)
 		r.Patch("/api/v2/events/{eventId}/archive", cfg.Events.ArchiveEvent)
 		r.Patch("/api/v2/events/archive-all", cfg.Events.ArchiveAll)

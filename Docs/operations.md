@@ -118,3 +118,17 @@ Sensor liveness is reported through the normal event pipeline, so it reaches the
 | `sensor_recovered` | `info` | A sensor that was offline sent a heartbeat again. |
 
 A killed or stopped decoy is therefore visible in the SIEM. Sensors that were added but never deployed do not alert. Build a SIEM rule on `sensor_heartbeat_lost` rather than on `sensor_stopped`, which also fires on routine redeploys.
+
+## 10. Honeytokens
+
+Every File Canary instance plants a credential the Hub fabricates for it. Any later use of that credential against a TrueSignal decoy raises a critical `honeytoken_used` event that names the lure's node and sensor. Lure access only shows that a file was read; this shows the stolen credential being used, and where it was stolen from.
+
+- **Planting:** when the Hub first renders a node's compose, it creates one honeytoken per File Canary instance: a username such as `svc_reports97ef` and a random password. It passes them as `TS_HONEYTOKEN`. The provisioner writes them into lures it **creates** (`.env` `DB_USERNAME`/`DB_PASSWORD`, `wp-config`-style PHP, `.pgpass`, the restore line of an SQL dump, a VPN config comment, generic backups). Existing host files used as tripwires are never modified, so they carry no token. The token is stable: redeploying does not change it.
+- **Detection:** the Hub matches every incoming event:
+  - **Username**, case-insensitive, after reducing `DOMAIN\user`, `user@realm` and the `CN=`/`UID=` of a bind DN. This also covers RDP `mstshash` and LDAP/RDP NTLM captures, which carry no password.
+  - **Password**, by keyed HMAC. The Hub owns one fleet capture key (`capture_hash_key`, generated on first use) and sets it as `TS_CAPTURE_HASH_KEY` on every decoy that hashes passwords (Identity Decoy, Web Router Decoy). A value set in the UI is ignored. `TS_CAPTURE_PASSWORDS=plain` captures are hashed by the Hub.
+- **Inventory:** `GET /api/v2/honeytokens` lists each token with where it was planted, its use count and when it was last used.
+- **Coverage beyond the decoys:** the Hub only sees honeytoken use against TrueSignal decoys. An attacker may also try the credential against real systems (AD, VPN, databases). Load the usernames from `GET /api/v2/honeytokens` into a SIEM watchlist and alert on any authentication by them. They match no real account, so any hit is malicious.
+- **Trade-off of the fleet key:** the key sits in every hashing decoy's compose file (like the node key). Anyone with root on one node can read it and dictionary-test password HMACs captured anywhere in the fleet, in the Hub or in the SIEM. Before the change, each node's HMACs used a key derived from that node's own key. Treat captured HMACs as sensitive.
+- **Lifecycle:** honeytokens survive node and sensor deletion, because their lures can remain on disk (uninstall leaves lure files). A factory reset deletes them and the fleet key; lures already on disk then carry credentials the Hub no longer recognises, so remove and redeploy them.
+

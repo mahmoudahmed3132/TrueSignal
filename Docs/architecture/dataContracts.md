@@ -59,9 +59,10 @@ This is the standard telemetry payload that all sensors (official or community) 
 | `web_path_probe` | Web Router Decoy | `medium` | Request for any other path (`/.env`, `/admin`, ...). Shares the per-source 60 s limit with `web_page_view`. |
 | `sensor_stopped` | Hub | `low` | The sensor reported a graceful shutdown (`POST /api/v2/offline`). `details.reason`. |
 | `sensor_recovered` | Hub | `info` | First heartbeat after an `offline` state. |
+| `honeytoken_used` | Hub | `critical` | A credential the Hub planted in a File Canary lure was used against a decoy (see `Docs/operations.md` §10). `node_id`/`sensor_id`/`source` are where and by whom it was used. `details`: `honeytoken_id`, `honeytoken_username`, `matched_on` (`username`, `password` or `username+password`), `planted_node_id`, `planted_sensor_id`, `triggering_event_id`, `triggering_trigger`, `protocol`, `dst_port`. Never suppressed by the source whitelist. Sensors cannot send it (HTTP 400). |
 | `sensor_heartbeat_lost` | Hub | `high` | No heartbeat for 60 s from a sensor that was online (`details.reason = "heartbeat_timeout"`), or a stopped sensor that has not come back within 5 minutes (`"not_restarted_after_stop"`). |
 
-Hub-raised events use `source = "truesignal-hub"`. Firedrill and `TS_TEST_MODE` events use the sensor's normal trigger with `source = "Wizard Firedrill"`; filter on `source` to exclude them.
+Hub-raised liveness events use `source = "truesignal-hub"`; `honeytoken_used` keeps the attacker's `source` from the triggering event. Firedrill and `TS_TEST_MODE` events use the sensor's normal trigger with `source = "Wizard Firedrill"`; filter on `source` to exclude them.
 
 ---
 

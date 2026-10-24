@@ -8,7 +8,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 - TrueSignal is a fork of **HoneyWire v2.1.0** (AGPLv3, Andrea Termine), a Docker-based deception platform. It was fully rebranded on 2026-10-19: names, UI/logo, Go modules, paths, `TS_`/`ts-` protocol prefixes, distribution endpoints. Attribution lives in `NOTICE` and the README "Credits & License". The same day a security/correctness pass diverged it from upstream v2.1.0 (key hashing, setup token, digest pinning, liveness alerts, evidence retention; see CHANGELOG).
 - It has a Go Hub (API + SQLite + Vue UI), 6 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
 - Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and one SIEM output: syslog streams (tcp/udp/tls, `siem_format` rfc5424|ecs) or HTTPS `elastic` (bulk) / `logscale` (HEC) with ECS (`Docs/siem-integration.md`).
-- **No SIEM rules, no honeytokens, no network/subnet layout and no node inventory** are in the repo. Kashier-specific config is [NOT IN PROJECT].
+- **No SIEM rules, no network/subnet layout and no node inventory** are in the repo. Credential honeytokens exist (§2). Kashier-specific config is [NOT IN PROJECT].
 - Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. The repo is **public** (owner decision 2026-10-24, until further note), so anonymous pulls work once artifacts are published. See §6.
 - Project purpose was left as the literal placeholder `{{WHAT IT IS FOR}}` in the onboarding request. Ask the owner.
 
@@ -29,7 +29,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 | Python SDK | `SDKs/python-truesignal/` | community/template sensors only | same contract | Hub |
 | Registry | `registry-pages` branch (not in this checkout) + `scripts/build-registry-index.sh` | static host | `index.json`, `<sensor>-v<ver>.json` | Hub catalog |
 
-Honeytokens/lures: only File Canary lure files (content by filename, `Sensors/official/FileCanary/lure.go`; paths in `TS_DECOY_FILES`), plus the Web Router login page and Tarpit banners (`TS_TARPIT_BANNERS` per port). There are no credential/cloud/document honeytokens.
+Honeytokens/lures: File Canary lure files (content by filename, `Sensors/official/FileCanary/lure.go`; paths in `TS_DECOY_FILES`), plus the Web Router login page and Tarpit banners (`TS_TARPIT_BANNERS` per port). Credential honeytokens: the Hub creates one per File Canary instance (`Hub/internal/services/honeytoken`, table `honeytokens`, migration v4), injects it as `TS_HONEYTOKEN` into created lures, and matches every event by username or fleet-key password HMAC. A match raises critical `honeytoken_used`, which ignores the whitelist and which sensors cannot send (`Docs/operations.md` §10). No cloud/document/real-AD honeytokens.
 
 Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 - The Hub resets server-owned fields, clamps strings (256), forces `details` to a JSON object (≤64KB) and normalises severity (unknown → `medium`).
@@ -69,7 +69,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 - Git tags: `hub/v*`, `wizard/v*`, `sensor/<name>/v*` (`Docs/architecture/README.md` §Tagging).
 - Compatibility: a sensor or wizard **major** version must equal the Hub major (`HubVersion = "2.1.0"`, `Hub/internal/models/models.go:6`). A wizard mismatch returns HTTP 426.
 - Paths: node `/opt/truesignal/sensors/truesignal-compose.yml` (0600), `/etc/truesignal/config.json` (0600); Hub `/data/truesignal.db`.
-- Env: all sensor config is `TS_*`. Reserved (user cannot override): `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, `TS_SENSOR_ID`, `TS_CONFIG_REV`, `TS_TEST_MODE` (`Hub/internal/compose/env.go`).
+- Env: all sensor config is `TS_*`. Reserved (user cannot override): `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, `TS_SENSOR_ID`, `TS_CONFIG_REV`, `TS_TEST_MODE`, `TS_CAPTURE_HASH_KEY` (fleet key, injected where the manifest declares it), `TS_HONEYTOKEN` (`Hub/internal/compose/env.go`).
 - Severity enum: `info|low|medium|high|critical`. The sensor sets it from `TS_SEVERITY`; the Hub maps anything else to `medium` (`models.NormalizeSeverity`).
 - Code style (`Docs/development/contributionRules.md`): snake_case on disk, camelCase in memory; no global state; handlers hold no business logic; pure Go 1.26, no CGO; Vue `<script setup>`; mutate Pinia state in place.
 - Tags on nodes are free-form JSON strings. No taxonomy is in the repo.
@@ -122,7 +122,7 @@ Residual gaps (unsigned manifests/images, root + host netns sensors, single admi
 ## 8. Working rules for future sessions
 
 - This repo is the platform only. Never invent hostnames, IPs, subnets, node lists or SIEM rule logic. Ask, or mark [NOT IN PROJECT].
-- Secrets are never in git. At runtime they live in: the Hub DB (bcrypt admin hash, sha256 node-key hashes, webhook URLs incl. tokens), the node `/etc/truesignal/config.json` and `TS_HUB_KEY` in the node compose file (plaintext node key), the `TS_DASHBOARD_PASSWORD`/`TS_SETUP_TOKEN` env vars, and the GitHub secret `DELETE_PACKAGES_TOKEN`. Reference them by location only.
+- Secrets are never in git. At runtime they live in: the Hub DB (bcrypt admin hash, sha256 node-key hashes, webhook URLs incl. tokens, `siem_token`, the fleet `capture_hash_key`, honeytoken secrets), the node `/etc/truesignal/config.json` and `TS_HUB_KEY`/`TS_CAPTURE_HASH_KEY`/`TS_HONEYTOKEN` in the node compose file, the `TS_DASHBOARD_PASSWORD`/`TS_SETUP_TOKEN` env vars, and the GitHub secret `DELETE_PACKAGES_TOKEN`. Reference them by location only.
 - Tests: Hub, wizard, Go SDK and all six sensors have Go tests; `.github/workflows/test.yml` runs `go vet` + `go test -race` per module. No UI unit tests, no Python SDK tests.
 - Changing the event shape, the syslog format (RFC 5424, `Hub/internal/services/siem/service.go` `formatSyslog`/`formatAudit`), the ECS mapping (`siem/ecs.go`) or `eventTrigger` names breaks downstream SIEM parsing. Treat them as a contract.
 - `siem_token` (Elastic API key / LogScale ingest token) is a secret in the Hub DB; the API never returns it (`siemTokenSet` only).
