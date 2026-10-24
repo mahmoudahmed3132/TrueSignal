@@ -195,12 +195,19 @@ func (c Capture) KeyID() string {
 // spray of thousands of attempts cannot flood the Hub and the SIEM. Allow
 // reports whether to emit, and how many events were suppressed since the last
 // one emitted for that source (attach it as suppressed_since_last).
+//
+// State is bounded: at most maxTracked sources are tracked individually.
+// Expired entries are swept at most once per window, so a flood of distinct
+// (e.g. spoofed UDP) sources costs amortised O(1) per call. When the table is
+// still full, untracked sources share one overflow budget.
 type Limiter struct {
-	mu     sync.Mutex
-	limit  int
-	window time.Duration
-	seen   map[string]*limitState
-	now    func() time.Time
+	mu         sync.Mutex
+	limit      int
+	window     time.Duration
+	maxTracked int
+	seen       map[string]*limitState
+	lastSweep  time.Time
+	now        func() time.Time
 }
 
 type limitState struct {
@@ -209,9 +216,13 @@ type limitState struct {
 	suppressed int
 }
 
+// overflowKey is the shared bucket for sources that arrive while the table is
+// full. It cannot collide with an IP address.
+const overflowKey = "\x00overflow"
+
 // NewLimiter allows limit events per source per window.
 func NewLimiter(limit int, window time.Duration) *Limiter {
-	return &Limiter{limit: limit, window: window, seen: map[string]*limitState{}, now: time.Now}
+	return &Limiter{limit: limit, window: window, maxTracked: 10000, seen: map[string]*limitState{}, now: time.Now}
 }
 
 // Allow records one event from src.
@@ -219,15 +230,21 @@ func (l *Limiter) Allow(src string) (bool, int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
-	st, ok := l.seen[src]
-	if !ok || now.Sub(st.start) >= l.window {
-		if len(l.seen) > 10000 { // bound memory under a distributed spray
+	if _, tracked := l.seen[src]; !tracked && len(l.seen) >= l.maxTracked {
+		if now.Sub(l.lastSweep) >= l.window {
 			for k, v := range l.seen {
 				if now.Sub(v.start) >= l.window {
 					delete(l.seen, k)
 				}
 			}
+			l.lastSweep = now
 		}
+		if len(l.seen) >= l.maxTracked {
+			src = overflowKey
+		}
+	}
+	st, ok := l.seen[src]
+	if !ok || now.Sub(st.start) >= l.window {
 		prev := 0
 		if ok {
 			prev = st.suppressed

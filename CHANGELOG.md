@@ -1,3 +1,10 @@
+# [Unreleased] - Decoy hardening from review (2026-10-24)
+
+Follow-up to the database, remote-access and network-service decoys (review findings on PR #13):
+* **Limiter state is bounded.** At most 10,000 sources are tracked. Expired entries are swept at most once per window, so a flood of distinct spoofed UDP sources costs amortised O(1) instead of a full scan per new source. When the table is full, new sources share one overflow budget.
+* **FTP command length is bounded.** Lines longer than 512 bytes get `500 Command too long.` and the connection is closed; previously a client could make the sensor buffer unbounded input.
+* **Connection events are rate-limited** (`*_connection`, 20 per source per minute, separate from the login budget), so a connect/disconnect flood can no longer fill the SDK's event queue and push out login alerts.
+
 # [Unreleased] - Database, Remote Access and Network Service decoys (2026-10-24)
 
 ### Three new sensors

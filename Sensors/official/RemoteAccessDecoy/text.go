@@ -113,11 +113,18 @@ func (h *handler) serveFTP(conn net.Conn) {
 	reply("220 (vsFTPd 3.0.5)")
 	user := ""
 	for i := 0; i < 20; i++ {
-		raw, err := r.ReadString('\n')
-		if err != nil && raw == "" {
+		// ReadSlice is bounded by the reader's buffer (maxLine): an over-long
+		// command is refused and the connection closed, so a client cannot
+		// make the sensor buffer unbounded input.
+		line, err := r.ReadSlice('\n')
+		if err == bufio.ErrBufferFull {
+			reply("500 Command too long.")
 			return
 		}
-		raw = strings.TrimRight(raw, "\r\n")
+		if err != nil && len(line) == 0 {
+			return
+		}
+		raw := strings.TrimRight(string(line), "\r\n")
 		cmd, arg, _ := strings.Cut(raw, " ")
 		switch strings.ToUpper(cmd) {
 		case "USER":
