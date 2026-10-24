@@ -102,3 +102,40 @@ func TestLimiterStateIsBounded(t *testing.T) {
 		t.Fatalf("sweep left %d entries", len(l.seen))
 	}
 }
+
+func TestLimiterSweepKeepsSuppressedCountsOneWindow(t *testing.T) {
+	l := NewLimiter(1, time.Minute)
+	l.maxTracked = 2
+	t0 := time.Unix(0, 0)
+	at := func(d time.Duration) { l.now = func() time.Time { return t0.Add(d) } }
+	at(0)
+	l.Allow("sprayer")
+	for i := 0; i < 4; i++ {
+		l.Allow("sprayer") // 4 suppressed
+	}
+	l.Allow("quiet") // table full: sprayer, quiet
+
+	// One window later a new source forces a sweep: "quiet" (nothing
+	// suppressed) is dropped, "sprayer" is kept for its count.
+	at(61 * time.Second)
+	l.Allow("new")
+	if l.seen["quiet"] != nil || l.seen["sprayer"] == nil {
+		t.Fatalf("after first sweep: %v", l.seen)
+	}
+	if ok, sup := l.Allow("sprayer"); !ok || sup != 4 {
+		t.Fatalf("returning sprayer: ok=%v suppressed=%d, want 4", ok, sup)
+	}
+
+	// An expired entry with suppressed attempts that never returns is
+	// dropped after the extra window.
+	at(62 * time.Second)
+	for i := 0; i < 3; i++ {
+		l.Allow("new") // suppressed on "new"
+	}
+	at(62*time.Second + 2*time.Minute + time.Second)
+	l.Allow("another")
+	l.Allow("yet-another")
+	if l.seen["new"] != nil {
+		t.Fatal("stale suppressed entry kept past the extra window")
+	}
+}

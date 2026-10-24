@@ -197,7 +197,8 @@ func (c Capture) KeyID() string {
 // one emitted for that source (attach it as suppressed_since_last).
 //
 // State is bounded: at most maxTracked sources are tracked individually.
-// Expired entries are swept at most once per window, so a flood of distinct
+// Expired entries are swept at most once per window (those with suppressed
+// attempts survive one extra window to report them), so a flood of distinct
 // (e.g. spoofed UDP) sources costs amortised O(1) per call. When the table is
 // still full, untracked sources share one overflow budget.
 type Limiter struct {
@@ -233,7 +234,12 @@ func (l *Limiter) Allow(src string) (bool, int) {
 	if _, tracked := l.seen[src]; !tracked && len(l.seen) >= l.maxTracked {
 		if now.Sub(l.lastSweep) >= l.window {
 			for k, v := range l.seen {
-				if now.Sub(v.start) >= l.window {
+				// An expired entry still holding suppressed attempts is kept
+				// one extra window, so a source that comes back gets that count
+				// in suppressed_since_last; after that it is dropped, so stale
+				// entries cannot hold the table full for good.
+				age := now.Sub(v.start)
+				if age >= 2*l.window || (age >= l.window && v.suppressed == 0) {
 					delete(l.seen, k)
 				}
 			}
