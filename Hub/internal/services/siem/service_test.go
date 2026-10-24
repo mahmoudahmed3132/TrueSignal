@@ -25,7 +25,7 @@ func TestSyslogForwardingRFC5424(t *testing.T) {
 
 	// Initialize the SIEM service
 	svc := NewService(nil)
-	svc.UpdateConfig(address, "tcp")
+	svc.UpdateConfig(Output{Address: address, Protocol: "tcp"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

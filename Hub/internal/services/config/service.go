@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/siem"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -111,7 +112,7 @@ type SessionManager interface {
 }
 
 type SiemService interface {
-	UpdateConfig(address, protocol string)
+	UpdateConfig(out siem.Output)
 }
 
 type NotifyService interface {
@@ -258,6 +259,8 @@ func (s *Service) GetConfig() (models.ConfigPayload, error) {
 		WebhookEvents:            events,
 		SiemAddress:              kv["siem_address"],
 		SiemProtocol:             kv["siem_protocol"],
+		SiemFormat:               kv["siem_format"],
+		SiemTokenSet:             kv["siem_token"] != "",
 		WhitelistedSources:       kv["whitelisted_sources"],
 	}, nil
 }
@@ -289,7 +292,8 @@ var knownConfigKeys = map[string]struct{}{
 	"hubEndpoint": {}, "registryUrl": {}, "autoArchiveDays": {},
 	"autoPurgeDays": {}, "autoPurgeHeartbeatsDays": {}, "updateCheckIntervalHours": {},
 	"webhookType": {}, "webhookUrl": {}, "webhookEvents": {},
-	"siemAddress": {}, "siemProtocol": {}, "whitelistedSources": {},
+	"siemAddress": {}, "siemProtocol": {}, "siemFormat": {}, "siemToken": {},
+	"whitelistedSources": {},
 }
 
 func validateConfigUpdate(req map[string]interface{}) error {
@@ -305,23 +309,23 @@ func validateConfigUpdate(req map[string]interface{}) error {
 			}
 		}
 	}
-	if v, ok := req["siemAddress"]; ok {
-		str, isStr := v.(string)
-		if !isStr {
-			return &ValidationError{"siemAddress must be a string"}
-		}
-		if str != "" {
-			host, port, err := net.SplitHostPort(str)
-			p, perr := strconv.Atoi(port)
-			if err != nil || host == "" || perr != nil || p < 1 || p > 65535 {
-				return &ValidationError{"siemAddress must be host:port"}
+	for _, f := range []string{"siemAddress", "siemToken"} {
+		if v, ok := req[f]; ok {
+			if _, isStr := v.(string); !isStr {
+				return &ValidationError{f + " must be a string"}
 			}
 		}
+	}
+	if v, ok := req["siemToken"].(string); ok && strings.ContainsAny(v, "\r\n") {
+		return &ValidationError{"siemToken must be a single line"}
 	}
 	if err := validateEnum(req, "webhookType", "ntfy", "gotify", "discord", "slack", "none"); err != nil {
 		return err
 	}
-	if err := validateEnum(req, "siemProtocol", "tcp", "udp", "tls"); err != nil {
+	if err := validateEnum(req, "siemProtocol", "tcp", "udp", "tls", siem.ProtocolElastic, siem.ProtocolLogScale); err != nil {
+		return err
+	}
+	if err := validateEnum(req, "siemFormat", siem.FormatRFC5424, siem.FormatECS); err != nil {
 		return err
 	}
 	if v, ok := req["webhookEvents"]; ok {
@@ -343,6 +347,49 @@ func validateConfigUpdate(req map[string]interface{}) error {
 				return &ValidationError{f + " must be a non-negative integer"}
 			}
 		}
+	}
+	return nil
+}
+
+// effectiveSiemOutput merges the SIEM fields of an update with the stored
+// values, so the address can be checked against the protocol it will be used
+// with.
+func (s *Service) effectiveSiemOutput(req map[string]interface{}) siem.Output {
+	pick := func(field, key string) string {
+		if v, ok := req[field].(string); ok {
+			return v
+		}
+		v, _ := s.store.GetConfigValue(key)
+		return v
+	}
+	return siem.Output{
+		Address:  strings.TrimSpace(pick("siemAddress", "siem_address")),
+		Protocol: strings.ToLower(pick("siemProtocol", "siem_protocol")),
+		Format:   strings.ToLower(pick("siemFormat", "siem_format")),
+		Token:    strings.TrimSpace(pick("siemToken", "siem_token")),
+	}
+}
+
+// validateSiemAddress checks siemAddress for its protocol: host:port for the
+// syslog streams, an https URL for the HTTP outputs (they carry a token).
+func validateSiemAddress(protocol, address string) error {
+	if address == "" {
+		return nil
+	}
+	if siem.IsHTTPProtocol(protocol) {
+		u, err := url.Parse(address)
+		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return &ValidationError{"siemAddress must be an https URL for the " + protocol + " output"}
+		}
+		if protocol == siem.ProtocolElastic && strings.Trim(u.Path, "/") == "" {
+			return &ValidationError{"siemAddress for elastic must include the data stream, e.g. https://es.example:9200/logs-truesignal-default"}
+		}
+		return nil
+	}
+	host, port, err := net.SplitHostPort(address)
+	p, perr := strconv.Atoi(port)
+	if err != nil || host == "" || perr != nil || p < 1 || p > 65535 {
+		return &ValidationError{"siemAddress must be host:port"}
 	}
 	return nil
 }
@@ -369,6 +416,10 @@ func (s *Service) UpdateConfig(req map[string]interface{}) error {
 	if err := validateConfigUpdate(req); err != nil {
 		return err
 	}
+	out := s.effectiveSiemOutput(req)
+	if err := validateSiemAddress(out.Protocol, out.Address); err != nil {
+		return err
+	}
 	// Safely map incoming camelCase API fields to snake_case DB columns
 	dbUpdates := make(map[string]interface{})
 	mapping := map[string]string{
@@ -383,6 +434,8 @@ func (s *Service) UpdateConfig(req map[string]interface{}) error {
 		"webhookEvents":            "webhook_events",
 		"siemAddress":              "siem_address",
 		"siemProtocol":             "siem_protocol",
+		"siemFormat":               "siem_format",
+		"siemToken":                "siem_token",
 		"whitelistedSources":       "whitelisted_sources",
 	}
 	for camelKey, snakeKey := range mapping {
@@ -396,26 +449,18 @@ func (s *Service) UpdateConfig(req map[string]interface{}) error {
 	}
 
 	// Hot reload if related settings were changed
-	var siemAddress, siemProtocol string
-	if val, ok := req["siemAddress"].(string); ok {
-		siemAddress = val
-	} else {
-		siemAddress, _ = s.store.GetConfigValue("siem_address")
-	}
-	if val, ok := req["siemProtocol"].(string); ok {
-		siemProtocol = strings.ToLower(val)
-	} else {
-		siemProtocol, _ = s.store.GetConfigValue("siem_protocol")
-	}
-	s.siemService.UpdateConfig(siemAddress, siemProtocol)
+	s.siemService.UpdateConfig(out)
+	s.reloadNotify()
 
+	return nil
+}
+
+func (s *Service) reloadNotify() {
 	isArmed, _ := s.store.GetConfigValue("is_armed")
 	webhookType, _ := s.store.GetConfigValue("webhook_type")
 	webhookURL, _ := s.store.GetConfigValue("webhook_url")
 	webhookEvents, _ := s.store.GetConfigValue("webhook_events")
 	s.notifyService.UpdateConfig(isArmed == "true", webhookType, webhookURL, webhookEvents)
-
-	return nil
 }
 
 func (s *Service) ChangePassword(currentPassword, newPassword string) error {
@@ -462,6 +507,10 @@ func (s *Service) FactoryReset(password, ip string) error {
 
 	s.sessionManager.ClearAllSessions()
 	s.sessionManager.ClearNodeCache()
+	// Drop the in-memory SIEM output (address, token) and webhook settings so
+	// the wiped Hub stops forwarding with the old destinations and secrets.
+	s.siemService.UpdateConfig(s.effectiveSiemOutput(nil))
+	s.reloadNotify()
 	return nil
 }
 

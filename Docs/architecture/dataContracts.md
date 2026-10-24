@@ -191,4 +191,4 @@ Audit records use PRI `<133>` (local0.notice):
 <133>1 TIMESTAMP truesignal truesignalSensor - AUDIT [truesignal-audit@PEN action="PATCH /api/v2/config" path="/api/v2/config" status="200" actor_ip="10.0.0.5"] {"timestamp":"...","action":"PATCH /api/v2/config","path":"/api/v2/config","status":200,"actor_ip":"10.0.0.5"}
 ```
 
-**Transport:** `siemProtocol` is `tcp`, `udp` or `tls`. With `tls`, the Hub requires TLS 1.2+ and verifies the receiver against the system roots or the PEM bundle in `TS_SIEM_CA_FILE`. Sensor liveness (`sensor_stopped`, `sensor_heartbeat_lost`, `sensor_recovered`) arrives as ordinary `EVENT` records.
+**Transport:** `siemProtocol` is `tcp`, `udp` or `tls`. With `siemFormat: ecs` (or the `elastic`/`logscale` HTTP outputs), records are ECS JSON instead of RFC 5424; that mapping is in `Docs/siem-integration.md` and is also a contract. The RFC 5424 format above is unchanged and stays the default. With `tls`, the Hub requires TLS 1.2+ and verifies the receiver against the system roots or the PEM bundle in `TS_SIEM_CA_FILE`. Sensor liveness (`sensor_stopped`, `sensor_heartbeat_lost`, `sensor_recovered`) arrives as ordinary `EVENT` records.

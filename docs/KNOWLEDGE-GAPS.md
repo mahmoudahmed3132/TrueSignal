@@ -88,7 +88,7 @@ None of the five sensors has a SIEM rule, dashboard, or response action in the r
 | Purpose & scope | The onboarding request left `{{WHAT IT IS FOR}}` unfilled. No README section describes TrueSignal's intended use, environment or scope |
 | Environment | No node inventory, hostnames, subnets/VLANs, placement plan, firewall rules (Fortinet/Palo Alto), or naming convention for nodes **[NOT IN PROJECT]** |
 | Honeytokens | No credential, cloud-key, AD, DNS or document tokens. The File Canary is the only lure mechanism |
-| SIEM | No Elastic ingest pipeline/ECS mapping, no LogScale parser, no rules, no index or repo naming, no collector config |
+| SIEM | ECS output, the Elastic index template / API key and LogScale HEC setup are in `Docs/siem-integration.md` (2026-10-24). Still missing: detection rules, Kashier index/repository naming, collector config |
 | Alert routing / ownership | No on-call, escalation, or SOAR integration. Destinations are only ntfy/gotify/discord/slack (consumer SaaS) and syslog |
 | Runbooks | No IR runbook per eventTrigger; no Hub DR/restore runbook; no lure rotation. Node key rotation now exists (UI / `POST /api/v2/nodes/{id}/rotate-key`); uninstall now lists the lure files it leaves |
 | Hub HA/backup | Single SQLite file; only pre-migration snapshots |

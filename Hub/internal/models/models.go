@@ -49,7 +49,11 @@ type ConfigPayload struct {
 	WebhookEvents            []string `json:"webhookEvents"`
 	SiemAddress              string   `json:"siemAddress"`
 	SiemProtocol             string   `json:"siemProtocol"`
-	WhitelistedSources       string   `json:"whitelistedSources"`
+	SiemFormat               string   `json:"siemFormat"`
+	// SiemTokenSet reports whether an HTTP output token is stored; the token
+	// itself is write-only and never returned.
+	SiemTokenSet       bool   `json:"siemTokenSet"`
+	WhitelistedSources string `json:"whitelistedSources"`
 }
 
 type Event struct {

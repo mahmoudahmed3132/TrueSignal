@@ -14,6 +14,7 @@ import (
 	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"math/rand"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -124,6 +125,21 @@ type Options struct {
 	CAFile string // optional PEM bundle for TLS verification
 }
 
+// Output is the SIEM destination. Protocol tcp|udp|tls streams lines in
+// Format rfc5424 (default) or ecs (NDJSON); elastic|logscale POST ECS JSON
+// over HTTPS to Address with Token.
+type Output struct {
+	Address  string
+	Protocol string
+	Format   string
+	Token    string
+}
+
+const (
+	FormatRFC5424 = "rfc5424"
+	FormatECS     = "ecs"
+)
+
 type queueItem struct {
 	event *models.Event
 	audit *AuditRecord
@@ -131,8 +147,7 @@ type queueItem struct {
 
 type Service struct {
 	eventQueue  chan queueItem
-	address     string
-	protocol    string
+	out         Output
 	pen         string
 	tlsConfig   *tls.Config
 	rng         *rand.Rand
@@ -140,6 +155,7 @@ type Service struct {
 	wg          sync.WaitGroup
 	isDraining  atomic.Bool
 	nodeService NodeService
+	httpClient  *http.Client
 }
 
 func NewService(nodeService NodeService, opts ...Options) *Service {
@@ -171,17 +187,35 @@ func NewService(nodeService NodeService, opts ...Options) *Service {
 		// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 		rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		nodeService: nodeService,
+		httpClient: &http.Client{
+			Timeout:   15 * time.Second,
+			Transport: &http.Transport{TLSClientConfig: tlsCfg, Proxy: http.ProxyFromEnvironment},
+			// A redirect would resend the token to wherever it points.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 	}
 }
 
-func (s *Service) UpdateConfig(address, protocol string) {
+func (s *Service) UpdateConfig(o Output) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if protocol == "" {
-		protocol = "tcp"
+	o.Address = strings.TrimSpace(o.Address)
+	o.Token = strings.TrimSpace(o.Token)
+	o.Protocol = strings.ToLower(strings.TrimSpace(o.Protocol))
+	if o.Protocol == "" {
+		o.Protocol = "tcp"
 	}
-	s.address = address
-	s.protocol = protocol
+	o.Format = strings.ToLower(o.Format)
+	if o.Format != FormatECS {
+		o.Format = FormatRFC5424
+	}
+	s.out = o
+}
+
+func (s *Service) output() Output {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.out
 }
 
 func (s *Service) enqueue(item queueItem) {
@@ -248,6 +282,13 @@ func (s *Service) StartWorker(ctx context.Context) {
 				return
 
 			case item := <-s.eventQueue:
+				if out := s.output(); IsHTTPProtocol(out.Protocol) {
+					sess.close()
+					if out.Address != "" {
+						s.processHTTPWithRetry(ctx, out, item)
+					}
+					continue
+				}
 				sess.processWithRetry(ctx, s.format(item))
 			}
 		}
@@ -271,11 +312,10 @@ func (s *Service) dial(proto, addr string) (net.Conn, error) {
 
 func (sess *streamSession) processWithRetry(ctx context.Context, msg string) {
 	for attempt := 0; attempt < MaxRetriesPerEvent; attempt++ {
-		sess.service.mu.RLock()
-		addr, proto := sess.service.address, sess.service.protocol
-		sess.service.mu.RUnlock()
+		out := sess.service.output()
+		addr, proto := out.Address, out.Protocol
 
-		if addr == "" {
+		if addr == "" || IsHTTPProtocol(proto) {
 			return // Exporter explicitly disabled via configuration
 		}
 
@@ -361,7 +401,13 @@ func (s *Service) drainQueue(conn net.Conn) {
 			log.Println("[SIEM] Worker stopped.")
 			return
 		case item := <-s.eventQueue:
-			if conn != nil {
+			if out := s.output(); IsHTTPProtocol(out.Protocol) && out.Address != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				if !s.sendHTTP(ctx, out.Protocol, out.Address, out.Token, s.ecsDoc(item)).IsError {
+					count++
+				}
+				cancel()
+			} else if conn != nil {
 				msg := s.format(item)
 				conn.SetWriteDeadline(time.Now().Add(1 * time.Second))
 				if _, err := conn.Write([]byte(msg + "\n")); err == nil {
@@ -381,6 +427,10 @@ func (s *Service) drainQueue(conn net.Conn) {
 // ============================================================================
 
 func (s *Service) format(item queueItem) string {
+	if s.output().Format == FormatECS {
+		line, _ := json.Marshal(s.ecsDoc(item))
+		return string(line)
+	}
 	if item.audit != nil {
 		return s.formatAudit(*item.audit)
 	}
@@ -451,14 +501,7 @@ func (s *Service) formatSyslog(event models.Event) string {
 		detailsJSON = []byte("{}")
 	}
 
-	nodeAlias := event.NodeID
-	if s.nodeService != nil {
-		if nodeDetails, err := s.nodeService.GetNodeDetails(event.NodeID); err == nil && nodeDetails != nil {
-			if nodeDetails.Alias != "" {
-				nodeAlias = nodeDetails.Alias
-			}
-		}
-	}
+	nodeAlias := s.nodeAlias(event.NodeID)
 
 	sd := structuredData("truesignal@"+s.pen, [][2]string{
 		{"event_id", fmt.Sprint(event.ID)},
@@ -488,6 +531,16 @@ func (s *Service) formatSyslog(event models.Event) string {
 
 	return fmt.Sprintf("<%d>1 %s %s %s - EVENT %s %s",
 		priority, timestamp, syslogHostname, syslogAppName, sd, body)
+}
+
+// nodeAlias resolves a node ID to its display alias, falling back to the ID.
+func (s *Service) nodeAlias(nodeID string) string {
+	if s.nodeService != nil {
+		if n, err := s.nodeService.GetNodeDetails(nodeID); err == nil && n != nil && n.Alias != "" {
+			return n.Alias
+		}
+	}
+	return nodeID
 }
 
 // formatAudit renders an administrative action. Facility local0, severity
