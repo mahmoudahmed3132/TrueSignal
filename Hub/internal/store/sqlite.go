@@ -73,6 +73,8 @@ func initializeDefaultConfigTx(tx *sql.Tx) error {
 		"auto_purge_days":             "0",
 		"siem_address":                "",
 		"siem_protocol":               "tcp",
+		"siem_format":                 "rfc5424",
+		"siem_token":                  "",
 		"registry_url":                "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages",
 		"acknowledged_wizard_release": "",
 	}

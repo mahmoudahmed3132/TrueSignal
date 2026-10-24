@@ -65,11 +65,12 @@ func (s *SQLiteStore) UpdateConfigBatch(req map[string]interface{}) error {
 	defer tx.Rollback()
 
 	validWebhooks := map[string]bool{"ntfy": true, "gotify": true, "discord": true, "slack": true, "none": true}
-	validProtocols := map[string]bool{"tcp": true, "udp": true, "tls": true}
+	validProtocols := map[string]bool{"tcp": true, "udp": true, "tls": true, "elastic": true, "logscale": true}
+	validFormats := map[string]bool{"rfc5424": true, "ecs": true}
 
 	for key, val := range req {
 		switch key {
-		case "hub_endpoint", "webhook_url", "siem_address", "registry_url", "whitelisted_sources", "acknowledged_wizard_release":
+		case "hub_endpoint", "webhook_url", "siem_address", "siem_token", "registry_url", "whitelisted_sources", "acknowledged_wizard_release":
 			if strVal, ok := val.(string); ok {
 				if _, err := tx.Exec("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", key, strVal); err != nil {
 					return err
@@ -83,6 +84,12 @@ func (s *SQLiteStore) UpdateConfigBatch(req map[string]interface{}) error {
 			}
 		case "siem_protocol":
 			if strVal, ok := val.(string); ok && validProtocols[strings.ToLower(strVal)] {
+				if _, err := tx.Exec("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", key, strings.ToLower(strVal)); err != nil {
+					return err
+				}
+			}
+		case "siem_format":
+			if strVal, ok := val.(string); ok && validFormats[strings.ToLower(strVal)] {
 				if _, err := tx.Exec("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", key, strings.ToLower(strVal)); err != nil {
 					return err
 				}

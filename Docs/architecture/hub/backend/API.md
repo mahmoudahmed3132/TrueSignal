@@ -315,8 +315,10 @@ Returns runtime configuration loaded from SQLite.
 | `webhookType` | `string` | The active push notification provider (`ntfy`, `gotify`, `discord`, `slack`, `none`). |
 | `webhookUrl` | `string` | The target URL for the selected webhook provider. |
 | `webhookEvents` | `string[]` | Array of severity levels that trigger a notification (e.g., `["critical", "high"]`). |
-| `siemAddress` | `string` | Address for RFC5424 syslog forwarding (e.g., `10.0.0.50:514`). Empty if disabled. |
-| `siemProtocol` | `string` | Protocol for SIEM forwarding (`tcp`, `udp`, `tls`). |
+| `siemAddress` | `string` | `host:port` for `tcp`/`udp`/`tls`; an `https` URL for `elastic` (including the data stream) and `logscale` (HEC endpoint). Empty if disabled. |
+| `siemProtocol` | `string` | SIEM output (`tcp`, `udp`, `tls`, `elastic`, `logscale`). See `Docs/siem-integration.md`. |
+| `siemFormat` | `string` | Line format for `tcp`/`udp`/`tls`: `rfc5424` (default) or `ecs`. The HTTP outputs always send ECS. |
+| `siemTokenSet` | `boolean` | Whether an HTTP output token is stored. The token itself is never returned. |
 | `registryUrl` | `string` | Base URL of the sensor registry (`index.json` and `<sensor>-v<version>.json`). |
 | `whitelistedSources` | `string` | Comma-separated exact `source` values. Matching events are stored archived and forwarded to the SIEM with `whitelisted=true`, but raise no webhook or UI alert. |
 | `autoPurgeHeartbeatsDays` | `integer` | Days to keep heartbeat/status history. |
@@ -332,7 +334,9 @@ Returns runtime configuration loaded from SQLite.
   "webhookUrl": "",
   "webhookEvents": [],
   "siemAddress": "",
-  "siemProtocol": "tcp"
+  "siemProtocol": "tcp",
+  "siemFormat": "rfc5424",
+  "siemTokenSet": false
 }
 ```
 
@@ -350,13 +354,15 @@ Updates runtime settings. Only supported fields are applied. This endpoint also 
 - `webhookUrl`
 - `webhookEvents` (list of `info`, `low`, `medium`, `high`, `critical`)
 - `siemAddress`
-- `siemProtocol` (`tcp`, `udp`, `tls`). For `tls`, the Hub verifies the receiver certificate against the system roots, or against the PEM bundle in `TS_SIEM_CA_FILE` if set (TLS 1.2+).
+- `siemProtocol` (`tcp`, `udp`, `tls`, `elastic`, `logscale`). For `tls` and the HTTP outputs, the Hub verifies the receiver certificate against the system roots, or against the PEM bundle in `TS_SIEM_CA_FILE` if set (TLS 1.2+).
+- `siemFormat` (`rfc5424`, `ecs`)
+- `siemToken`: write-only. The encoded Elasticsearch API key or the LogScale ingest token. Omit it to keep the stored token; `""` clears it.
 - `registryUrl`
 - `whitelistedSources`
 - `autoPurgeHeartbeatsDays`
 - `updateCheckIntervalHours`
 
-**Errors:** `400 Bad Request` if `hubEndpoint`, `webhookUrl` or `registryUrl` is not an `http(s)` URL, `siemAddress` is not `host:port`, `webhookType` / `siemProtocol` is not one of the listed values (case-insensitive), `webhookEvents` contains an unknown severity, or a day/hour field is not a non-negative integer. A rejected request changes nothing.
+**Errors:** `400 Bad Request` if `hubEndpoint`, `webhookUrl` or `registryUrl` is not an `http(s)` URL, `siemAddress` does not fit the effective `siemProtocol` (`host:port` for streams; an `https` URL without credentials, query or fragment for HTTP outputs, with a data stream path for `elastic`), `siemToken` spans lines, `siemFormat` is unknown, `webhookType` / `siemProtocol` is not one of the listed values (case-insensitive), `webhookEvents` contains an unknown severity, or a day/hour field is not a non-negative integer. A rejected request changes nothing.
 
 **Request example:**
 ```json

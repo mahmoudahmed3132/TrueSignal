@@ -38,7 +38,9 @@ const settings = ref({
     webhookUrl: '',
     webhookEvents: [],
     siemAddress: '',
-    siemProtocol: 'tcp'
+    siemProtocol: 'tcp',
+    siemFormat: 'rfc5424',
+    siemToken: ''
 })
 
 const initialSettings = ref(null)
@@ -59,6 +61,8 @@ watch(() => configStore.config.isLoaded, (loaded) => {
                 : ['critical', 'high', 'medium', 'low', 'info'],
             siemAddress: configStore.config.siemAddress || '',
             siemProtocol: configStore.config.siemProtocol || 'tcp',
+            siemFormat: configStore.config.siemFormat || 'rfc5424',
+            siemToken: '',
             whitelistedSources: configStore.config.whitelistedSources || ''
         }
         settings.value = JSON.parse(JSON.stringify(loadedSettings))
@@ -80,16 +84,39 @@ const saveSettings = async () => {
     saveMessage.value = ''
     isError.value = false
 
-    const success = await configStore.patchConfig(settings.value)
+    // An empty token field means "keep the stored token".
+    const { siemToken, ...rest } = settings.value
+    const success = await configStore.patchConfig(siemToken ? { ...rest, siemToken } : rest)
     
     isSaving.value = false
     if (success) {
+        settings.value.siemToken = ''
         initialSettings.value = JSON.parse(JSON.stringify(settings.value))
         saveMessage.value = 'Configuration saved successfully.'
         setTimeout(() => saveMessage.value = '', 3000)
     } else {
         isError.value = true
         saveMessage.value = 'Failed to save configuration.'
+    }
+}
+
+const siemIsHTTP = computed(() => ['elastic', 'logscale'].includes(settings.value.siemProtocol))
+const siemAddressHelp = computed(() => {
+    switch (settings.value.siemProtocol) {
+        case 'elastic': return 'Elasticsearch URL plus the target data stream, e.g. https://es.example:9200/logs-truesignal-default. Events are sent as ECS.'
+        case 'logscale': return 'LogScale HEC endpoint, e.g. https://cloud.us.humio.com/api/v1/ingest/hec. Events are sent as ECS.'
+        default: return 'Syslog receiver as host:port (e.g., siem.example.com:6514). Leave blank to disable SIEM forwarding.'
+    }
+})
+
+const clearSiemToken = async () => {
+    isError.value = false
+    if (await configStore.patchConfig({ siemToken: '' })) {
+        saveMessage.value = 'SIEM token cleared.'
+        setTimeout(() => saveMessage.value = '', 3000)
+    } else {
+        isError.value = true
+        saveMessage.value = 'Failed to clear SIEM token.'
     }
 }
 
@@ -479,9 +506,9 @@ const submitFactoryReset = async () => {
                         <div class="max-w-xl">
                             <BaseInput 
                                 v-model="settings.siemAddress" 
-                                label="Server Address" 
-                                placeholder="host:port"
-                                description="Forward syslog events to your SIEM (e.g., elk.example.com:514)." 
+                                label="Destination" 
+                                :placeholder="siemIsHTTP ? 'https://…' : 'host:port'"
+                                :description="siemAddressHelp" 
                             />
                         </div>
                         
@@ -489,10 +516,34 @@ const submitFactoryReset = async () => {
                         
                         <BaseRadioGroup 
                             v-model="settings.siemProtocol" 
-                            label="Protocol" 
-                            :options="['tcp', 'udp', 'tls']" 
-                            description="Events are sent in RFC5424 syslog format. Leave blank to disable SIEM forwarding."
+                            label="Output" 
+                            :options="['tcp', 'udp', 'tls', 'elastic', 'logscale']" 
+                            description="tcp/udp/tls stream syslog lines. elastic (Bulk API) and logscale (HEC) post ECS JSON over HTTPS."
                         />
+
+                        <template v-if="!siemIsHTTP">
+                            <BaseDivider />
+                            <BaseRadioGroup 
+                                v-model="settings.siemFormat" 
+                                label="Format" 
+                                :options="['rfc5424', 'ecs']" 
+                                description="rfc5424: syslog with structured data and a JSON body. ecs: one Elastic Common Schema JSON document per line."
+                            />
+                        </template>
+
+                        <template v-else>
+                            <BaseDivider />
+                            <div class="max-w-xl space-y-2">
+                                <BaseInput 
+                                    v-model="settings.siemToken" 
+                                    type="password"
+                                    label="Token" 
+                                    :placeholder="configStore.config.siemTokenSet ? 'Stored (leave blank to keep)' : 'Not set'"
+                                    :description="settings.siemProtocol === 'elastic' ? 'Encoded Elasticsearch API key (sent as ApiKey). Write-only.' : 'LogScale ingest token (sent as Bearer). Write-only.'" 
+                                />
+                                <BaseButton v-if="configStore.config.siemTokenSet" variant="ghost" class="!text-xs" @click="clearSiemToken">Clear stored token</BaseButton>
+                            </div>
+                        </template>
                     </BaseCard>
                 </div>
 

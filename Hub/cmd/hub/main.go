@@ -141,9 +141,12 @@ func main() {
 	webhookEvents := loadConfigSafe(dbStore, "webhook_events", "[]")
 	notifyService.UpdateConfig(isArmed, webhookType, webhookURL, webhookEvents)
 
-	siemAddress := loadConfigSafe(dbStore, "siem_address", "")
-	siemProtocol := loadConfigSafe(dbStore, "siem_protocol", "tcp")
-	siemService.UpdateConfig(siemAddress, siemProtocol)
+	siemService.UpdateConfig(siem.Output{
+		Address:  loadConfigSafe(dbStore, "siem_address", ""),
+		Protocol: loadConfigSafe(dbStore, "siem_protocol", "tcp"),
+		Format:   loadConfigSafe(dbStore, "siem_format", siem.FormatRFC5424),
+		Token:    loadConfigSafe(dbStore, "siem_token", ""),
+	})
 
 	go eventSvc.StartRetentionWorker(rootCtx)
 

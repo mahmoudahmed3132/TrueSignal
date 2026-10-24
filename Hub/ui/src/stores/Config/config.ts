@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, readonly } from 'vue'
 import { api } from '../../api/client'
 
+export type SiemProtocol = 'tcp' | 'udp' | 'tls' | 'elastic' | 'logscale' | ''
+
 // Represents the exact JSON schema returned by GET /api/v2/config
 export interface ConfigApiResponse {
   hubEndpoint: string
@@ -14,7 +16,9 @@ export interface ConfigApiResponse {
   webhookUrl: string
   webhookEvents: string[]
   siemAddress: string
-  siemProtocol: 'tcp' | 'udp' | ''
+  siemProtocol: SiemProtocol
+  siemFormat: 'rfc5424' | 'ecs'
+  siemTokenSet: boolean
   whitelistedSources: string
 }
 
@@ -31,7 +35,9 @@ export interface ConfigState {
   webhookUrl: string
   webhookEvents: string[]
   siemAddress: string
-  siemProtocol: 'tcp' | 'udp' | ''
+  siemProtocol: SiemProtocol
+  siemFormat: 'rfc5424' | 'ecs'
+  siemTokenSet: boolean
   whitelistedSources: string
 }
 
@@ -49,6 +55,8 @@ export const useConfigStore = defineStore('config', () => {
     webhookEvents: [],
     siemAddress: '',
     siemProtocol: 'tcp',
+    siemFormat: 'rfc5424',
+    siemTokenSet: false,
     whitelistedSources: ''
   })
 
@@ -73,6 +81,8 @@ export const useConfigStore = defineStore('config', () => {
       }
       state.value.siemAddress = data.siemAddress || ''
       state.value.siemProtocol = data.siemProtocol || 'tcp'
+      state.value.siemFormat = data.siemFormat || 'rfc5424'
+      state.value.siemTokenSet = !!data.siemTokenSet
       state.value.whitelistedSources = data.whitelistedSources || ''
       
       state.value.isLoaded = true
@@ -81,11 +91,20 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
-  const patchConfig = async (updates: Partial<Omit<ConfigState, 'isLoaded'>>): Promise<boolean> => {
+  // siemToken is write-only: it is sent but never kept in state; only
+  // siemTokenSet reflects whether one is stored. Omit it to keep the stored
+  // token, send '' to clear it.
+  type ConfigUpdate = Partial<Omit<ConfigState, 'isLoaded' | 'siemTokenSet'>> & { siemToken?: string }
+
+  const patchConfig = async (updates: ConfigUpdate): Promise<boolean> => {
     try {
       await api.patch('/api/v2/config', updates)
 
-      Object.assign(state.value, updates)
+      const { siemToken, ...rest } = updates
+      Object.assign(state.value, rest)
+      if (siemToken !== undefined) {
+        state.value.siemTokenSet = siemToken !== ''
+      }
       return true
     } catch (error) {
       console.error('Config patch network error:', error)

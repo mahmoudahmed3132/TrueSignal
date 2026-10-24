@@ -7,7 +7,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 
 - TrueSignal is a fork of **HoneyWire v2.1.0** (AGPLv3, Andrea Termine), a Docker-based deception platform. It was fully rebranded on 2026-10-19: names, UI/logo, Go modules, paths, `TS_`/`ts-` protocol prefixes, distribution endpoints. Attribution lives in `NOTICE` and the README "Credits & License". The same day a security/correctness pass diverged it from upstream v2.1.0 (key hashing, setup token, digest pinning, liveness alerts, evidence retention; see CHANGELOG).
 - It has a Go Hub (API + SQLite + Vue UI), 6 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
-- Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and syslog (TCP/UDP).
+- Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and one SIEM output: syslog streams (tcp/udp/tls, `siem_format` rfc5424|ecs) or HTTPS `elastic` (bulk) / `logscale` (HEC) with ECS (`Docs/siem-integration.md`).
 - **No SIEM rules, no honeytokens, no network/subnet layout and no node inventory** are in the repo. Kashier-specific config is [NOT IN PROJECT].
 - Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. The repo is **public** (owner decision 2026-10-24, until further note), so anonymous pulls work once artifacts are published. See §6.
 - Project purpose was left as the literal placeholder `{{WHAT IT IS FOR}}` in the onboarding request. Ask the owner.
@@ -109,7 +109,7 @@ Residual gaps (unsigned manifests/images, root + host netns sensors, single admi
 |---|---|
 | Event / heartbeat / manifest schema | `Docs/architecture/dataContracts.md`, then verify in `Hub/internal/models/models.go` |
 | Alert routing | `Hub/internal/services/event/service.go`, `notify/service.go`, `siem/service.go` |
-| Syslog wire format | `Hub/internal/services/siem/service.go:303-359` |
+| Syslog wire format | `Hub/internal/services/siem/service.go` (`formatSyslog`/`formatAudit`); ECS mapping `siem/ecs.go`, HTTP outputs `siem/http.go` |
 | Auth (UI cookie, node keys, rate limit) | `Hub/internal/api/middleware.go`, `Hub/internal/services/auth/service.go` |
 | Compose compiler / sandbox | `Hub/internal/compose/{builder.go,env.go,security/validate.go}`, `Hub/internal/services/compose/service.go` |
 | DB schema / retention | `Hub/internal/store/migrations.go`, `events.go`, `sqlite.go` (defaults) |
@@ -124,5 +124,6 @@ Residual gaps (unsigned manifests/images, root + host netns sensors, single admi
 - This repo is the platform only. Never invent hostnames, IPs, subnets, node lists or SIEM rule logic. Ask, or mark [NOT IN PROJECT].
 - Secrets are never in git. At runtime they live in: the Hub DB (bcrypt admin hash, sha256 node-key hashes, webhook URLs incl. tokens), the node `/etc/truesignal/config.json` and `TS_HUB_KEY` in the node compose file (plaintext node key), the `TS_DASHBOARD_PASSWORD`/`TS_SETUP_TOKEN` env vars, and the GitHub secret `DELETE_PACKAGES_TOKEN`. Reference them by location only.
 - Tests: Hub, wizard, Go SDK and all six sensors have Go tests; `.github/workflows/test.yml` runs `go vet` + `go test -race` per module. No UI unit tests, no Python SDK tests.
-- Changing the event shape, the syslog format (RFC 5424, `Hub/internal/services/siem/service.go` `formatSyslog`/`formatAudit`) or `eventTrigger` names breaks downstream SIEM parsing. Treat them as a contract.
+- Changing the event shape, the syslog format (RFC 5424, `Hub/internal/services/siem/service.go` `formatSyslog`/`formatAudit`), the ECS mapping (`siem/ecs.go`) or `eventTrigger` names breaks downstream SIEM parsing. Treat them as a contract.
+- `siem_token` (Elastic API key / LogScale ingest token) is a secret in the Hub DB; the API never returns it (`siemTokenSet` only).
 - The licence is AGPLv3 (inherited from HoneyWire). Keep `LICENSE`, `NOTICE` and the README credits intact. Modified network-served versions must offer their source.

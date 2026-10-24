@@ -1,3 +1,15 @@
+# [Unreleased] - ECS SIEM output (2026-10-24)
+
+### Hub: ECS and HTTP SIEM outputs
+* New `siemFormat`: `rfc5424` (default, unchanged) or `ecs`, which sends one ECS 8.11 JSON document per line over the existing `tcp`/`udp`/`tls` streams (for Elastic Agent's TCP input, Logstash `json_lines`, the LogScale Collector).
+* New `siemProtocol` values. `elastic` posts to the Bulk API (`<url>/<data-stream>/_bulk`, `create` actions, `ApiKey` auth). `logscale` posts to the HEC endpoint (`Bearer` ingest token). Both send ECS over HTTPS with certificate verification (`TS_SIEM_CA_FILE` honoured) and never follow redirects.
+* New write-only `siemToken`: it is stored in the Hub DB and never returned (the API exposes `siemTokenSet` only). Omit it to keep the stored token; send `""` to clear it.
+* ECS mapping: `event.kind/category/action/severity/outcome`, `source.ip`, `destination.port`, `user.name/domain` (split from `DOMAIN\user`), `file.path`/`url.path`, `host`/`observer`, with the full record under `truesignal.*`. Captured secrets stay under `truesignal.details`. Audit records map to `truesignal.audit`.
+* Delivery: network errors, `5xx` and `429` retry with the existing backoff; other `4xx` and Elastic bulk item errors drop the record and log the reason.
+* `siemAddress` is validated against the effective protocol (`host:port` vs. `https` URL; `elastic` must include the data stream).
+* UI: Settings → SIEM Forwarding gains the output, format and token fields.
+* Setup guide, Elastic index template (`truesignal.details` as `flattened`), least-privilege API key and LogScale steps: `Docs/siem-integration.md`.
+
 # [Unreleased] - LDAP NTLM bind capture (2026-10-23)
 
 ### Identity Decoy: LDAP/LDAPS NTLM binds

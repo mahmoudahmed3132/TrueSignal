@@ -1,0 +1,234 @@
+package siem
+
+import (
+	"encoding/json"
+	"fmt"
+	"net"
+	"strings"
+	"time"
+
+	"github.com/truesignal/hub/internal/models"
+)
+
+// ECS (Elastic Common Schema) rendering for siem_format=ecs and the elastic /
+// logscale HTTP outputs. Top-level fields follow ECS 8.x so Elastic Security,
+// LogScale and other ECS-aware parsers can use them without custom parsing;
+// the full TrueSignal record stays under truesignal.* (truesignal.details is
+// free-form per sensor, so map it as `flattened` in Elastic; see
+// Docs/siem/ecs.md).
+
+const ecsVersion = "8.11.0"
+
+// ecsSeverity maps the TrueSignal severity to event.severity, using the same
+// scale Elastic Security uses for rule severity.
+func ecsSeverity(sev string) int {
+	switch sev {
+	case "critical":
+		return 99
+	case "high":
+		return 73
+	case "medium":
+		return 47
+	case "low":
+		return 21
+	default:
+		return 1
+	}
+}
+
+// ecsClassify returns event.kind and event.category for a trigger.
+func ecsClassify(trigger string, whitelisted bool) (string, []string) {
+	kind := "alert"
+	if whitelisted {
+		// Archived evidence from an allow-listed source, not an alert.
+		kind = "event"
+	}
+	switch {
+	case strings.HasPrefix(trigger, "sensor_"):
+		// Hub-generated liveness (sensor_stopped, sensor_heartbeat_lost, ...).
+		return "event", []string{"host"}
+	case strings.HasSuffix(trigger, "_login") || strings.HasPrefix(trigger, "web_login"):
+		return kind, []string{"intrusion_detection", "authentication"}
+	case strings.HasPrefix(trigger, "decoy_file_"):
+		return kind, []string{"intrusion_detection", "file"}
+	case strings.HasPrefix(trigger, "web_"):
+		return kind, []string{"intrusion_detection", "web"}
+	default:
+		return kind, []string{"intrusion_detection", "network"}
+	}
+}
+
+// ecsEvent renders one event as an ECS document.
+func (s *Service) ecsEvent(event models.Event) map[string]any {
+	nodeAlias := s.nodeAlias(event.NodeID)
+	ts := eventTime(event.Timestamp).UTC()
+
+	var details map[string]any
+	if len(event.Details) > 0 {
+		_ = json.Unmarshal(event.Details, &details)
+	}
+	if details == nil {
+		details = map[string]any{}
+	}
+
+	kind, category := ecsClassify(event.EventTrigger, event.Whitelisted)
+	ev := map[string]any{
+		"kind":     kind,
+		"category": category,
+		"type":     []string{"info"},
+		"action":   event.EventTrigger,
+		"severity": ecsSeverity(event.Severity),
+		"dataset":  "truesignal.alert",
+		"module":   "truesignal",
+		"provider": event.SensorID,
+		"created":  time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if event.ID != 0 {
+		ev["id"] = fmt.Sprint(event.ID)
+	}
+	if category[len(category)-1] == "authentication" {
+		// Decoys never grant access.
+		ev["outcome"] = "failure"
+	}
+
+	doc := map[string]any{
+		"@timestamp": ts.Format(time.RFC3339Nano),
+		"ecs":        map[string]any{"version": ecsVersion},
+		"message":    fmt.Sprintf("TrueSignal %s %s from %s on %s (%s)", event.Severity, event.EventTrigger, event.Source, nodeAlias, event.Target),
+		"event":      ev,
+		"log":        map[string]any{"level": event.Severity},
+		"observer": map[string]any{
+			"type":     "honeypot",
+			"vendor":   "TrueSignal",
+			"product":  "TrueSignal",
+			"hostname": nodeAlias,
+		},
+		"host": map[string]any{"name": nodeAlias, "id": event.NodeID},
+		"tags": ecsTags(event.Whitelisted),
+		"truesignal": map[string]any{
+			"event_id":    event.ID,
+			"node_id":     event.NodeID,
+			"node":        nodeAlias,
+			"sensor_id":   event.SensorID,
+			"trigger":     event.EventTrigger,
+			"severity":    event.Severity,
+			"source":      event.Source,
+			"target":      event.Target,
+			"whitelisted": event.Whitelisted,
+			"details":     details,
+		},
+	}
+
+	// source.ip is an ip-typed field: only set it from a parseable address,
+	// or Elastic rejects the whole document.
+	if ip := net.ParseIP(event.Source); ip != nil {
+		doc["source"] = map[string]any{"ip": ip.String()}
+	} else if event.Source != "" {
+		doc["source"] = map[string]any{"address": event.Source}
+	}
+	if port, ok := asPort(details["dst_port"]); ok {
+		doc["destination"] = map[string]any{"port": port}
+	}
+	if user := ecsUser(details); user != nil {
+		doc["user"] = user
+	}
+	if p, ok := details["path"].(string); ok && p != "" {
+		if strings.HasPrefix(event.EventTrigger, "decoy_file_") {
+			doc["file"] = map[string]any{"path": p}
+		} else if strings.HasPrefix(event.EventTrigger, "web_") {
+			doc["url"] = map[string]any{"path": p}
+		}
+	}
+	if ua, ok := details["user_agent"].(string); ok && ua != "" {
+		doc["user_agent"] = map[string]any{"original": ua}
+	}
+	if m, ok := details["method"].(string); ok && m != "" {
+		doc["http"] = map[string]any{"request": map[string]any{"method": m}}
+	}
+	return doc
+}
+
+// ecsUser extracts the attempted account. Secrets (passwords, HMACs, NTLM
+// responses) stay under truesignal.details only.
+func ecsUser(details map[string]any) map[string]any {
+	for _, key := range []string{"username", "attempted_username", "bind_dn"} {
+		name, ok := details[key].(string)
+		if !ok || name == "" {
+			continue
+		}
+		user := map[string]any{"name": name}
+		if key == "username" {
+			if dom, u, found := strings.Cut(name, `\`); found && dom != "" && u != "" {
+				user["domain"] = dom
+				user["name"] = u
+			}
+		}
+		return user
+	}
+	return nil
+}
+
+func asPort(v any) (int, bool) {
+	f, ok := v.(float64) // JSON numbers decode as float64
+	if !ok || f < 1 || f > 65535 || f != float64(int(f)) {
+		return 0, false
+	}
+	return int(f), true
+}
+
+func ecsTags(whitelisted bool) []string {
+	tags := []string{"truesignal", "deception"}
+	if whitelisted {
+		tags = append(tags, "whitelisted")
+	}
+	return tags
+}
+
+// ecsAudit renders an administrative action as an ECS document.
+func (s *Service) ecsAudit(rec AuditRecord) map[string]any {
+	if rec.Time.IsZero() {
+		rec.Time = time.Now()
+	}
+	outcome := "success"
+	if rec.Status >= 400 {
+		outcome = "failure"
+	}
+	category, typ := []string{"configuration"}, []string{"change"}
+	if strings.HasSuffix(rec.Path, "/login") || strings.HasSuffix(rec.Path, "/logout") || strings.HasSuffix(rec.Path, "/setup") {
+		category, typ = []string{"authentication"}, []string{"info"}
+	}
+	doc := map[string]any{
+		"@timestamp": rec.Time.UTC().Format(time.RFC3339Nano),
+		"ecs":        map[string]any{"version": ecsVersion},
+		"message":    fmt.Sprintf("TrueSignal audit %s -> %d", rec.Action, rec.Status),
+		"event": map[string]any{
+			"kind":     "event",
+			"category": category,
+			"type":     typ,
+			"action":   rec.Action,
+			"outcome":  outcome,
+			"dataset":  "truesignal.audit",
+			"module":   "truesignal",
+		},
+		"url":  map[string]any{"path": rec.Path},
+		"http": map[string]any{"response": map[string]any{"status_code": rec.Status}},
+		"observer": map[string]any{
+			"type":    "honeypot",
+			"vendor":  "TrueSignal",
+			"product": "TrueSignal",
+		},
+		"tags": []string{"truesignal", "audit"},
+	}
+	if ip := net.ParseIP(rec.ActorIP); ip != nil {
+		doc["source"] = map[string]any{"ip": ip.String()}
+	}
+	return doc
+}
+
+// ecsDoc renders a queue item as an ECS document.
+func (s *Service) ecsDoc(item queueItem) map[string]any {
+	if item.audit != nil {
+		return s.ecsAudit(*item.audit)
+	}
+	return s.ecsEvent(*item.event)
+}
