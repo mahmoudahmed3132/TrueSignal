@@ -6,7 +6,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 ## 1. What it is and current state
 
 - TrueSignal is a fork of **HoneyWire v2.1.0** (AGPLv3, Andrea Termine), a Docker-based deception platform. It was fully rebranded on 2026-10-19: names, UI/logo, Go modules, paths, `TS_`/`ts-` protocol prefixes, distribution endpoints. Attribution lives in `NOTICE` and the README "Credits & License". The same day a security/correctness pass diverged it from upstream v2.1.0 (key hashing, setup token, digest pinning, liveness alerts, evidence retention; see CHANGELOG).
-- It has a Go Hub (API + SQLite + Vue UI), 6 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
+- It has a Go Hub (API + SQLite + Vue UI), 9 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
 - Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and one SIEM output: syslog streams (tcp/udp/tls, `siem_format` rfc5424|ecs) or HTTPS `elastic` (bulk) / `logscale` (HEC) with ECS (`Docs/siem-integration.md`).
 - **No network/subnet layout and no node inventory** are in the repo. The only SIEM content is the honeytoken rule and queries in `Docs/siem/`. Credential honeytokens exist (§2). Kashier-specific config is [NOT IN PROJECT].
 - Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. The repo is **public** (owner decision 2026-10-24, until further note), so anonymous pulls work once artifacts are published. See §6.
@@ -24,8 +24,11 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 | File Canary (FIM) | `Sensors/official/FileCanary/` | node; hardened init container creates lure files with content, main container uses inotify | `decoy_file_tampered`, `decoy_file_accessed` (`TS_ALERT_ON_OPEN` default true; dedupe `TS_ALERT_COOLDOWN`) | Hub |
 | Web Router Decoy | `Sensors/official/WebRouterDecoy/` | node, host netns, UID 0, HTTP on `TS_BIND_PORT` | `web_login_attempt` (password hashed by default, `TS_CAPTURE_PASSWORDS=hash\|plain\|none`), `web_page_view`, `web_path_probe` | Hub |
 | Identity Decoy | `Sensors/official/IdentityDecoy/` | node, host netns, UID 0, +NET_BIND_SERVICE, ports via `TS_SERVICES` (default `ldap:389,ldaps:636,rdp:3389`) | `ldap_login`/`ldaps_login`/`rdp_login` (critical), `*_query` (medium), `*_connection` (low); RDP captures `mstshash` and NLA/NTLM identity; LDAP/LDAPS capture NTLM binds (Sicily + SASL GSS-SPNEGO, `ldapntlm.go`); both under `TS_CAPTURE_NTLM=identity\|hash\|off`; passwords keyed-HMAC (`TS_CAPTURE_PASSWORDS`); persona via `TS_PERSONA_HOSTNAME`/`TS_PERSONA_DOMAIN` | Hub |
+| Database Decoy | `Sensors/official/DatabaseDecoy/` | node, host netns, **UID 65532, no added caps** (default ports >1024), `TS_SERVICES` (default `mysql:3306,postgres:5432,mssql:1433`) | `mysql_login`/`postgres_login`/`mssql_login` (critical; PG cleartext and MSSQL LOGIN7 passwords captured per policy, MySQL username/db/attrs only), `*_connection` (low) | Hub |
+| Remote Access Decoy | `Sensors/official/RemoteAccessDecoy/` | node, host netns, UID 0, +NET_BIND_SERVICE, `TS_SERVICES` (default `ssh:2222,telnet:23,ftp:21`) | `ssh_login` (password/keyboard-interactive/publickey + fingerprint; host key derived from node key), `telnet_login`, `ftp_login` (critical), `*_connection` (low). **No unit tests** (real-client verified only) | Hub |
+| Network Service Decoy | `Sensors/official/NetworkServiceDecoy/` | node, host netns, UID 0, +NET_BIND_SERVICE, UDP `TS_SERVICES` (default `snmp:161,dns:53`) | `snmp_query` (medium, SET high; community HMAC'd; answers only `TS_SNMP_COMMUNITY`), `dns_query` (medium, AXFR high; REFUSED, never forwards) | Hub |
 | Liveness (Hub-generated) | `Hub/internal/services/{sensor,statemonitor}` | Hub | `sensor_stopped` (low), `sensor_heartbeat_lost` (high), `sensor_recovered` (info); source `truesignal-hub` | same pipeline as events |
-| Go SDK | `SDKs/go-truesignal/sdk.go` | linked into every sensor | event queue (1000, 7 retries); heartbeat every 30s | Hub |
+| Go SDK | `SDKs/go-truesignal/sdk.go` (+ `decoy/`: TS_SERVICES parsing, capture policy, per-source limiter, used by the three newest decoys) | linked into every sensor | event queue (1000, 7 retries); heartbeat every 30s | Hub |
 | Python SDK | `SDKs/python-truesignal/` | community/template sensors only | same contract | Hub |
 | Registry | `registry-pages` branch (not in this checkout) + `scripts/build-registry-index.sh` | static host | `index.json`, `<sensor>-v<ver>.json` | Hub catalog |
 
@@ -82,7 +85,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 3. Mounts must be absolute, not `/`, and outside the denylist in `security/validate.go` (`/run`, `/var/run`, `/proc`, `/sys`, `/dev`, `/boot`, `/etc`, `/root`, `/usr`, `/bin`, `/sbin`, `/lib*`, `/var/lib/{docker,containerd,kubelet}`).
 4. No interpolation (`$`, `{{`) in image, network_mode, volume or init-command fields; `$` in env values is escaped to `$$`.
 4a. Every image (main and init) must carry an `@sha256:` digest; a missing/invalid manifest fails the compose (422) rather than dropping the decoy.
-4b. A manifest may declare `listen_ports_env` (env vars holding its listen ports). The Hub rejects a node whose sensors bind the same host port (422 `port_conflict`). Tarpit, Web Router Decoy and Identity Decoy declare it.
+4b. A manifest may declare `listen_ports_env` (env vars holding its listen ports). The Hub rejects a node whose sensors bind the same host port (422 `port_conflict`). Tarpit, Web Router, Identity, Database, Remote Access and Network Service decoys declare it. The check is protocol-agnostic (UDP 53 and TCP 53 count as a clash). `Hub/internal/compose/security/official_manifests_test.go` validates every official manifest in CI.
 5. Distroless images only. Non-root preferred; UID 65532 is the template default.
 6. No sensor-to-sensor communication. Telemetry flows one way to the Hub.
 7. Wizard discovery must be passive: no active probing (`Docs/development/wizard.md` §2).
@@ -123,7 +126,7 @@ Residual gaps (unsigned manifests/images, root + host netns sensors, single admi
 
 - This repo is the platform only. Never invent hostnames, IPs, subnets, node lists or SIEM rule logic. Ask, or mark [NOT IN PROJECT].
 - Secrets are never in git. At runtime they live in: the Hub DB (bcrypt admin hash, sha256 node-key hashes, webhook URLs incl. tokens, `siem_token`, the `capture_master_key`, honeytoken secrets), the node `/etc/truesignal/config.json` and `TS_HUB_KEY`/`TS_CAPTURE_HASH_KEY`/`TS_HONEYTOKEN` in the node compose file, the `TS_DASHBOARD_PASSWORD`/`TS_SETUP_TOKEN` env vars, and the GitHub secret `DELETE_PACKAGES_TOKEN`. Reference them by location only.
-- Tests: Hub, wizard, Go SDK and all six sensors have Go tests; `.github/workflows/test.yml` runs `go vet` + `go test -race` per module. No UI unit tests, no Python SDK tests.
+- Tests: Hub, wizard, Go SDK and eight of the nine sensors have Go tests (Remote Access Decoy has none yet); `.github/workflows/test.yml` runs `go vet` + `go test -race` per module. No UI unit tests, no Python SDK tests.
 - Changing the event shape, the syslog format (RFC 5424, `Hub/internal/services/siem/service.go` `formatSyslog`/`formatAudit`), the ECS mapping (`siem/ecs.go`) or `eventTrigger` names breaks downstream SIEM parsing. Treat them as a contract.
 - `siem_token` (Elastic API key / LogScale ingest token) is a secret in the Hub DB; the API never returns it (`siemTokenSet` only).
 - The licence is AGPLv3 (inherited from HoneyWire). Keep `LICENSE`, `NOTICE` and the README credits intact. Modified network-served versions must offer their source.

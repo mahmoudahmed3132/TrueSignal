@@ -1,0 +1,155 @@
+{
+  "id": "ts-sensor-remote-access-decoy",
+  "version": "2.0.0",
+  "name": "Remote Access Decoy (SSH / Telnet / FTP)",
+  "category": "remote-access",
+  "osi_layer": "Application Layer",
+  "icon_svg": "M4 6h16v12H4zM7 10l3 2-3 2m5 0h5",
+  "description": "Emulates SSH, Telnet and FTP logins so password spraying, default-credential sweeps and stolen-key use are detected and the credentials recorded.",
+  "documentation": {
+    "summary": "The Remote Access Decoy presents an OpenSSH, Linux telnetd and vsftpd login and refuses every attempt like the real service. It records usernames and passwords, and for SSH also the public keys offered, which identifies a stolen private key. No session is ever granted.",
+    "sections": [
+      {
+        "title": "Features",
+        "type": "list",
+        "content": [
+          "SSH: OpenSSH 8.9 banner and an ed25519 host key derived from the node key, so it is stable across restarts without touching the read-only filesystem. Records password, keyboard-interactive and public-key attempts (key type and SHA256 fingerprint) plus the client version.",
+          "Telnet: Linux-style negotiation, login and password prompts, PAM-like failure delay.",
+          "FTP: vsftpd 3.0.5 banner; USER/PASS captured, anonymous logins flagged.",
+          "Honeytokens: usernames and passwords feed the Hub's honeytoken matching."
+        ]
+      },
+      {
+        "title": "Security Architecture",
+        "type": "list",
+        "content": [
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities and enforces a read-only filesystem.",
+          "Execution Privilege: Runs as container root (UID 0) strictly to bind ports below 1024 (21, 23); SSH defaults to 2222 so it does not clash with the host's sshd.",
+          "Data Handling: Captured passwords are HMAC-hashed by default with this node's Hub-derived key, so planted honeytokens are recognised; cleartext ('plain') is opt-in and should stay out of PCI scope.",
+          "Rate limiting: at most 20 events per source per minute; the rest are counted (suppressed_since_last), so a spray cannot flood the Hub or SIEM."
+        ]
+      }
+    ]
+  },
+  "heuristics": {
+    "triggers": {
+      "processes": [
+        "sshd",
+        "telnetd",
+        "in.telnetd",
+        "vsftpd",
+        "proftpd",
+        "pure-ftpd"
+      ],
+      "ports": [
+        22,
+        23,
+        21
+      ]
+    },
+    "recommendation_reason": "Remote-access services detected. Deploy the Remote Access Decoy to catch password spraying and credential reuse."
+  },
+  "deployment": {
+    "network_mode": "host",
+    "user": "0:0",
+    "cap_add": [
+      "NET_BIND_SERVICE"
+    ],
+    "listen_ports_env": [
+      "TS_SERVICES"
+    ],
+    "env_vars": [
+      {
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
+        "default": "__HUB_ENDPOINT__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_HUB_KEY",
+        "description": "The shared Node Key.",
+        "default": "__HUB_KEY__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SENSOR_ID",
+        "description": "Unique identifier for this specific trap.",
+        "default": "ts-sensor-remote-access-decoy",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SEVERITY",
+        "description": "Fallback alert severity (the sensor sets critical for logins, low for bare connections, medium for queries).",
+        "default": "high",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
+        "name": "TS_TEST_MODE",
+        "description": "Enable CI/CD synthetic alerts.",
+        "default": "false",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SERVICES",
+        "description": "Comma-separated services to run, as proto:port (proto is ssh, telnet or ftp). Port 22 usually belongs to the host's real sshd; use it only on hosts without one.",
+        "default": "ssh:2222,telnet:23,ftp:21",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_PERSONA_HOSTNAME",
+        "description": "Hostname shown in the telnet prompt.",
+        "default": "srv01",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_PERSONA_OS",
+        "description": "Operating system line shown before the telnet login prompt.",
+        "default": "Ubuntu 22.04.4 LTS",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SSH_VERSION",
+        "description": "SSH identification string.",
+        "default": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.10",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_PASSWORDS",
+        "description": "How captured passwords are recorded: hash (default, keyed HMAC), plain (cleartext; keep out of PCI scope) or none (only that one was sent).",
+        "default": "hash",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_HASH_KEY",
+        "description": "Set by the Hub: this node's capture key (derived from the Hub's master key), so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      }
+    ],
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-remoteaccessdecoy",
+    "image_tag": "dev",
+    "image_digest": ""
+  }
+}

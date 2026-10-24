@@ -27,5 +27,14 @@ Modifications (AGPLv3 section 5(a))
             copied. The Go code, the TrueSignal SDK integration and the
             credential-capture policy are TrueSignal's.
 
+2026-10-24  Added the Database Decoy (MySQL, PostgreSQL, SQL Server), the
+            Remote Access Decoy (SSH, Telnet, FTP) and the Network Service
+            Decoy (SNMP, log-only DNS) under Sensors/official, likewise Go
+            reimplementations of service concepts from Trapster Community
+            (same project and licence as above). No Trapster source is
+            copied; Trapster's DNS forwarding is deliberately not
+            reproduced. The SSH decoy uses golang.org/x/crypto/ssh
+            (BSD-3-Clause).
+
 Source for any network-accessible deployment of TrueSignal must be made
 available to its users as required by AGPLv3 section 13.
