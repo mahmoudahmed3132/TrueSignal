@@ -66,6 +66,17 @@ func TestLoginRequireMFAGivesEnrollOnlySession(t *testing.T) {
 		}
 	}
 
+	// The dual-auth routes (sensor manifests) honour the gate too, while a
+	// node key on the same routes is unaffected.
+	dual := DualAuthMiddleware(svc, svc, NewRateLimiter())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	req := httptest.NewRequest("GET", "/api/v2/manifests", nil)
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	dual.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("dual-auth manifests with enroll-only session = %d, want 403", rec.Code)
+	}
+
 	// Setup returns the secret, the otpauth URI and a QR PNG, uncached.
 	rec = post(mfa.Setup, "/api/v2/auth/mfa/setup", `{"password":"pw-correct-horse"}`, cookie)
 	var setup map[string]string

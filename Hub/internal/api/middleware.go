@@ -84,6 +84,17 @@ var enrollmentPaths = map[string]bool{
 	"POST /api/v2/auth/mfa/enable": true,
 }
 
+// enrollmentBlocked answers 403 mfa_enrollment_required when the session may
+// only enroll MFA and r is not an enrollment endpoint. Every middleware that
+// accepts a dashboard session must call it.
+func enrollmentBlocked(w http.ResponseWriter, r *http.Request, v SessionValidator, token string) bool {
+	if g, ok := v.(enrollmentGate); ok && g.EnrollmentPending(token) && !enrollmentPaths[r.Method+" "+r.URL.Path] {
+		RespondError(w, "mfa_enrollment_required", http.StatusForbidden)
+		return true
+	}
+	return false
+}
+
 func UIAuthMiddleware(sessionValidator SessionValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -92,9 +103,7 @@ func UIAuthMiddleware(sessionValidator SessionValidator) func(http.Handler) http
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-			if g, ok := sessionValidator.(enrollmentGate); ok && g.EnrollmentPending(cookie.Value) &&
-				!enrollmentPaths[r.Method+" "+r.URL.Path] {
-				RespondError(w, "mfa_enrollment_required", http.StatusForbidden)
+			if enrollmentBlocked(w, r, sessionValidator, cookie.Value) {
 				return
 			}
 
@@ -185,6 +194,9 @@ func DualAuthMiddleware(sessionValidator SessionValidator, auth NodeAuthenticato
 			// 2. Try UI Session Cookie (Fallback)
 			cookie, err := r.Cookie(AuthCookieName)
 			if err == nil && cookie.Value != "" && sessionValidator.IsValid(cookie.Value) {
+				if enrollmentBlocked(w, r, sessionValidator, cookie.Value) {
+					return
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
