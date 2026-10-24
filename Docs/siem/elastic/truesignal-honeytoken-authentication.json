@@ -1,0 +1,37 @@
+{
+  "rule_id": "truesignal-honeytoken-authentication",
+  "name": "TrueSignal honeytoken account used on a real system",
+  "description": "An authentication event on a production system (AD, endpoint, VPN, database) names a TrueSignal honeytoken account. Honeytokens are fabricated credentials planted in File Canary lures and match no real account, so any use means the lure was read and its credential is being tried. truesignal.honeytoken.planted_node_id / planted_sensor_id in the indicator name the lure it came from.",
+  "type": "threat_match",
+  "language": "kuery",
+  "index": ["logs-system.security-*", "logs-windows.*", "winlogbeat-*", "logs-panw.*", "logs-fortinet_fortigate.*"],
+  "query": "event.category:authentication and not event.module:truesignal",
+  "threat_index": ["logs-truesignal-*"],
+  "threat_query": "event.dataset:\"truesignal.honeytoken\"",
+  "threat_mapping": [
+    { "entries": [{ "field": "user.name", "type": "mapping", "value": "user.name" }] },
+    { "entries": [{ "field": "winlog.event_data.TargetUserName", "type": "mapping", "value": "user.name" }] }
+  ],
+  "threat_indicator_path": "threat.indicator",
+  "severity": "critical",
+  "risk_score": 99,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": ["TrueSignal", "Deception", "Honeytoken"],
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0006", "name": "Credential Access", "reference": "https://attack.mitre.org/tactics/TA0006/" },
+      "technique": [{
+        "id": "T1552", "name": "Unsecured Credentials", "reference": "https://attack.mitre.org/techniques/T1552/",
+        "subtechnique": [{ "id": "T1552.001", "name": "Credentials In Files", "reference": "https://attack.mitre.org/techniques/T1552/001/" }]
+      }]
+    },
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": { "id": "TA0005", "name": "Defense Evasion", "reference": "https://attack.mitre.org/tactics/TA0005/" },
+      "technique": [{ "id": "T1078", "name": "Valid Accounts", "reference": "https://attack.mitre.org/techniques/T1078/" }]
+    }
+  ]
+}

@@ -144,11 +144,11 @@
       },
       {
         "name": "TS_CAPTURE_HASH_KEY",
-        "description": "Optional HMAC key for hash mode. Set the same value on every node to correlate a password across the fleet. Empty: derived from this node's key.",
+        "description": "Set by the Hub: this node's capture key (derived from the Hub's master key), so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
         "default": "",
         "type": "string",
         "required": false,
-        "hidden": false
+        "hidden": true
       }
     ],
     "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-identitydecoy",

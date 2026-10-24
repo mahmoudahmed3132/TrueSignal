@@ -45,6 +45,10 @@ func (h *EventHandler) ReceiveEvent(w http.ResponseWriter, r *http.Request) {
 			RespondError(w, "Sensor is not registered", http.StatusNotFound)
 			return
 		}
+		if errors.Is(err, event.ErrReservedTrigger) {
+			RespondError(w, "eventTrigger is reserved for the Hub", http.StatusBadRequest)
+			return
+		}
 		RespondError(w, "Database error", http.StatusInternalServerError)
 		return
 	}

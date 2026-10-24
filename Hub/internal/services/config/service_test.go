@@ -85,8 +85,8 @@ func (m *tokenStore) CompleteSetup(adminHash, hubEndpoint string) error      { r
 func (m *tokenStore) GetAllConfig() (map[string]string, error)               { return m.values, nil }
 func (m *tokenStore) UpdateConfigBatch(updates map[string]interface{}) error { return nil }
 func (m *tokenStore) UpdateConfigValue(key, value string) error              { return nil }
-func (m *tokenStore) FactoryReset() error                                    { return nil }
-func (m *tokenStore) FactoryResetDryRun() (map[string]int, error)            { return nil, nil }
+func (m *tokenStore) FactoryReset(bool) error                                { return nil }
+func (m *tokenStore) FactoryResetDryRun(bool) (map[string]int, error)        { return nil, nil }
 
 func TestGetConfigNeverReturnsSiemToken(t *testing.T) {
 	svc := &Service{store: &tokenStore{values: map[string]string{
@@ -107,7 +107,7 @@ func TestGetConfigNeverReturnsSiemToken(t *testing.T) {
 
 type resetStore struct{ tokenStore }
 
-func (m *resetStore) FactoryReset() error {
+func (m *resetStore) FactoryReset(bool) error {
 	m.values = map[string]string{"admin_hash": m.values["admin_hash"], "siem_protocol": "tcp", "siem_format": "rfc5424"}
 	return nil
 }
@@ -133,7 +133,7 @@ func TestFactoryResetDropsLiveOutputs(t *testing.T) {
 	}}}
 	sm, nt := &fakeSiem{last: siem.Output{Address: "https://es:9200/logs-x", Token: "secret"}}, &fakeNotify{url: "https://hooks.example/abc"}
 	svc := &Service{store: st, sessionManager: fakeSessions{}, siemService: sm, notifyService: nt, dashboardPassword: "pw-123456789012"}
-	if err := svc.FactoryReset("pw-123456789012", "127.0.0.1"); err != nil {
+	if err := svc.FactoryReset("pw-123456789012", "127.0.0.1", false); err != nil {
 		t.Fatal(err)
 	}
 	if sm.last.Address != "" || sm.last.Token != "" {

@@ -141,8 +141,9 @@ const (
 )
 
 type queueItem struct {
-	event *models.Event
-	audit *AuditRecord
+	event      *models.Event
+	audit      *AuditRecord
+	honeytoken *models.Honeytoken
 }
 
 type Service struct {
@@ -232,6 +233,14 @@ func (s *Service) enqueue(item queueItem) {
 
 func (s *Service) QueueEvent(event models.Event) {
 	s.enqueue(queueItem{event: &event})
+}
+
+// QueueHoneytoken forwards a honeytoken inventory record (username and where
+// it is planted; never the secret) so the SIEM can watch for the planted
+// usernames on real systems.
+func (s *Service) QueueHoneytoken(h models.Honeytoken) {
+	h.Secret = ""
+	s.enqueue(queueItem{honeytoken: &h})
 }
 
 // QueueAudit forwards an administrative action record.
@@ -434,6 +443,9 @@ func (s *Service) format(item queueItem) string {
 	if item.audit != nil {
 		return s.formatAudit(*item.audit)
 	}
+	if item.honeytoken != nil {
+		return s.formatHoneytoken(*item.honeytoken)
+	}
 	return s.formatSyslog(*item.event)
 }
 
@@ -558,6 +570,34 @@ func (s *Service) formatAudit(rec AuditRecord) string {
 	body, _ := json.Marshal(rec)
 	return fmt.Sprintf("<%d>1 %s %s %s - AUDIT %s %s",
 		16*8+5, rec.Time.UTC().Format(time.RFC3339Nano), syslogHostname, syslogAppName, sd, body)
+}
+
+// formatHoneytoken renders a honeytoken inventory record. Facility local0,
+// severity informational (6), MSGID HONEYTOKEN.
+func (s *Service) formatHoneytoken(h models.Honeytoken) string {
+	sd := structuredData("truesignal-honeytoken@"+s.pen, [][2]string{
+		{"honeytoken_id", h.ID},
+		{"username", h.Username},
+		{"planted_node_id", h.NodeID},
+		{"planted_sensor_id", h.SensorID},
+		{"status", "active"},
+	})
+	body, _ := json.Marshal(honeytokenRecord(h))
+	return fmt.Sprintf("<%d>1 %s %s %s - HONEYTOKEN %s %s",
+		16*8+6, time.Now().UTC().Format(time.RFC3339Nano), syslogHostname, syslogAppName, sd, body)
+}
+
+// honeytokenRecord is the published shape of a honeytoken. It lists fields
+// explicitly so the secret can never be serialised.
+func honeytokenRecord(h models.Honeytoken) map[string]any {
+	return map[string]any{
+		"honeytoken_id":     h.ID,
+		"username":          h.Username,
+		"planted_node_id":   h.NodeID,
+		"planted_sensor_id": h.SensorID,
+		"created_at":        h.CreatedAt,
+		"status":            "active",
+	}
 }
 
 func syslogPriority(severity string) int {

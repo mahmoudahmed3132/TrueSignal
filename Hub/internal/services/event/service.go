@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/honeytoken"
 )
 
 type Store interface {
@@ -41,9 +42,19 @@ type NotifyService interface {
 	Dispatch(event models.Event)
 }
 
+// HoneytokenMatcher recognises planted credentials in an event.
+type HoneytokenMatcher interface {
+	Match(e models.Event) ([]honeytoken.Match, error)
+	RecordUse(id string) error
+}
+
 // ErrSensorNotRegistered is returned when an event names a sensor that is not
 // installed on the authenticated node.
 var ErrSensorNotRegistered = errors.New("sensor_not_registered")
+
+// ErrReservedTrigger is returned when a sensor reports a trigger only the Hub
+// may raise (honeytoken_used), so a compromised decoy cannot forge one.
+var ErrReservedTrigger = errors.New("reserved_trigger")
 
 // SystemSource is the event source used for events the Hub raises itself
 // (sensor liveness), as opposed to events reported by sensors.
@@ -59,7 +70,11 @@ type Service struct {
 	broadcaster   Broadcaster
 	siemService   SiemService
 	notifyService NotifyService
+	honeytokens   HoneytokenMatcher
 }
+
+// SetHoneytokenMatcher enables honeytoken detection on incoming events.
+func (s *Service) SetHoneytokenMatcher(m HoneytokenMatcher) { s.honeytokens = m }
 
 func NewService(store Store, broadcaster Broadcaster, siemService SiemService, notifyService NotifyService) *Service {
 	return &Service{
@@ -119,6 +134,17 @@ func (s *Service) isWhitelisted(source string) bool {
 // forwarded to the SIEM flagged whitelisted=true: the whitelist suppresses
 // noise for operators, it never destroys evidence.
 func (s *Service) ProcessEvent(e *models.Event, nodeID string) error {
+	if strings.TrimSpace(e.EventTrigger) == honeytoken.Trigger {
+		return ErrReservedTrigger
+	}
+	return s.process(e, nodeID, false)
+}
+
+// process stores and routes an event. hubRaised marks events the Hub
+// generates itself from evidence (honeytoken use): they are never suppressed
+// by the source whitelist, because a planted credential is never used
+// legitimately.
+func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error {
 	nowStr := time.Now().UTC().Format(time.RFC3339)
 
 	// Never trust server-side fields supplied in the request body.
@@ -150,7 +176,7 @@ func (s *Service) ProcessEvent(e *models.Event, nodeID string) error {
 		return ErrSensorNotRegistered
 	}
 
-	if s.isWhitelisted(e.Source) {
+	if !hubRaised && s.isWhitelisted(e.Source) {
 		e.Whitelisted = true
 		e.IsArchived = true
 		e.IsRead = true
@@ -171,6 +197,7 @@ func (s *Service) ProcessEvent(e *models.Event, nodeID string) error {
 	}
 
 	s.siemService.QueueEvent(*e)
+	s.checkHoneytokens(*e)
 
 	if e.Whitelisted {
 		return nil
@@ -203,6 +230,49 @@ func (s *Service) EmitSystemEvent(nodeID, sensorID, trigger, severity string, de
 	}
 	if err := s.ProcessEvent(e, nodeID); err != nil {
 		log.Printf("[WARNING] Failed to record system event %s for %s/%s: %v", trigger, nodeID, sensorID, err)
+	}
+}
+
+// checkHoneytokens raises a critical honeytoken_used event for every planted
+// credential found in e. It runs for whitelisted sources too.
+func (s *Service) checkHoneytokens(e models.Event) {
+	if s.honeytokens == nil {
+		return
+	}
+	matches, err := s.honeytokens.Match(e)
+	if err != nil {
+		log.Printf("[WARNING] Honeytoken check failed for event %d: %v", e.ID, err)
+		return
+	}
+	var details map[string]any
+	_ = json.Unmarshal(e.Details, &details)
+	for _, m := range matches {
+		raw, _ := json.Marshal(map[string]any{
+			"honeytoken_id":       m.Token.ID,
+			"honeytoken_username": m.Token.Username,
+			"matched_on":          m.MatchedOn,
+			"planted_node_id":     m.Token.NodeID,
+			"planted_sensor_id":   m.Token.SensorID,
+			"triggering_event_id": e.ID,
+			"triggering_trigger":  e.EventTrigger,
+			"protocol":            details["protocol"],
+			"dst_port":            details["dst_port"],
+		})
+		alert := &models.Event{
+			SensorID:     e.SensorID,
+			EventTrigger: honeytoken.Trigger,
+			Severity:     "critical",
+			Source:       e.Source,
+			Target:       e.Target,
+			Details:      raw,
+		}
+		if err := s.process(alert, e.NodeID, true); err != nil {
+			log.Printf("[WARNING] Failed to record honeytoken use %s: %v", m.Token.ID, err)
+			continue
+		}
+		if err := s.honeytokens.RecordUse(m.Token.ID); err != nil {
+			log.Printf("[WARNING] Failed to record honeytoken use count %s: %v", m.Token.ID, err)
+		}
 	}
 }
 

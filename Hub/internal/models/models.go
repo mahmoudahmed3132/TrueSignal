@@ -212,3 +212,17 @@ type ConfigVar struct {
 	Required    bool   `json:"required"`
 	Hidden      bool   `json:"hidden,omitempty"`
 }
+
+// Honeytoken is a fabricated credential the Hub plants in a File Canary lure.
+// Any later use of it (a decoy login with its username or password) raises a
+// critical honeytoken_used event. Secret is never serialised.
+type Honeytoken struct {
+	ID         string `json:"id"`
+	Username   string `json:"username"`
+	Secret     string `json:"-"`
+	NodeID     string `json:"nodeId"`
+	SensorID   string `json:"sensorId"`
+	CreatedAt  string `json:"createdAt"`
+	LastUsedAt string `json:"lastUsedAt"`
+	UseCount   int    `json:"useCount"`
+}

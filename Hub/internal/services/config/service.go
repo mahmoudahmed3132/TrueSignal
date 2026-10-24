@@ -102,8 +102,8 @@ type Store interface {
 	GetAllConfig() (map[string]string, error)
 	UpdateConfigBatch(updates map[string]interface{}) error
 	UpdateConfigValue(key, value string) error
-	FactoryReset() error
-	FactoryResetDryRun() (map[string]int, error)
+	FactoryReset(purgeHoneytokens bool) error
+	FactoryResetDryRun(purgeHoneytokens bool) (map[string]int, error)
 }
 
 type SessionManager interface {
@@ -494,14 +494,16 @@ func (s *Service) ChangePassword(currentPassword, newPassword string) error {
 	return nil
 }
 
-func (s *Service) FactoryReset(password, ip string) error {
+// FactoryReset wipes the Hub. Honeytokens and the capture master key are kept
+// unless purgeHoneytokens is set (see store.FactoryReset).
+func (s *Service) FactoryReset(password, ip string, purgeHoneytokens bool) error {
 	if err := s.verifyAdminPassword(password); err != nil {
 		return err
 	}
 
 	log.Printf("[!] AUDIT: IP %s initiated a full Factory Reset. Wiping database.", ip)
 
-	if err := s.store.FactoryReset(); err != nil {
+	if err := s.store.FactoryReset(purgeHoneytokens); err != nil {
 		return errors.New("database_error")
 	}
 
@@ -514,12 +516,12 @@ func (s *Service) FactoryReset(password, ip string) error {
 	return nil
 }
 
-func (s *Service) FactoryResetDryRun(password string) (map[string]int, error) {
+func (s *Service) FactoryResetDryRun(password string, purgeHoneytokens bool) (map[string]int, error) {
 	if err := s.verifyAdminPassword(password); err != nil {
 		return nil, err
 	}
 
-	return s.store.FactoryResetDryRun()
+	return s.store.FactoryResetDryRun(purgeHoneytokens)
 }
 
 func (s *Service) GetSystemState() (bool, error) {

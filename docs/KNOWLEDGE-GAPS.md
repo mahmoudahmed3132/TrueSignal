@@ -87,7 +87,7 @@ None of the five sensors has a SIEM rule, dashboard, or response action in the r
 |---|---|
 | Purpose & scope | The onboarding request left `{{WHAT IT IS FOR}}` unfilled. No README section describes TrueSignal's intended use, environment or scope |
 | Environment | No node inventory, hostnames, subnets/VLANs, placement plan, firewall rules (Fortinet/Palo Alto), or naming convention for nodes **[NOT IN PROJECT]** |
-| Honeytokens | No credential, cloud-key, AD, DNS or document tokens. The File Canary is the only lure mechanism |
+| Honeytokens | Credential honeytokens exist (2026-10-24): one per File Canary instance, planted in created lures, matched by username/per-node-key HMAC, `honeytoken_used`, published to the SIEM with an Elastic rule and LogScale query for real-system logins (`Docs/operations.md` §10, `Docs/siem/honeytoken-detection.md`). Still none for cloud keys, real AD objects, DNS or documents |
 | SIEM | ECS output, the Elastic index template / API key and LogScale HEC setup are in `Docs/siem-integration.md` (2026-10-24). Still missing: detection rules, Kashier index/repository naming, collector config |
 | Alert routing / ownership | No on-call, escalation, or SOAR integration. Destinations are only ntfy/gotify/discord/slack (consumer SaaS) and syslog |
 | Runbooks | No IR runbook per eventTrigger; no Hub DR/restore runbook; no lure rotation. Node key rotation now exists (UI / `POST /api/v2/nodes/{id}/rotate-key`); uninstall now lists the lure files it leaves |
@@ -133,4 +133,4 @@ None of the five sensors has a SIEM rule, dashboard, or response action in the r
 3. Which SIEM is the system of record for these alerts: Elastic, LogScale, or both? Via which collector (Logstash/Elastic Agent/LogScale Collector/Vector)? Who owns triage?
 4. Where will nodes sit (VDC segments, CDE vs non-CDE), and what egress is allowed from decoy hosts?
 5. Web Router Decoy now hashes captured passwords by default (`TS_CAPTURE_PASSWORDS=hash`). Is `plain` ever needed (for example, for credential-stuffing intel), and under what data-handling rule?
-6. Are honeytokens (AD, cloud, DB credentials, documents) in scope? None exist today.
+6. Credential honeytokens are built (lure-planted, decoy-matched). Are real-AD honeytoken accounts, cloud keys or document tokens in scope?

@@ -32,8 +32,8 @@ func (m *mockConfigStore) UpdateConfigValue(key, value string) error {
 	m.values[key] = value
 	return nil
 }
-func (m *mockConfigStore) FactoryReset() error                         { return nil }
-func (m *mockConfigStore) FactoryResetDryRun() (map[string]int, error) { return nil, nil }
+func (m *mockConfigStore) FactoryReset(bool) error                         { return nil }
+func (m *mockConfigStore) FactoryResetDryRun(bool) (map[string]int, error) { return nil, nil }
 
 type mockCatalog struct {
 	err error

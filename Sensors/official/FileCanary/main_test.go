@@ -16,12 +16,30 @@ func TestLureContentByName(t *testing.T) {
 		"random.dat":         "token=",
 	}
 	for name, want := range cases {
-		if got := string(lureContent(name)); !strings.Contains(got, want) {
+		if got := string(lureContent(name, honeytoken{})); !strings.Contains(got, want) {
 			t.Errorf("%s: expected %q in content, got %q", name, want, got)
 		}
 	}
-	if string(lureContent(".env")) == string(lureContent(".env")) {
+	if string(lureContent(".env", honeytoken{})) == string(lureContent(".env", honeytoken{})) {
 		t.Error("secrets must be random per lure")
+	}
+}
+
+func TestLuresEmbedHoneytoken(t *testing.T) {
+	tok, ok := parseHoneytoken("svc_backup7f3a:Qx7pLm2Rv9TzKw!")
+	if !ok {
+		t.Fatal("valid TS_HONEYTOKEN rejected")
+	}
+	for _, name := range []string{".env.backup", ".backup-config.php", "dump.sql.bak", "vpn_keys.txt", ".pgpass.old", "random.dat"} {
+		got := string(lureContent(name, tok))
+		if !strings.Contains(got, "svc_backup7f3a") || !strings.Contains(got, "Qx7pLm2Rv9TzKw!") {
+			t.Errorf("%s does not carry the honeytoken:\n%s", name, got)
+		}
+	}
+	for _, bad := range []string{"", "nouser", ":pw", "user:"} {
+		if _, ok := parseHoneytoken(bad); ok {
+			t.Errorf("parseHoneytoken(%q) accepted", bad)
+		}
 	}
 }
 

@@ -23,6 +23,7 @@ func runInit() {
 
 	files := strings.Split(filesStr, ",")
 	validFiles := 0
+	tok, _ := parseHoneytoken(os.Getenv("TS_HONEYTOKEN"))
 
 	for _, f := range files {
 		f = strings.TrimSpace(f)
@@ -142,7 +143,7 @@ func runInit() {
 
 			// Only files created here (O_EXCL) get content: existing host files
 			// used as tripwires are never modified.
-			if _, err := unix.Write(fd, lureContent(filepath.Base(f))); err != nil {
+			if _, err := unix.Write(fd, lureContent(filepath.Base(f), tok)); err != nil {
 				log.Printf("WARNING: Failed writing lure content to %q: %v", hostPath, err)
 			}
 			unix.Close(fd)

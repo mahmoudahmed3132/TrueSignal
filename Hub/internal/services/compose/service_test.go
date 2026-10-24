@@ -414,3 +414,59 @@ func TestPreview_RejectsPortConflict(t *testing.T) {
 		t.Fatalf("expected preview port_conflict, got: %v", err)
 	}
 }
+
+type fakeHoneytokens struct{ calls []string }
+
+func (f *fakeHoneytokens) NodeCaptureKey(nodeID string) (string, error) {
+	return "nodekey-" + nodeID, nil
+}
+func (f *fakeHoneytokens) TokenFor(nodeID, sensorID string) (models.Honeytoken, error) {
+	f.calls = append(f.calls, nodeID+"/"+sensorID)
+	return models.Honeytoken{Username: "svc_backup7f3a", Secret: "Qx7pLm2Rv9TzKw!"}, nil
+}
+
+func TestComposeInjectsFleetKeyAndHoneytoken(t *testing.T) {
+	envs := []map[string]interface{}{
+		{"name": "TS_CAPTURE_HASH_KEY", "default": "", "type": "string"},
+		{"name": "TS_HONEYTOKEN", "default": "", "type": "string"},
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/index.json":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"sensors": []map[string]interface{}{{"id": "ts-sensor-test", "latest": "1.0.0", "versions": []map[string]string{{"v": "1.0.0"}}}},
+			})
+		case "/test-v1.0.0.json":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"id": "ts-sensor-test", "version": "1.0.0",
+				"deployment": map[string]interface{}{
+					"image_repository": "test-image", "image_tag": "v1.0.0", "image_digest": testDigest,
+					"env_vars": envs,
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	store := &MockStore{RegistryURL: ts.URL}
+	catSvc := catalog.NewService(store, nil)
+	svc := composesvc.NewService(store, catSvc)
+	ht := &fakeHoneytokens{}
+	svc.SetHoneytokens(ht)
+	catSvc.RefreshIndex()
+
+	yamlData, err := svc.GetNodeCompose("node-1", "http://fallback.com", "v1.0.0")
+	if err != nil {
+		t.Fatalf("GetNodeCompose failed: %v", err)
+	}
+	for _, want := range []string{"TS_CAPTURE_HASH_KEY=nodekey-node-1", "TS_HONEYTOKEN=svc_backup7f3a:Qx7pLm2Rv9TzKw!"} {
+		if !contains(yamlData, want) {
+			t.Errorf("compose missing %q:\n%s", want, yamlData)
+		}
+	}
+	if len(ht.calls) != 1 || ht.calls[0] != "node-1/ts-sensor-test" {
+		t.Errorf("TokenFor calls = %v", ht.calls)
+	}
+}

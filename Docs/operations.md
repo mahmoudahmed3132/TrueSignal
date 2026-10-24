@@ -118,3 +118,17 @@ Sensor liveness is reported through the normal event pipeline, so it reaches the
 | `sensor_recovered` | `info` | A sensor that was offline sent a heartbeat again. |
 
 A killed or stopped decoy is therefore visible in the SIEM. Sensors that were added but never deployed do not alert. Build a SIEM rule on `sensor_heartbeat_lost` rather than on `sensor_stopped`, which also fires on routine redeploys.
+
+## 10. Honeytokens
+
+Every File Canary instance plants a credential the Hub fabricates for it. Any later use of that credential against a TrueSignal decoy raises a critical `honeytoken_used` event that names the lure's node and sensor. Lure access only shows that a file was read; this shows the stolen credential being used, and where it was stolen from.
+
+- **Planting:** when the Hub first renders a node's compose, it creates one honeytoken per File Canary instance: a username such as `svc_reports97ef` and a random password. It passes them as `TS_HONEYTOKEN`. The provisioner writes them into lures it **creates** (`.env` `DB_USERNAME`/`DB_PASSWORD`, `wp-config`-style PHP, `.pgpass`, the restore line of an SQL dump, a VPN config comment, generic backups). Existing host files used as tripwires are never modified, so they carry no token. The token is stable: redeploying does not change it.
+- **Detection:** the Hub matches every incoming event:
+  - **Username**, case-insensitive, after reducing `DOMAIN\user`, `user@realm` and the `CN=`/`UID=` of a bind DN. This also covers RDP `mstshash` and LDAP/RDP NTLM captures, which carry no password.
+  - **Password**, by keyed HMAC. The Hub owns a master key (`capture_master_key`, generated on first use) that never leaves it. Each node's password-hashing decoys (Identity Decoy, Web Router Decoy) get `TS_CAPTURE_HASH_KEY = HMAC(master, node ID)`, a key valid for that node only. A value set in the UI is ignored. For each event, the Hub re-derives the reporting node's key, checks `hmac_key_id`, and compares the HMAC of every honeytoken's secret under that key. A planted credential is therefore recognised on any node. `TS_CAPTURE_PASSWORDS=plain` captures are compared directly.
+- **Inventory:** `GET /api/v2/honeytokens` lists each token with where it was planted, its use count and when it was last used. `?format=csv` returns a watchlist file.
+- **Real systems (AD, VPN, endpoints, databases):** the Hub publishes every honeytoken (username and planting location, never the password) to the configured SIEM output: on creation, at start and every 24 h (`MSGID HONEYTOKEN` / ECS `truesignal.honeytoken`). `Docs/siem/honeytoken-detection.md` has an importable Elastic indicator-match rule, the LogScale/Falcon query, and the audit policy that makes the logins visible.
+- **Key exposure:** root on a node yields only that node's derived key. It can be used to dictionary-test password HMACs that node itself captured, which an attacker with root there could already intercept, and nothing captured on other nodes. Only the Hub holds the master key, so the Hub database (which also holds the honeytoken secrets) is the asset to protect.
+- **Lifecycle:** honeytokens and the master key survive node and sensor deletion and a factory reset, because the lures that carry them stay on disk (uninstall never deletes lures). Re-linked nodes keep being protected by the old lures. To retire them deliberately, delete the lure files first, then reset with `purgeHoneytokens: true`. That also rotates the master key.
+
