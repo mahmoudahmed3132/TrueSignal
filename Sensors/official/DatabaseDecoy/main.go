@@ -33,6 +33,9 @@ type handler struct {
 	cap     decoy.Capture
 	persona persona
 	limit   *decoy.Limiter
+	// connLimit bounds connection-only events separately, so a connect flood
+	// cannot fill the SDK queue nor use up the login budget.
+	connLimit *decoy.Limiter
 }
 
 const (
@@ -72,13 +75,14 @@ func main() {
 	defer stop()
 
 	limit := decoy.NewLimiter(loginsPerMinute, time.Minute)
+	connLimit := decoy.NewLimiter(loginsPerMinute, time.Minute)
 	var lc net.ListenConfig
 	for _, s := range services {
 		ln, err := lc.Listen(ctx, "tcp", fmt.Sprintf("0.0.0.0:%d", s.Port))
 		if err != nil {
 			log.Fatalf("[!] FATAL: bind %s/%d: %v", s.Proto, s.Port, err)
 		}
-		h := &handler{ts: ts, proto: s.Proto, port: s.Port, cap: capture, persona: per, limit: limit}
+		h := &handler{ts: ts, proto: s.Proto, port: s.Port, cap: capture, persona: per, limit: limit, connLimit: connLimit}
 		log.Printf("[+] DatabaseDecoy serving %s on port %d as %s", s.Proto, s.Port, per.hostname)
 		go decoy.Accept(ctx, ln, h.serve)
 	}
@@ -94,8 +98,14 @@ func main() {
 func (h *handler) serve(conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(connTimeout))
-	h.ts.ReportEventSeverity("low", h.proto+"_connection", decoy.RemoteIP(conn.RemoteAddr()), h.target(),
-		sdk.EventDetails{{Key: "protocol", Value: h.proto}, {Key: "dst_port", Value: h.port}})
+	src := decoy.RemoteIP(conn.RemoteAddr())
+	if ok, suppressed := h.connLimit.Allow(src); ok {
+		d := sdk.EventDetails{{Key: "protocol", Value: h.proto}, {Key: "dst_port", Value: h.port}}
+		if suppressed > 0 {
+			d = append(d, sdk.EventDetail{Key: "suppressed_since_last", Value: suppressed})
+		}
+		h.ts.ReportEventSeverity("low", h.proto+"_connection", src, h.target(), d)
+	}
 	switch h.proto {
 	case "mysql":
 		h.serveMySQL(conn)

@@ -1,6 +1,7 @@
 package decoy
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -71,5 +72,33 @@ func TestLimiter(t *testing.T) {
 	l.now = func() time.Time { return t0.Add(61 * time.Second) }
 	if ok, sup := l.Allow("a"); !ok || sup != 5 {
 		t.Fatalf("new window: ok=%v suppressed=%d, want 5", ok, sup)
+	}
+}
+
+func TestLimiterStateIsBounded(t *testing.T) {
+	l := NewLimiter(1, time.Minute)
+	l.maxTracked = 100
+	t0 := time.Unix(0, 0)
+	l.now = func() time.Time { return t0 }
+	allowed := 0
+	for i := 0; i < 5000; i++ { // distinct spoofed sources within one window
+		if ok, _ := l.Allow(strconv.Itoa(i)); ok {
+			allowed++
+		}
+	}
+	if len(l.seen) > l.maxTracked+1 {
+		t.Fatalf("tracked %d sources, cap %d", len(l.seen), l.maxTracked)
+	}
+	// 100 tracked sources plus one event from the shared overflow bucket.
+	if allowed != l.maxTracked+1 {
+		t.Fatalf("allowed %d events, want %d", allowed, l.maxTracked+1)
+	}
+	// Once the window passes, expired entries are swept and new sources tracked.
+	l.now = func() time.Time { return t0.Add(2 * time.Minute) }
+	if ok, _ := l.Allow("fresh"); !ok || l.seen["fresh"] == nil {
+		t.Fatal("new source not tracked after sweep")
+	}
+	if len(l.seen) > 2 {
+		t.Fatalf("sweep left %d entries", len(l.seen))
 	}
 }

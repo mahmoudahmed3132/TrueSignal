@@ -49,7 +49,7 @@ func (f *fakeReporter) find(trigger string) *event {
 func start(t *testing.T, proto, captureMode string) (net.Conn, *fakeReporter, func()) {
 	t.Helper()
 	fr := &fakeReporter{}
-	h := &handler{ts: fr, proto: proto, port: 1, cap: decoy.NewCaptureWith(captureMode, "node-key", ""), persona: persona{hostname: "DB01"}, limit: decoy.NewLimiter(loginsPerMinute, time.Minute)}
+	h := &handler{ts: fr, proto: proto, port: 1, cap: decoy.NewCaptureWith(captureMode, "node-key", ""), persona: persona{hostname: "DB01"}, limit: decoy.NewLimiter(loginsPerMinute, time.Minute), connLimit: decoy.NewLimiter(loginsPerMinute, time.Minute)}
 	client, server := net.Pipe()
 	done := make(chan struct{})
 	go func() { h.serve(server); close(done) }()
@@ -260,5 +260,25 @@ func TestMSSQLLogin7(t *testing.T) {
 func TestDeobfuscateRoundTrip(t *testing.T) {
 	if got := fromUTF16le(deobfuscateTDSPassword(obfuscate("Ünïcode-Pässwörd"))); got != "Ünïcode-Pässwörd" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestConnectionEventsAreRateLimited(t *testing.T) {
+	fr := &fakeReporter{}
+	h := &handler{ts: fr, proto: "mysql", port: 1, cap: decoy.NewCaptureWith("hash", "k", ""), persona: persona{hostname: "DB01"},
+		limit: decoy.NewLimiter(loginsPerMinute, time.Minute), connLimit: decoy.NewLimiter(3, time.Minute)}
+	for i := 0; i < 10; i++ {
+		client, server := net.Pipe()
+		client.Close() // connect and drop, no login
+		h.serve(server)
+	}
+	n := 0
+	for _, e := range fr.events {
+		if e.trigger == "mysql_connection" {
+			n++
+		}
+	}
+	if n != 3 {
+		t.Fatalf("connection events = %d, want 3 (rate-limited)", n)
 	}
 }
