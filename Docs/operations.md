@@ -96,6 +96,43 @@ In production, pin the release instead of tracking `latest`: `Hub/docker-compose
 
 Schema migrations run automatically on boot and first write a `*.pre-vN-*.bak` snapshot next to the database. Migration v3 hashes existing node API keys and rebuilds the events table so events no longer depend on their sensor or node row; existing node keys keep working.
 
+### Before an upgrade
+
+1. Pin the current version so you can return to it: note `TS_HUB_VERSION` (or the running image digest: `docker inspect truesignal-hub --format '{{.Image}}'`).
+2. Take an off-host copy of the data directory. The automatic `*.pre-vN-*.bak` sits on the same volume, so it does not survive losing the host. The database runs in WAL mode, so stop the Hub first and copy all three files:
+   ```bash
+   docker compose stop truesignal-hub
+   tar czf truesignal-$(date -u +%Y%m%dT%H%M%SZ).tgz truesignal_data/truesignal.db*
+   docker compose start truesignal-hub
+   ```
+   Treat the archive as secret: it holds the node-key hashes, webhook URLs, the SIEM token, the capture master key and the honeytoken secrets.
+3. Upgrade: `TS_HUB_VERSION=vX.Y.Z docker compose pull && TS_HUB_VERSION=vX.Y.Z docker compose up -d`. The log shows `[DB] Running schema migration A -> B` when the schema changed, and a new `.bak` appears in `truesignal_data/`.
+
+### Rolling back the Hub
+
+**Case 1: the new version did not migrate the schema** (no `Running schema migration` line, no new `.bak`). Pin the old image and restart. Nothing else changes:
+```bash
+TS_HUB_VERSION=<old> docker compose up -d
+```
+
+**Case 2: the schema was migrated.** An older Hub refuses to start on a newer schema (`database schema version N is newer than supported version M`), so you must restore the pre-migration snapshot. Everything written after the upgrade is lost from the Hub: events, node and sensor changes, settings, key rotations, new honeytokens. The SIEM still has the events if forwarding was on; keep the post-upgrade database for evidence.
+```bash
+docker compose stop truesignal-hub
+cd truesignal_data
+mkdir -p ../rollback-evidence && mv truesignal.db truesignal.db-wal truesignal.db-shm ../rollback-evidence/ 2>/dev/null
+cp truesignal.db.pre-v<M>-<timestamp>.bak truesignal.db   # the snapshot taken by this upgrade
+cd ..
+TS_HUB_VERSION=<old> docker compose up -d
+```
+Moving the `-wal`/`-shm` files away is required: SQLite would otherwise replay the newer database's write-ahead log onto the restored file and corrupt it.
+
+After a Case 2 restore:
+- **Node keys rotated after the snapshot are valid again**, and keys issued after it are gone. Rotate every key that was rotated or issued since the upgrade (`Rotate key`, then relink those nodes). Nodes deleted after the snapshot reappear; delete them again.
+- **Honeytokens created after the snapshot are unknown to the Hub** but their lures stay on disk. Re-render those nodes' compose and run `truesignal apply` so the File Canary gets a token the Hub knows; delete the orphaned lures or note them as untracked.
+- **Admin password and settings** revert to their state at the snapshot.
+- Run `truesignal apply` on every node whose sensors changed after the upgrade.
+- If the upgrade ran several migrations, use the `.bak` with the version you are returning to (`pre-v<M>` is the schema the old Hub expects).
+
 > [!WARNING]
 > **Major Version Upgrades:** While minor and patch updates (e.g., `v2.0.1` to `v2.0.4`) are safe to pull automatically, **Major** version bumps (e.g., `v2.x` to `v3.0`) often contain breaking changes, database schema migrations, or new environment variables. Always read the [GitHub Release Notes](https://github.com/mahmoudahmed3132/TrueSignal/releases) before pulling a major version to ensure you do not corrupt your Hub instance.
 
@@ -131,4 +168,49 @@ Every File Canary instance plants a credential the Hub fabricates for it. Any la
 - **Real systems (AD, VPN, endpoints, databases):** the Hub publishes every honeytoken (username and planting location, never the password) to the configured SIEM output: on creation, at start and every 24 h (`MSGID HONEYTOKEN` / ECS `truesignal.honeytoken`). `Docs/siem/honeytoken-detection.md` has an importable Elastic indicator-match rule, the LogScale/Falcon query, and the audit policy that makes the logins visible.
 - **Key exposure:** root on a node yields only that node's derived key. It can be used to dictionary-test password HMACs that node itself captured, which an attacker with root there could already intercept, and nothing captured on other nodes. Only the Hub holds the master key, so the Hub database (which also holds the honeytoken secrets) is the asset to protect.
 - **Lifecycle:** honeytokens and the master key survive node and sensor deletion and a factory reset, because the lures that carry them stay on disk (uninstall never deletes lures). Re-linked nodes keep being protected by the old lures. To retire them deliberately, delete the lure files first, then reset with `purgeHoneytokens: true`. That also rotates the master key.
+
+## 11. TLS in front of the Hub
+
+The Hub serves plain HTTP. In production put a TLS proxy in front of it and make the Hub trust forwarding headers from that proxy only:
+
+| Variable | Set to |
+|---|---|
+| `TS_TRUST_PROXY` | `true` |
+| `TS_TRUSTED_PROXIES` | the proxy's address(es) as seen by the Hub, comma-separated IPs/CIDRs (e.g. the F5 SNAT self-IPs of both HA units). Without it, any client that reaches the Hub directly can forge `X-Real-IP` to dodge the login lockout and poison the audit log; the Hub warns at startup. An invalid entry stops the Hub. |
+| `TS_BIND_ADDR` | (external proxy only) the Hub host's address on the proxy-facing network, so port 8080 is not reachable elsewhere |
+
+Set the Hub endpoint (Settings, and what nodes link to) to the `https://` URL. Nodes and sensors use the same endpoint, so they go through the proxy too.
+
+### Bundled nginx (`Hub/docker-compose.tls.yml`)
+
+```bash
+cd Hub
+mkdir -p deploy/tls && cp hub.crt deploy/tls/hub.crt && cp hub.key deploy/tls/hub.key
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+```
+
+The overlay runs a digest-pinned unprivileged nginx (`Hub/deploy/nginx/truesignal.conf`): read-only, no capabilities, TLS 1.2/1.3 with ECDHE AEAD suites, HSTS, HTTP→HTTPS redirect, WebSocket pass-through for `/api/v2/ws`. The Hub's own port is no longer published, the proxy has a fixed address (`TS_PROXY_IP`, default `172.30.80.2` in `TS_PROXY_SUBNET` `172.30.80.0/29`), and `TS_TRUSTED_PROXIES` is set to it. The proxy overwrites `X-Real-IP`/`X-Forwarded-For` with the TCP peer, so client-supplied values never reach the Hub. Requires Docker Compose 2.24+.
+
+If you edit the config: nginx drops every server-level `proxy_set_header` in a location that sets any of its own, which is why the forwarding headers are repeated in each `location`. Keep `Host` as `$http_host` (with port) or the WebSocket origin check rejects the dashboard on a non-443 port.
+
+### F5 BIG-IP
+
+- **Virtual server** on 443 with a client SSL profile (TLS 1.2+; set `No TLSv1` and `No TLSv1.1`), pool member `<hub>:8080` over HTTP, SNAT automap or a SNAT pool. Run the Hub with `TS_BIND_ADDR` set to the interface the pool member address is on.
+- **WebSocket:** attach a WebSocket profile to the virtual server (with the HTTP profile). Keep the TCP idle timeout above 60 s; the Hub pings every 20 s.
+- **Forwarding headers: use an iRule, not the HTTP profile's "Insert X-Forwarded-For".** The profile adds a second header and the client's own `X-Forwarded-For` and `X-Real-IP` still pass through; the Hub reads `X-Real-IP` first. Replace them:
+  ```tcl
+  when HTTP_REQUEST {
+      # Strip any route-domain suffix (10.1.1.1%2), which the Hub cannot parse.
+      set client [getfield [IP::client_addr] "%" 1]
+      HTTP::header remove X-Real-IP
+      HTTP::header remove X-Forwarded-For
+      HTTP::header remove X-Forwarded-Host
+      HTTP::header insert X-Real-IP $client
+      HTTP::header insert X-Forwarded-For $client
+      HTTP::header replace X-Forwarded-Proto https
+  }
+  ```
+- **`TS_TRUSTED_PROXIES`** = the self-IPs the BIG-IP uses as SNAT source towards the Hub (both units of an HA pair, or the SNAT pool). The Host header is passed unchanged, which the WebSocket origin check needs.
+- **Monitor:** HTTP `GET /api/v2/version`, receive string `"version"`. It needs no authentication.
+- If a WAF policy (ASM/Advanced WAF) sits on the virtual server, exempt `/api/v2/event` and `/api/v2/heartbeat` from body-content signatures: sensor events carry attacker payloads by design and would otherwise be blocked, which silently drops alerts.
 

@@ -136,7 +136,7 @@ func (h *ConfigHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ip := GetRealIP(r, h.Cfg.TrustProxy)
+	ip := GetRealIP(r, h.Cfg.TrustsProxyHeaders(r))
 	dryrun := r.URL.Query().Get("dryrun") == "true"
 
 	if dryrun {

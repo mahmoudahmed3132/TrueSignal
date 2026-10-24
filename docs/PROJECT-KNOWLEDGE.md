@@ -23,7 +23,7 @@ Status legend used throughout:
 | Latest CHANGELOG entry | v2.0.1 (2026-06-26) | `CHANGELOG.md:20` |
 | Rebrand | 2026-10-19: names, UI/logo, Go modules, CLI/paths, protocol prefixes (`TS_`, `ts-sensor-`, `ts_key_`, `ts_auth`), syslog identity, distribution endpoints. No functional change | `NOTICE`, `CHANGELOG.md` |
 | Security/correctness pass | 2026-10-19: hashed node keys + rotation, setup token, digest pinning, sandbox hardening, liveness alerts, evidence retention, RFC 5424 syslog, sensor fidelity fixes, CI tests. This document reflects the post-pass code | `CHANGELOG.md` top entry |
-| Stated purpose | the onboarding request literally contains `{{WHAT IT IS FOR}}` | onboarding request |
+| Stated purpose | Early, high-fidelity detection of attacker activity inside the organisation's production environment, cloud or on-prem. Decoy VMs that mirror real production naming and specs sit in an isolated subnet; honeytokens cover the SaaS side. Any interaction with a decoy or token is treated as suspicious by design and raises an alert in the SIEM (LogScale or Elastic, whichever the Hub's SIEM output targets) for SOC triage. Secondary goals: evidence of internal intrusion-detection capability for PCI DSS and CBE reviews (a supporting control, not a mandated one), and validation of detection coverage through authorised internal testing. | owner, 2026-10-24 |
 
 Upstream's own description: a "Distributed High-Signal Security Early-Warning System Builder" for internal networks. Its model is the high-fidelity tripwire: "If it trips, you have an intruder" (`README.md:33-40`).
 

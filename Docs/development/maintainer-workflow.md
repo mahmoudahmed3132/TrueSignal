@@ -107,14 +107,21 @@ The authoring surface is the `<sensor-name>.json` manifest inside each sensor's 
 - `Sensors/official/WebRouterDecoy/web-router-decoy.json`
 - `Sensors/official/IcmpCanary/icmp-canary.json`
 - `Sensors/official/NetworkScanDetector/network-scan-detector.json`
+- `Sensors/official/IdentityDecoy/identity-decoy.json`, `DatabaseDecoy/database-decoy.json`, `RemoteAccessDecoy/remote-access-decoy.json`, `NetworkServiceDecoy/network-service-decoy.json`
 
-This decoupled architecture allows the Hub to dynamically index sensors without monolithic configuration files. Edit the file, update documentation, env vars, heuristics, etc. Commit to `main`.
+This decoupled architecture allows the Hub to dynamically index sensors without monolithic configuration files. Edit the file, update documentation, env vars, heuristics, etc., **bump `version`**, and commit to `main`. CI rejects a tag whose version differs from the manifest's.
 
 ### Step 2: Push a Namespaced Git Tag
 ```bash
 git tag sensor/file-canary/v1.2.0
 git push origin sensor/file-canary/v1.2.0
 ```
+
+Or tag every sensor at its manifest version with `make tag-sensors` (existing tags are skipped). Pushing several sensor tags at once is safe: each job retries its `registry-pages` push until it lands (`scripts/publish-registry.sh`).
+
+Hub and Wizard: `make tag-release` tags `hub/v<HubVersion>` and `wizard/v<WizardVersion>` from the constants in `Hub/internal/models/models.go` and `wizard/core/api/client.go`; their workflows reject a tag that doesn't match the constant.
+
+**First publish of a package:** GHCR creates packages under a personal account as **private**, even for a public repo. After the first run of each image, set it to Public in the package settings (Packages → `truesignal-*` → Package settings → Change visibility), or nodes and the Hub can't pull anonymously.
 
 > [!WARNING]
 > **Immutability Rule:** In standard GitOps workflows, release tags are immutable. If you push `v1.2.0`, realize it's broken, and rollback your fleet, you **must not** overwrite the `v1.2.0` tag with a fix. Doing so causes cache poisoning in the Hub backend and Docker registries. Always bump the version (e.g. `v1.2.1`) and leave the rolled-back tag untouched.
@@ -123,7 +130,7 @@ git push origin sensor/file-canary/v1.2.0
 The `publish-sensor-registry` workflow (GitHub or Gitea) will:
 1. Read `Sensors/official/FileCanary/file-canary.json` at the tagged commit
 2. Build and push the image, inject `"version": "1.2.0"`, set `image_tag` to `"v1.2.0"`, and write the pushed image's `image_digest` into the main and init containers (the Hub refuses unpinned images)
-3. Write `file-canary-v1.2.0.json` to the `registry-pages` branch
+3. Write `file-canary-v1.2.0.json` to the `registry-pages` branch. A version already there is never overwritten: the job fails before building, so the published digest stays tagged and pullable
 4. Regenerate `index.json`
 
 ### Step 4: Verify

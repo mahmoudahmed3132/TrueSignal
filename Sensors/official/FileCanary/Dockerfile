@@ -16,7 +16,7 @@ WORKDIR /src/Sensors/official/FileCanary
 RUN go mod download
 
 # Compile the pure Go, fully static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o file-canary ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o file-canary .
 
 # STAGE 2: Distroless
 FROM gcr.io/distroless/static-debian12:nonroot

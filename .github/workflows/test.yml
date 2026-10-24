@@ -65,6 +65,38 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: go test -race ./...
 
+  # Builds every image the release workflows publish, so a Dockerfile that
+  # no longer matches its package (e.g. building ./main.go when the package
+  # has more files) fails on the PR instead of at release time.
+  docker:
+    name: docker build (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - Hub
+          - DatabaseDecoy
+          - FileCanary
+          - IcmpCanary
+          - IdentityDecoy
+          - NetworkScanDetector
+          - NetworkServiceDecoy
+          - RemoteAccessDecoy
+          - TcpTarpit
+          - WebRouterDecoy
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Build
+        run: |
+          if [ "${{ matrix.image }}" = "Hub" ]; then
+            docker build -f Hub/Dockerfile Hub/
+          else
+            docker build -f "Sensors/official/${{ matrix.image }}/Dockerfile" .
+          fi
+
   python:
     name: Python SDK / mock hub
     runs-on: ubuntu-latest

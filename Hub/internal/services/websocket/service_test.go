@@ -1,12 +1,13 @@
 package websocket
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 func TestSameOrigin(t *testing.T) {
-	policy := SameOrigin(func() []string { return []string{"hub.example.com"} }, true)
+	policy := SameOrigin(func() []string { return []string{"hub.example.com"} }, func(*http.Request) bool { return true })
 	cases := []struct {
 		origin, host, fwd string
 		want              bool

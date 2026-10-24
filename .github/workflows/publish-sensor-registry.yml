@@ -51,6 +51,26 @@ jobs:
           fi
           echo "SOURCE=$SOURCE" >> $GITHUB_OUTPUT
 
+          # The tag must release exactly what the manifest in the repo says.
+          MANIFEST_VERSION=$(jq -r '.version' "$SOURCE")
+          if [ "$MANIFEST_VERSION" != "${{ steps.vars.outputs.VERSION }}" ]; then
+            echo "::error::Tag version ${{ steps.vars.outputs.VERSION }} does not match $SOURCE version $MANIFEST_VERSION"
+            exit 1
+          fi
+
+      - name: Refuse to re-release a published version
+        run: |
+          # Rebuilding would move the image tag and orphan the digest the
+          # published manifest pins (the GHCR cleanup deletes untagged images).
+          FILE="${{ steps.vars.outputs.SENSOR_NAME }}-v${{ steps.vars.outputs.VERSION }}.json"
+          if git ls-remote --exit-code --heads origin registry-pages >/dev/null 2>&1; then
+            git fetch -q origin registry-pages
+            if git cat-file -e "FETCH_HEAD:$FILE" 2>/dev/null; then
+              echo "::error::$FILE is already published. Bump the version instead."
+              exit 1
+            fi
+          fi
+
       - name: Build versioned manifest
         id: build
         run: |
@@ -87,7 +107,10 @@ jobs:
 
           IMAGE_TAG="$IMAGE_REPO:v$VERSION"
           LATEST_TAG="$IMAGE_REPO:latest"
-          docker build -t "$IMAGE_TAG" -t "$LATEST_TAG" -f "$SENSOR_DIR/Dockerfile" .
+          docker build -t "$IMAGE_TAG" -t "$LATEST_TAG" \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            -f "$SENSOR_DIR/Dockerfile" .
           docker push "$IMAGE_TAG" | tee push_out.log
           docker push "$LATEST_TAG"
           
@@ -99,39 +122,13 @@ jobs:
              exit 1
           fi
 
-      - name: Checkout registry-pages branch
+      - name: Publish manifest to registry-pages
         run: |
-          cp scripts/build-registry-index.sh /tmp/build-registry-index.sh
-          chmod +x /tmp/build-registry-index.sh
-
           git config user.name "TrueSignal CI"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if git ls-remote --exit-code --heads origin registry-pages >/dev/null 2>&1; then
-            git fetch origin registry-pages
-            git checkout registry-pages
-          else
-            git checkout --orphan registry-pages
-            git rm -rf . 2>/dev/null || true
-            echo "# TrueSignal Sensor Registry" > README.md
-            git add README.md
-            git commit -m "Initialize registry-pages branch"
-          fi
-
-      - name: Write versioned manifest to registry
-        run: |
-          OUTPUT_FILE="${{ steps.build.outputs.OUTPUT_FILE }}"
-          cp "/tmp/$OUTPUT_FILE" "./$OUTPUT_FILE"
-
-      - name: Rebuild index.json
-        run: /tmp/build-registry-index.sh
-
-      - name: Commit and push to registry-pages
-        run: |
-          SENSOR_NAME="${{ steps.vars.outputs.SENSOR_NAME }}"
-          VERSION="${{ steps.vars.outputs.VERSION }}"
-          OUTPUT_FILE="${{ steps.build.outputs.OUTPUT_FILE }}"
-
-          git add "$OUTPUT_FILE" index.json
-          git commit -m "registry: publish ${SENSOR_NAME} v${VERSION}"
-          git push origin registry-pages
+          # Retries on a rejected push: sensor tags pushed together run as
+          # parallel jobs writing the same branch (see the script header).
+          # Run from /tmp: the script checks registry-pages out over this tree.
+          cp scripts/publish-registry.sh scripts/build-registry-index.sh /tmp/
+          REGISTRY_INDEX_SCRIPT=/tmp/build-registry-index.sh bash /tmp/publish-registry.sh "/tmp/${{ steps.build.outputs.OUTPUT_FILE }}" \
+            "registry: publish ${{ steps.vars.outputs.SENSOR_NAME }} v${{ steps.vars.outputs.VERSION }}"

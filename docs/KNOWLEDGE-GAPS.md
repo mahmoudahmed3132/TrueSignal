@@ -11,7 +11,7 @@ Status values: **Fixed** (code changed and tested), **Docs** (documentation corr
    - Fix needs cosign/sigstore keys plus Hub-side verification. **Open**: owner decision.
 2. **Distribution isn't operational.** Nothing is published (no `registry-pages`, ghcr images or wizard release), so nodes can't install yet. The repo is public (owner decision 2026-10-24); token auth for a private repo exists in commit `4013e0d` (reverted) if that changes.
 3. **No detection content.** The SIEM feed is now RFC 5424-valid, escaped, optionally TLS, and carries liveness and audit records. But the repo still has no Elastic/LogScale parser or rules **[NOT IN PROJECT]**.
-4. **Single admin, no MFA/RBAC; Hub serves plain HTTP.** Mitigations now in place: 12-character minimum password, 12h absolute + 15m idle sessions, setup token, and audit records to the SIEM. A TLS reverse proxy is still mandatory and not in the repo.
+4. **Single admin, no MFA/RBAC; Hub serves plain HTTP.** Mitigations now in place: 12-character minimum password, 12h absolute + 15m idle sessions, setup token, and audit records to the SIEM. A TLS reverse proxy is still mandatory; a hardened nginx overlay and F5 guidance exist since 2026-10-24 (`Hub/docker-compose.tls.yml`, `Docs/operations.md` §11).
 5. **Decoy hosts hold a node key and may hold the dashboard password.**
    - The node key is plaintext on the node (`/etc/truesignal/config.json`, compose env). It is needed to authenticate and is scoped to that node.
    - `truesignal discover` prompts for the dashboard password on the decoy host (`wizard/internal/app/session.go`). **Open**: accepted risk or redesign (node-scoped registration API).
@@ -85,15 +85,15 @@ None of the five sensors has a SIEM rule, dashboard, or response action in the r
 
 | Area | Gap |
 |---|---|
-| Purpose & scope | The onboarding request left `{{WHAT IT IS FOR}}` unfilled. No README section describes TrueSignal's intended use, environment or scope |
+| Purpose & scope | Stated by the owner on 2026-10-24 (`CLAUDE.md` §1). Not yet built against it: SaaS honeytokens. The isolated decoy subnet, VM naming and specs are not in the repo |
 | Environment | No node inventory, hostnames, subnets/VLANs, placement plan, firewall rules (Fortinet/Palo Alto), or naming convention for nodes **[NOT IN PROJECT]** |
-| Decoy coverage | Database (MySQL/PostgreSQL/MSSQL), Remote Access (SSH/Telnet/FTP) and Network Service (SNMP/log-only DNS) decoys added 2026-10-24. Not built: VNC, rsync, an HTTP skin engine (Web Router Decoy is still one hardcoded page), MSSQL over TLS (clients that require encryption disconnect before LOGIN7). Remote Access Decoy has no unit tests |
+| Decoy coverage | Database (MySQL/PostgreSQL/MSSQL), Remote Access (SSH/Telnet/FTP) and Network Service (SNMP/log-only DNS) decoys added 2026-10-24. Web Router Decoy skin engine added 2026-10-24. Not built: VNC, rsync, MSSQL over TLS (clients that require encryption disconnect before LOGIN7). Remote Access Decoy has no unit tests |
 | Honeytokens | Credential honeytokens exist (2026-10-24): one per File Canary instance, planted in created lures, matched by username/per-node-key HMAC, `honeytoken_used`, published to the SIEM with an Elastic rule and LogScale query for real-system logins (`Docs/operations.md` §10, `Docs/siem/honeytoken-detection.md`). Still none for cloud keys, real AD objects, DNS or documents |
 | SIEM | ECS output, the Elastic index template / API key and LogScale HEC setup are in `Docs/siem-integration.md` (2026-10-24). Still missing: detection rules, Kashier index/repository naming, collector config |
 | Alert routing / ownership | No on-call, escalation, or SOAR integration. Destinations are only ntfy/gotify/discord/slack (consumer SaaS) and syslog |
 | Runbooks | No IR runbook per eventTrigger; no Hub DR/restore runbook; no lure rotation. Node key rotation now exists (UI / `POST /api/v2/nodes/{id}/rotate-key`); uninstall now lists the lure files it leaves |
 | Hub HA/backup | Single SQLite file; only pre-migration snapshots |
-| TLS | Required by the docs, but no reverse-proxy config, cert handling or HSTS guidance exists in repo |
+| TLS | Covered 2026-10-24: nginx overlay (`Hub/docker-compose.tls.yml`, `Hub/deploy/nginx/truesignal.conf`), F5 BIG-IP guidance and `TS_TRUSTED_PROXIES` (`Docs/operations.md` §11). Certificate issuance/renewal is the operator's |
 | Audit | **Partial**: every state-changing dashboard call is logged and sent to the SIEM as `MSGID AUDIT` (route, status, client IP). Not persisted in the Hub DB; no before/after diff |
 | Tests | **Partial**: every Go module has tests and `test.yml` runs them with `-race`. A Hub→sensor→SIEM E2E was run manually for this pass; it is not in CI. No detection replay harness |
 | Supply chain | No image signing (cosign), SBOM, or provenance. GitHub/Gitea actions are now SHA-pinned; the Gitea security job still runs `semgrep/semgrep:latest` and `aquasec/trivy:latest` containers |

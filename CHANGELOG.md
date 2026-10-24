@@ -1,3 +1,28 @@
+# [Unreleased] - Release readiness, Hub rollback and TLS (2026-10-24)
+
+### Release pipeline
+* **Parallel sensor releases no longer race.** Each `publish-sensor-registry` job now publishes through `scripts/publish-registry.sh`, which re-fetches `registry-pages`, re-applies its manifest and retries a rejected push. Previously nine sensor tags pushed together would conflict on the branch (and on creating it). A GitHub concurrency group was not an option: it cancels all but the newest queued job.
+* **Released versions are immutable.** A sensor version already in `registry-pages` fails the job before the image is rebuilt. A rebuild would have moved the image tag and orphaned the digest the published manifest pins, and the GHCR cleanup deletes untagged images.
+* **Tags must match code.** Sensor tags must equal the manifest `version`, `hub/v*` must equal `HubVersion`, and `wizard/v*` must equal `WizardVersion` (bumped 2.0.1 → 2.1.0).
+* `make tag-sensors` now tags each sensor at its manifest version. The new `make tag-release` tags the Hub and the Wizard.
+* Wizard binaries are built static (`CGO_ENABLED=0`, `-trimpath`).
+* Images carry `org.opencontainers.image.source`/`version` labels. The GHCR cleanup matrix now includes the four newer decoys.
+* **Fixed: FileCanary and WebRouterDecoy images would not build.** Their Dockerfiles compiled `./main.go` only, so they missed `lure.go` and `skin.go`. All sensor Dockerfiles now build the package. A new CI job builds every image on each PR.
+
+### Hub
+* **`TS_TRUSTED_PROXIES`:** comma-separated IPs/CIDRs. With `TS_TRUST_PROXY=true`, `X-Real-IP`, `X-Forwarded-For` and `X-Forwarded-Host` are now believed only from those peers. Before, they were believed from any client that could reach the Hub, which could then forge its IP to dodge the 10-attempt login lockout and falsify the audit log. An empty list keeps the old behaviour with a startup warning; an invalid entry stops the Hub.
+* `TS_BIND_ADDR` in `Hub/docker-compose.yml` limits which interface publishes port 8080.
+
+### TLS and operations
+* `Hub/docker-compose.tls.yml` adds a TLS proxy and unpublishes the Hub's plain-HTTP port. The proxy is a digest-pinned, read-only, capability-free nginx with TLS 1.2/1.3, HSTS and WebSocket support, on a fixed address that the overlay sets as `TS_TRUSTED_PROXIES`. Verified end to end: spoofed `X-Real-IP` through the proxy no longer escapes the lockout, the authenticated WebSocket upgrades, and a foreign Origin is refused.
+* `Docs/operations.md` §11 covers TLS: the nginx overlay and F5 BIG-IP (an iRule that replaces forwarding headers, the WebSocket profile, the monitor, and WAF exemptions for sensor endpoints).
+* `Docs/operations.md` §7 adds an upgrade and rollback runbook:
+  * An off-host backup that is WAL-safe.
+  * Pinning the image when there is no schema change.
+  * Restoring the `.bak` after a migration, which requires moving the `-wal`/`-shm` files aside.
+  * The consequences of a restore: lost data, revived node keys, untracked honeytokens.
+* `CLAUDE.md` now states the project's purpose.
+
 # [Unreleased] - Web Router Decoy skin engine (2026-10-24)
 
 * **Skins.** `TS_SKIN` picks the login surface: `router` (default, unchanged look; `TS_ROUTER_BRAND` still drives the footer), `nas`, `vpn` (SSL VPN with a realm selector, `/remote/login`), `webmail` (email field, `/mail/login`), `admin` (`/admin/login`) or `basic` (HTTP Basic challenge on every path; the `Authorization` header is captured). `TS_SKIN_PRODUCT` renames the product. Each skin sets a plausible `Server` header.
