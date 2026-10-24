@@ -26,6 +26,7 @@ import (
 	"github.com/truesignal/hub/internal/services/statemonitor"
 	"github.com/truesignal/hub/internal/services/updater"
 	"github.com/truesignal/hub/internal/services/websocket"
+	"github.com/truesignal/hub/internal/signing"
 	"github.com/truesignal/hub/internal/store"
 )
 
@@ -88,6 +89,20 @@ func main() {
 	sensorSvc := sensor.NewService(dbStore, wsService, eventSvc)
 	configService := config.NewService(dbStore, authService, siemService, notifyService, cfg.DashboardPassword, cfg.Version)
 	composeService := composesvc.NewService(dbStore, catalogService)
+	if cfg.AllowUnsignedManifests {
+		log.Println("[WARNING] TS_ALLOW_UNSIGNED_MANIFESTS: sensor manifests are NOT signature-checked. Anyone who can change the registry can choose the images nodes run. Development only.")
+	} else {
+		tm, err := signing.TrustedRoot(cfg.SigstoreTrustedRoot)
+		if err != nil {
+			log.Fatalf("[FATAL] Sigstore trusted root: %v", err)
+		}
+		verifier, err := signing.New(tm, cfg.ManifestSignerRepo)
+		if err != nil {
+			log.Fatalf("[FATAL] Manifest signature verifier: %v", err)
+		}
+		composeService.SetManifestVerifier(verifier)
+		log.Printf("[*] Sensor manifests must be signed by %s's publish workflow (Sigstore).", cfg.ManifestSignerRepo)
+	}
 	composeService.AllowUnpinnedImages(cfg.AllowUnpinnedImages)
 	composeService.SetHoneytokens(honeytokenSvc)
 	if cfg.AllowUnpinnedImages {

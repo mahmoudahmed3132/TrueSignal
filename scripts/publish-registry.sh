@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# publish-registry.sh <manifest.json> <commit message>
+# publish-registry.sh <manifest.json> <commit message> [<bundle.sigstore.json>]
 #
-# Adds one versioned sensor manifest to the registry-pages branch, rebuilds
-# index.json and pushes. Called by the publish-sensor-registry workflow from
+# Adds one versioned sensor manifest (and its Sigstore signature bundle, which
+# the Hub requires) to the registry-pages branch, rebuilds index.json and
+# pushes. Called by the publish-sensor-registry workflow from
 # the repository checkout.
 #
 # Several sensor tags pushed together run as parallel jobs that all write to
@@ -20,12 +21,16 @@ set -euo pipefail
 
 MANIFEST="${1:?usage: publish-registry.sh <manifest.json> <message>}"
 MESSAGE="${2:?usage: publish-registry.sh <manifest.json> <message>}"
+BUNDLE="${3:-}"
 BRANCH="${REGISTRY_BRANCH:-registry-pages}"
 ATTEMPTS="${REGISTRY_ATTEMPTS:-10}"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$MANIFEST" "$WORK/manifest.json"
+if [ -n "$BUNDLE" ]; then
+  cp "$BUNDLE" "$WORK/bundle.json"
+fi
 cp "${REGISTRY_INDEX_SCRIPT:-scripts/build-registry-index.sh}" "$WORK/build-index.sh"
 chmod +x "$WORK/build-index.sh"
 NAME=$(basename "$MANIFEST")
@@ -55,6 +60,10 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
     exit 1
   fi
   cp "$WORK/manifest.json" "$NAME"
+  if [ -n "$BUNDLE" ]; then
+    cp "$WORK/bundle.json" "$NAME.sigstore.json"
+    git add "$NAME.sigstore.json"
+  fi
   "$WORK/build-index.sh" >/dev/null
   git add "$NAME" index.json
   git commit -q -m "$MESSAGE"

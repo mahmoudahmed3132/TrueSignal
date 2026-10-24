@@ -17,6 +17,9 @@ concurrency:
 permissions:
   contents: write
   packages: write
+  # Sigstore keyless signing: the job's OIDC token gets a short-lived
+  # signing certificate bound to this workflow and tag.
+  id-token: write
 
 jobs:
   publish:
@@ -99,10 +102,16 @@ jobs:
 
           echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_OUTPUT
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.1.4'
+
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build and Push Docker Image
+        id: image
         run: |
           SOURCE="${{ steps.validate.outputs.SOURCE }}"
           SENSOR_DIR=$(dirname "$SOURCE")
@@ -126,8 +135,27 @@ jobs:
           if [ -n "$DIGEST" ]; then
              OUTPUT_FILE="${{ steps.build.outputs.OUTPUT_FILE }}"
              jq --arg digest "$DIGEST" '.deployment.image_digest = $digest | if .deployment.init_containers then .deployment.init_containers[].image_digest = $digest else . end' "/tmp/$OUTPUT_FILE" > "/tmp/$OUTPUT_FILE.tmp" && mv "/tmp/$OUTPUT_FILE.tmp" "/tmp/$OUTPUT_FILE"
+             echo "REF=$IMAGE_REPO@$DIGEST" >> $GITHUB_OUTPUT
           else
              exit 1
+          fi
+
+      - name: Sign manifest and image (Sigstore keyless)
+        env:
+          IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/publish-sensor-registry.yml@${{ github.ref }}
+        run: |
+          MANIFEST="/tmp/${{ steps.build.outputs.OUTPUT_FILE }}"
+          # The Hub verifies this bundle and pins IDENTITY (repo, this
+          # workflow, this sensor's tag) before it uses the manifest.
+          cosign sign-blob --yes --bundle "$MANIFEST.sigstore.json" "$MANIFEST"
+          cosign verify-blob --bundle "$MANIFEST.sigstore.json" \
+            --certificate-identity "$IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$MANIFEST"
+          # The manifest pins the image digest, so the Hub needs no image
+          # signature; it lets anyone (or admission control) check the image.
+          if [ -n "${{ steps.image.outputs.REF }}" ]; then
+            cosign sign --yes "${{ steps.image.outputs.REF }}"
           fi
 
       - name: Publish manifest to registry-pages
@@ -139,4 +167,5 @@ jobs:
           # Run from /tmp: the script checks registry-pages out over this tree.
           cp scripts/publish-registry.sh scripts/build-registry-index.sh /tmp/
           REGISTRY_INDEX_SCRIPT=/tmp/build-registry-index.sh bash /tmp/publish-registry.sh "/tmp/${{ steps.build.outputs.OUTPUT_FILE }}" \
-            "registry: publish ${{ steps.vars.outputs.SENSOR_NAME }} v${{ steps.vars.outputs.VERSION }}"
+            "registry: publish ${{ steps.vars.outputs.SENSOR_NAME }} v${{ steps.vars.outputs.VERSION }}" \
+            "/tmp/${{ steps.build.outputs.OUTPUT_FILE }}.sigstore.json"

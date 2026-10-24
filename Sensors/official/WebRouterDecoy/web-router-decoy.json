@@ -1,6 +1,6 @@
 {
   "id": "ts-sensor-web-router-decoy",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "name": "Web Router Decoy",
   "category": "web",
   "osi_layer": "Application Layer",

@@ -1,3 +1,20 @@
+# [Unreleased] - Signed releases (Sigstore) (2026-10-24)
+
+* **The Hub accepts only signed sensor manifests.**
+  * Each manifest needs a Sigstore bundle (`<manifest>.sigstore.json`).
+  * The Hub verifies it offline against the embedded public-good trusted root. It requires a CT-logged certificate, a Rekor entry and a verified timestamp.
+  * The certificate must belong to this repository's `publish-sensor-registry.yml` at that sensor's exact release tag. A signed manifest therefore cannot be replayed under another sensor name or version.
+  * The check runs on the exact downloaded bytes, before decoding, and the decoded manifest must name the sensor and version it was requested as.
+  * Since the manifest pins its image digest, the signature also covers the image.
+  * Settings: `TS_MANIFEST_SIGNER_REPO` and `TS_SIGSTORE_TRUSTED_ROOT`. `TS_ALLOW_UNSIGNED_MANIFESTS=true` disables the check for development and is logged as a warning.
+* **CI signs every release with Sigstore keyless** (cosign v3.1.4 via a SHA-pinned `cosign-installer`). There is no private key.
+  * Sensor manifests: the bundle is verified in CI and published next to the manifest.
+  * Sensor and Hub images: signed by digest.
+  * Wizard binaries and `checksums.txt`: `.sigstore.json` release assets.
+* **All sensors re-released at their next patch version.** The first releases carry no signature, so a verifying Hub would refuse them.
+* `scripts/publish-registry.sh` publishes the bundle with its manifest, and the index builder ignores bundles.
+* Verification commands and the remaining trust boundary (who can push release tags) are in `Docs/operations.md` §13.
+
 # [Unreleased] - Admin MFA (Hub 2.2.0, Wizard 2.2.0) (2026-10-24)
 
 * **TOTP for the dashboard admin** (RFC 6238, works with any authenticator app). The QR code is rendered by the Hub, so the UI needs no QR library. There are 10 single-use recovery codes, stored as SHA-256 hashes.

@@ -45,9 +45,10 @@ Sensors execute as isolated containers.
   * Interpolation rejection (`$`, `{{`) in image, network, volume and init-command fields. Env var *defaults* are intentionally Go templates rendered by the Wizard, and `$` in env values is escaped to `$$` in the generated compose so Docker never interpolates it (`Hub/internal/compose/builder.go`).
   * Strict version pinning for historical manifests (prevents tag-overwriting and cache poisoning).
   * **Image digest pinning is enforced.** Every main and init image must carry a `sha256:` digest or compose generation fails with `422 invalid_manifest` (`security.RequirePinnedImages`). `TS_ALLOW_UNPINNED_IMAGES=true` disables this for local development only; the Hub logs a warning at startup.
+  * **Signed manifests (Sigstore keyless).** The Hub verifies every registry manifest's bundle offline against the embedded Sigstore trusted root, pinned to the publish workflow at that sensor's release tag, before decoding it (`Hub/internal/signing`). Writing `registry-pages` alone no longer changes what nodes run. The manifest pins the image digest, so the signature covers the image. Images and wizard binaries are also signed for independent verification. `TS_ALLOW_UNSIGNED_MANIFESTS=true` disables the check (warned).
   * **Fail closed.** If any installed sensor's manifest is unavailable or invalid, no compose is produced (rather than a compose silently missing that decoy).
 * **Gaps (NOT IMPLEMENTED):**
-  * Cryptographic manifest and image signature verification (e.g. cosign). Digest pinning proves the node runs the image the manifest names; it does not prove who published the manifest. Anyone who can write the registry branch or push a `sensor/*` tag controls what nodes run.
+  * Restricting who can trigger a signed release. Manifests are Sigstore-signed and verified by the Hub (below), but the signing identity is "this repository's publish workflow at a `sensor/*` tag": anyone who can push such a tag can obtain a valid signature. Tag rulesets and Rekor monitoring are operator controls (`Docs/operations.md` §13).
   * Provenance tracking / SBOM.
 
 ### T2: Wizard Misdirection & Deployment Intent Manipulation
@@ -142,9 +143,9 @@ A compromised local Wizard could bypass Hub validation entirely by ignoring the 
 During the initial host provisioning link, the operator supplies the node API key. Passing it with `--api-key` exposes it in `ps` output and shell history; passing it via `TS_NODE_API_KEY` (what the dashboard's install command does) keeps it out of the process list, but it still lands in the operator's shell history.
 * **Why it is accepted:** This is a one-time bootstrap operation, standard for unattended deployments, and assumed to occur within a controlled environment prior to active hostile presence. After initialization, credentials are read from root-only (0600) configuration files. If exposure is suspected, rotate the key.
 
-### Risk-03: Unsigned Distribution Channel
-The installer is fetched with `curl | sh`, and wizard binaries are verified only against a `checksums.txt` from the same release. Manifests and images are digest-pinned but unsigned.
-* **Why it is accepted (for now):** signing needs key infrastructure the project does not yet have. Operators can pin the wizard binary with `install.sh --sha256 <hash>`, and should mirror images and the registry to infrastructure they control.
+### Risk-03: Release Trust Rests on Tag Access
+Manifests, images and wizard binaries are Sigstore-signed, and the Hub enforces manifest signatures. The remaining exposure: (1) anyone who can push a release tag gets a validly signed release; (2) the installer is still `curl | sh`, and `install.sh` checks the wizard only against the release's `checksums.txt` (the `.sigstore.json` bundles are there for `cosign verify-blob`, but the installer does not require cosign).
+* **Mitigation:** restrict release-tag creation with a GitHub ruleset, monitor Rekor for this workflow identity, pin the wizard with `install.sh --sha256 <hash>` after verifying it with cosign.
 
 ### Risk-04: Decoy Host Trust
 Sensors run as root in the host network namespace on decoy hosts, and inotify-based file monitoring cannot attribute which process touched a lure. A fully compromised decoy host can stop or spoof its own sensors.
