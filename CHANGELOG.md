@@ -1,3 +1,9 @@
+# [Unreleased] - Release process fixes (2026-10-24)
+
+* **First release published:** Hub and Wizard 2.1.0, and all nine sensors at their manifest versions.
+* **Don't `git push --tags` a release.** GitHub creates no push event when one push carries more than three tags, so the first push of the 11 release tags started no workflow. They were dispatched on their tag refs instead. The new `make push-tags` pushes each release tag on `HEAD` in its own push, and the maintainer guide now says so. It replaces the earlier, wrong claim that pushing all tags at once is safe.
+* **Hub and Wizard releases are now immutable, like sensors.** `publish-hub` fails if `truesignal-hub:v<version>` already exists in GHCR, and `publish-wizard` fails if the release already has assets. A duplicate dispatch on 2026-10-24 rebuilt `hub:v2.1.0` (new digest) and replaced the wizard v2.1.0 binaries and checksums. The 18:35 UTC builds are the current ones.
+
 # [Unreleased] - Release readiness, Hub rollback and TLS (2026-10-24)
 
 ### Release pipeline

@@ -117,9 +117,12 @@ git tag sensor/file-canary/v1.2.0
 git push origin sensor/file-canary/v1.2.0
 ```
 
-Or tag every sensor at its manifest version with `make tag-sensors` (existing tags are skipped). Pushing several sensor tags at once is safe: each job retries its `registry-pages` push until it lands (`scripts/publish-registry.sh`).
+Or tag every sensor at its manifest version with `make tag-sensors` (existing tags are skipped), then push with `make push-tags`.
 
-Hub and Wizard: `make tag-release` tags `hub/v<HubVersion>` and `wizard/v<WizardVersion>` from the constants in `Hub/internal/models/models.go` and `wizard/core/api/client.go`; their workflows reject a tag that doesn't match the constant.
+> [!WARNING]
+> **Never `git push --tags` a release.** GitHub creates no push event for tags when a single push carries more than three, so no publish workflow runs. `make push-tags` pushes each tag on `HEAD` in its own `git push`. If tags are already on GitHub without runs, dispatch the workflow on the tag instead (Actions → workflow → Run workflow → "Use workflow from" = the tag); `GITHUB_REF` is then the tag, exactly as on a push. The parallel jobs this starts are safe: each retries its `registry-pages` push until it lands (`scripts/publish-registry.sh`).
+
+Hub and Wizard: `make tag-release` tags `hub/v<HubVersion>` and `wizard/v<WizardVersion>` from the constants in `Hub/internal/models/models.go` and `wizard/core/api/client.go`; their workflows reject a tag that doesn't match the constant. Like sensors, a released Hub or Wizard version is never rebuilt: the Hub job fails if `truesignal-hub:v<version>` is already in GHCR, the Wizard job if the release already has assets. Re-running a published release would otherwise replace its image or binaries under the same version (and break anyone who pinned the digest or checksum).
 
 **First publish of a package:** GHCR creates packages under a personal account as **private**, even for a public repo. After the first run of each image, set it to Public in the package settings (Packages → `truesignal-*` → Package settings → Change visibility), or nodes and the Hub can't pull anonymously.
 

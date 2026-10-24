@@ -9,7 +9,7 @@ This file was built from a full read of the repo on 2026-10-18 and updated after
 - It has a Go Hub (API + SQLite + Vue UI), 9 containerized decoy "sensors", Go/Python SDKs, and a root CLI "Wizard" that deploys sensors on each node.
 - Detection logic lives inside the sensors. The Hub routes alerts to UI/WebSocket, webhooks (ntfy/gotify/discord/slack) and one SIEM output: syslog streams (tcp/udp/tls, `siem_format` rfc5424|ecs) or HTTPS `elastic` (bulk) / `logscale` (HEC) with ECS (`Docs/siem-integration.md`).
 - **No network/subnet layout and no node inventory** are in the repo. The only SIEM content is the honeytoken rule and queries in `Docs/siem/`. Credential honeytokens exist (§2). Kashier-specific config is [NOT IN PROJECT].
-- Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). Nothing is published there yet. The repo is **public** (owner decision 2026-10-24, until further note), so anonymous pulls work once artifacts are published. See §6.
+- Distribution points at the owner's GitHub (`mahmoudahmed3132/TrueSignal`, `ghcr.io/mahmoudahmed3132/truesignal-*`). First release published 2026-10-24 (Hub/Wizard 2.1.0, all 9 sensors; packages set Public, anonymous pulls verified). The repo is **public** (owner decision 2026-10-24, until further note). See §6.
 - **Purpose** (owner, 2026-10-24): Early, high-fidelity detection of attacker activity inside the organisation's production environment, cloud or on-prem. Decoy VMs that mirror real production naming and specs sit in an isolated subnet; honeytokens cover the SaaS side. Any interaction with a decoy or token is treated as suspicious by design and raises an alert in the SIEM (LogScale or Elastic, whichever the Hub's SIEM output targets) for SOC triage. Secondary goals: evidence of internal intrusion-detection capability for PCI DSS and CBE reviews (a supporting control, not a mandated one), and validation of detection coverage through authorised internal testing.
   - Gaps against this purpose: SaaS honeytokens are not built (only credential honeytokens planted in File Canary lures); the decoy subnet, VM naming and specs are [NOT IN PROJECT].
 
@@ -64,7 +64,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 **Sensor release** (`Docs/development/maintainer-workflow.md` §4, `.github|.gitea/workflows/publish-sensor-registry.yml`)
 - Edit `Sensors/official/<Dir>/<name>.json`, then push tag `sensor/<name>/vX.Y.Z` (or `make tag-sensors VERSION=vX.Y.Z`). CI builds the image, injects `version`, tag and digest, and writes to `registry-pages`.
 - Tags are immutable. Never re-push a tag; bump the version instead.
-- Hub release: tag `hub/vX.Y.Z` (`publish-hub.yml`). Wizard release: tag `wizard/vX.Y.Z` (`publish-wizard.yml`, static binaries, sha256 checksums). `make tag-release` tags both from `HubVersion`/`WizardVersion`; `make tag-sensors` tags each sensor at its manifest version. Every publish workflow rejects a tag that doesn't match the version in code/manifest, and a sensor version already in `registry-pages` is never rebuilt. Parallel sensor jobs retry their `registry-pages` push (`scripts/publish-registry.sh`).
+- Hub release: tag `hub/vX.Y.Z` (`publish-hub.yml`). Wizard release: tag `wizard/vX.Y.Z` (`publish-wizard.yml`, static binaries, sha256 checksums). `make tag-release` tags both from `HubVersion`/`WizardVersion`; `make tag-sensors` tags each sensor at its manifest version; push with `make push-tags` (one tag per push: GitHub fires no workflow for a push carrying >3 tags; already-pushed tags without runs → dispatch the workflow on the tag ref). Every publish workflow rejects a tag that doesn't match the version in code/manifest, and a released version is never rebuilt (sensor: already in `registry-pages`; Hub: image tag in GHCR; Wizard: release has assets). Parallel sensor jobs retry their `registry-pages` push (`scripts/publish-registry.sh`).
 - First publish: GHCR makes new packages under a personal account **private**; set each `truesignal-*` package to Public once, or anonymous pulls fail.
 
 ## 4. Conventions
@@ -98,12 +98,12 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 Not stated anywhere in the repo, so treat as [NOT IN PROJECT]: decoy egress restrictions, a "no real data on decoys" rule, network segmentation of decoys, a data classification of captured credentials.
 Residual gaps (unsigned manifests/images, root + host netns sensors, single admin without MFA) are in KNOWLEDGE-GAPS §4.
 
-## 6. Distribution endpoints (owner GitHub; repo is public; nothing published yet)
+## 6. Distribution endpoints (owner GitHub; repo is public; first release published 2026-10-24)
 
-- `registry_url` default is `https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages` (`Hub/internal/store/sqlite.go:73`). The branch doesn't exist until the first `sensor/*` tag is published.
-- Sensor images are `ghcr.io/mahmoudahmed3132/truesignal-*` (all `Sensors/official/*/*.json`). The Hub image is `ghcr.io/mahmoudahmed3132/truesignal-hub:latest` (`Hub/docker-compose.yml`, `README.md`). None are pushed yet.
+- `registry_url` default is `https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages` (`Hub/internal/store/sqlite.go:73`). Holds all 9 sensors with pinned digests since 2026-10-24.
+- Sensor images are `ghcr.io/mahmoudahmed3132/truesignal-*` (all `Sensors/official/*/*.json`). The Hub image is `ghcr.io/mahmoudahmed3132/truesignal-hub:latest` (`Hub/docker-compose.yml`, `README.md`). Pin `TS_HUB_VERSION=v2.1.0` in production. Note: `hub:v2.1.0` and the wizard v2.1.0 assets were each built twice on 2026-10-24 (a duplicate dispatch, before the re-release guard existed); the 18:35 UTC builds are current.
 - Installer: `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash` (UI). The wizard comes from this repo's Releases (`install.sh:92-108`).
-- The Hub update check polls `api.github.com/repos/mahmoudahmed3132/TrueSignal/releases` every 24h (`Hub/internal/services/updater/updater.go:18`). It returns no wizard/hub releases until one is published; that only logs and retries.
+- The Hub update check polls `api.github.com/repos/mahmoudahmed3132/TrueSignal/releases` every 24h (`Hub/internal/services/updater/updater.go:18`).
 - The Python template pip-installs the SDK from this repo `@main` (`Sensors/templates/python-sensor/requirements.txt`).
 - Going private is deferred. Token-authenticated pulls (Hub `TS_GITHUB_TOKEN`, wizard `registry-login`, installer via API assets) were built in commit `4013e0d` and reverted on 2026-10-24 at the owner's request; revert the revert if the repo goes private.
 - Brand rule: never reintroduce `HoneyWire`, `HW_` or `hw-` identifiers. Upstream's name appears only in `NOTICE`, the README credits and the CHANGELOG "Upstream history" section.

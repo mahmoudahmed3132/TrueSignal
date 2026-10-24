@@ -6,6 +6,14 @@ on:
       - 'hub/v*.*.*'
   workflow_dispatch:
 
+# Runs for the same tag (a tag push and a manual dispatch, or two
+# dispatches) queue instead of overlapping, so the later one's
+# re-release check sees what the first published. Different tags still
+# run in parallel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   packages: write
@@ -32,6 +40,24 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Refuse to re-release a published version
+        run: |
+          # Rebuilding would move the image tag to a new digest under the
+          # same version. Bump HubVersion instead. Asks the registry directly
+          # and fails closed: only a 404 lets the build proceed.
+          REPO="${{ github.repository_owner }}/truesignal-hub"
+          TAG="v${{ steps.vars.outputs.VERSION }}"
+          TOKEN=$(curl -fsS -u "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            "https://ghcr.io/token?scope=repository:${REPO}:pull" | jq -r .token)
+          CODE=$(curl -sS -o /dev/null -w '%{http_code}' -I -H "Authorization: Bearer $TOKEN" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json' \
+            "https://ghcr.io/v2/${REPO}/manifests/${TAG}")
+          case "$CODE" in
+            404) echo "ghcr.io/${REPO}:${TAG} not published yet." ;;
+            200) echo "::error::ghcr.io/${REPO}:${TAG} is already published. Bump the version instead."; exit 1 ;;
+            *)   echo "::error::Could not check ghcr.io/${REPO}:${TAG} (HTTP $CODE); refusing to publish."; exit 1 ;;
+          esac
 
       - name: Build and Push Hub Docker Image
         run: |

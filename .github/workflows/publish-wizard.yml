@@ -6,6 +6,14 @@ on:
       - 'wizard/v*.*.*'
   workflow_dispatch:
 
+# Runs for the same tag (a tag push and a manual dispatch, or two
+# dispatches) queue instead of overlapping, so the later one's
+# re-release check sees what the first published. Different tags still
+# run in parallel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   packages: write
@@ -34,6 +42,29 @@ jobs:
             echo "::error::Tag version $VERSION does not match WizardVersion $CODE_VERSION"
             exit 1
           fi
+
+      - name: Refuse to re-release a published version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Re-uploading would replace the binaries under the same version and
+          # break anyone who pinned their checksum. Bump WizardVersion instead.
+          # Fails closed: a release with no assets (an earlier run that died
+          # before uploading) may be completed; any API error stops the job.
+          TAG="wizard/v${{ steps.vars.outputs.VERSION }}"
+          CODE=$(curl -sS -o release.json -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}")
+          case "$CODE" in
+            404) echo "No release for $TAG yet." ;;
+            200)
+              ASSETS=$(jq '.assets | length' release.json)
+              if [ "$ASSETS" -gt 0 ]; then
+                echo "::error::Release $TAG already has $ASSETS assets. Bump the version instead."
+                exit 1
+              fi ;;
+            *) echo "::error::Could not check release $TAG (HTTP $CODE); refusing to publish."; exit 1 ;;
+          esac
+          rm -f release.json
 
       - name: Build Binaries
         run: |
