@@ -12,11 +12,6 @@ func HandleLink(hubURL, apiKey, alias, tags string, force bool) error {
 		return err
 	}
 
-	// Log in before linking: linking an existing node may apply at once.
-	if err := loginFromEnvIfSet(); err != nil {
-		return err
-	}
-
 	if apiKey != "" {
 		if err := linkExistingNode(hubURL, apiKey, force); err != nil {
 			return err

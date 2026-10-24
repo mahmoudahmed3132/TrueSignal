@@ -10,14 +10,6 @@
 * NetNTLMv2 formatting skips 24-byte NTLMv1 responses instead of emitting an invalid mode-5600 line (affected RDP `hash` mode too).
 * Verified against ldap3 (LDAP and LDAPS) and impacket. The captured mode-5600 lines verify against the client passwords.
 
-# [Unreleased] - Private repository access (2026-10-23)
-
-### Distribution: token-authenticated pulls
-* **Hub:** new `TS_GITHUB_TOKEN` (fine-grained PAT, Contents: read). The sensor registry, manifest and release-check requests use it. It is attached only to `https://raw.githubusercontent.com` and `https://api.github.com`, so a `registry_url` pointed at another host never receives it.
-* **Wizard:** `truesignal registry-login` / `registry-logout`, and `--link` honours `TS_REGISTRY_USER` / `TS_REGISTRY_TOKEN` / `TS_REGISTRY` (default `ghcr.io`). The credential is stored in `/etc/truesignal/docker` (`0700`/`0600`) and used as `DOCKER_CONFIG` for the pull, up, rollback and teardown commands only; the token reaches `docker login` on stdin. Sensor containers never receive it. `uninstall` removes it.
-* **Installer:** with `TS_GITHUB_TOKEN` set, `install.sh` lists releases and downloads the wizard and `checksums.txt` through the API asset endpoint (the `releases/download/` URLs reject token auth on private repos). The token goes to curl from a `0600` header file, not argv, and is not passed to the wizard.
-* **UI:** the node install command now includes the token exports. See `Docs/operations.md` §10 for token types, storage and rotation.
-
 # [Unreleased] - RDP NLA/NTLM capture (2026-10-24)
 
 ### Identity Decoy: RDP Network Level Authentication

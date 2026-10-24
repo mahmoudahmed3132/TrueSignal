@@ -72,7 +72,6 @@ func Uninstall() error {
 	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Dir = DeployDir
-	cmd.Env = dockerEnv()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
