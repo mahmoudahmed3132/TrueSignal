@@ -1,6 +1,18 @@
 {
-  "generated": "2026-10-24T15:37:00Z",
+  "generated": "2026-10-24T15:39:54Z",
   "sensors": [
+    {
+      "id": "ts-sensor-database-decoy",
+      "name": "Database Decoy (MySQL / PostgreSQL / MSSQL)",
+      "category": "database",
+      "icon_svg": "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zm0 0v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+      "latest": "2.0.0",
+      "versions": [
+        {
+          "v": "2.0.0"
+        }
+      ]
+    },
     {
       "id": "ts-sensor-icmp-canary",
       "name": "ICMP Canary",
