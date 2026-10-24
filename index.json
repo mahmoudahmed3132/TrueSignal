@@ -1,6 +1,18 @@
 {
-  "generated": "2026-10-24T15:29:24Z",
+  "generated": "2026-10-24T15:31:15Z",
   "sensors": [
+    {
+      "id": "ts-sensor-remote-access-decoy",
+      "name": "Remote Access Decoy (SSH / Telnet / FTP)",
+      "category": "remote-access",
+      "icon_svg": "M4 6h16v12H4zM7 10l3 2-3 2m5 0h5",
+      "latest": "2.0.0",
+      "versions": [
+        {
+          "v": "2.0.0"
+        }
+      ]
+    },
     {
       "id": "ts-sensor-tcp-tarpit",
       "name": "TCP Tarpit (Credential Trap)",
