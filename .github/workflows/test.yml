@@ -21,10 +21,13 @@ jobs:
           - Hub
           - wizard
           - SDKs/go-truesignal
+          - Sensors/official/DatabaseDecoy
           - Sensors/official/FileCanary
           - Sensors/official/IcmpCanary
           - Sensors/official/IdentityDecoy
           - Sensors/official/NetworkScanDetector
+          - Sensors/official/NetworkServiceDecoy
+          - Sensors/official/RemoteAccessDecoy
           - Sensors/official/TcpTarpit
           - Sensors/official/WebRouterDecoy
     steps:

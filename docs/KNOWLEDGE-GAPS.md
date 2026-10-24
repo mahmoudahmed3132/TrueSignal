@@ -87,6 +87,7 @@ None of the five sensors has a SIEM rule, dashboard, or response action in the r
 |---|---|
 | Purpose & scope | The onboarding request left `{{WHAT IT IS FOR}}` unfilled. No README section describes TrueSignal's intended use, environment or scope |
 | Environment | No node inventory, hostnames, subnets/VLANs, placement plan, firewall rules (Fortinet/Palo Alto), or naming convention for nodes **[NOT IN PROJECT]** |
+| Decoy coverage | Database (MySQL/PostgreSQL/MSSQL), Remote Access (SSH/Telnet/FTP) and Network Service (SNMP/log-only DNS) decoys added 2026-10-24. Not built: VNC, rsync, an HTTP skin engine (Web Router Decoy is still one hardcoded page), MSSQL over TLS (clients that require encryption disconnect before LOGIN7). Remote Access Decoy has no unit tests |
 | Honeytokens | Credential honeytokens exist (2026-10-24): one per File Canary instance, planted in created lures, matched by username/per-node-key HMAC, `honeytoken_used`, published to the SIEM with an Elastic rule and LogScale query for real-system logins (`Docs/operations.md` §10, `Docs/siem/honeytoken-detection.md`). Still none for cloud keys, real AD objects, DNS or documents |
 | SIEM | ECS output, the Elastic index template / API key and LogScale HEC setup are in `Docs/siem-integration.md` (2026-10-24). Still missing: detection rules, Kashier index/repository naming, collector config |
 | Alert routing / ownership | No on-call, escalation, or SOAR integration. Destinations are only ntfy/gotify/discord/slack (consumer SaaS) and syslog |

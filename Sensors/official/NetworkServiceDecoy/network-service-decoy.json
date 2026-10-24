@@ -1,0 +1,153 @@
+{
+  "id": "ts-sensor-network-service-decoy",
+  "version": "2.0.0",
+  "name": "Network Service Decoy (SNMP / DNS)",
+  "category": "network",
+  "osi_layer": "Application Layer",
+  "icon_svg": "M12 3v6m0 6v6M5 12H3m18 0h-2M7.8 7.8 6.3 6.3m11.4 11.4-1.5-1.5m0-8.4 1.5-1.5M6.3 17.7l1.5-1.5M12 15a3 3 0 100-6 3 3 0 000 6z",
+  "description": "Emulates SNMP and a log-only DNS server so device fingerprinting, community-string guessing and DNS reconnaissance are detected.",
+  "documentation": {
+    "summary": "The Network Service Decoy answers SNMP like a network device (system group only, and only for the configured community; wrong communities get silence, as on a real agent). It logs DNS queries, answering REFUSED and never resolving or forwarding, so it can't become an open resolver or leak internal names.",
+    "sections": [
+      {
+        "title": "Features",
+        "type": "list",
+        "content": [
+          "SNMP v1/v2c: records version, PDU, OIDs and the community string (HMAC'd). SET attempts are high severity.",
+          "SNMP v3: records the USM user name; no reply.",
+          "DNS: records the query name and type; zone transfer (AXFR) attempts are high severity. Responses are REFUSED and the same size as the query (no amplification).",
+          "Replies are rate-limited per source together with events, so spoofed traffic can't use the decoy as a reflector."
+        ]
+      },
+      {
+        "title": "Security Architecture",
+        "type": "list",
+        "content": [
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities and enforces a read-only filesystem.",
+          "Execution Privilege: Runs as container root (UID 0) strictly to bind UDP ports 53 and 161.",
+          "Data Handling: Captured passwords are HMAC-hashed by default with this node's Hub-derived key, so planted honeytokens are recognised; cleartext ('plain') is opt-in and should stay out of PCI scope.",
+          "Rate limiting: at most 20 events per source per minute; the rest are counted (suppressed_since_last), so a spray cannot flood the Hub or SIEM."
+        ]
+      }
+    ]
+  },
+  "heuristics": {
+    "triggers": {
+      "processes": [
+        "snmpd",
+        "named",
+        "unbound",
+        "dnsmasq",
+        "pdns_server"
+      ],
+      "ports": [
+        161,
+        53
+      ]
+    },
+    "recommendation_reason": "SNMP or DNS services detected. Deploy the Network Service Decoy to catch infrastructure discovery."
+  },
+  "deployment": {
+    "network_mode": "host",
+    "user": "0:0",
+    "cap_add": [
+      "NET_BIND_SERVICE"
+    ],
+    "listen_ports_env": [
+      "TS_SERVICES"
+    ],
+    "env_vars": [
+      {
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
+        "default": "__HUB_ENDPOINT__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_HUB_KEY",
+        "description": "The shared Node Key.",
+        "default": "__HUB_KEY__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SENSOR_ID",
+        "description": "Unique identifier for this specific trap.",
+        "default": "ts-sensor-network-service-decoy",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SEVERITY",
+        "description": "Fallback alert severity (the sensor sets critical for logins, low for bare connections, medium for queries).",
+        "default": "high",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
+        "name": "TS_TEST_MODE",
+        "description": "Enable CI/CD synthetic alerts.",
+        "default": "false",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SERVICES",
+        "description": "Comma-separated UDP services to run, as proto:port (proto is snmp or dns). Do not reuse a port a real resolver or agent on this host uses.",
+        "default": "snmp:161,dns:53",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_PERSONA_HOSTNAME",
+        "description": "sysName the SNMP decoy reports.",
+        "default": "sw-core-01",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SNMP_SYSDESCR",
+        "description": "sysDescr the SNMP decoy reports.",
+        "default": "Cisco IOS Software, C2960X Software (C2960X-UNIVERSALK9-M), Version 15.2(7)E8, RELEASE SOFTWARE (fc3)",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SNMP_COMMUNITY",
+        "description": "The one community string the decoy answers (others get silence). Captured strings are HMAC'd either way.",
+        "default": "public",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_PASSWORDS",
+        "description": "How captured community strings are recorded: hash (default), plain or none.",
+        "default": "hash",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_HASH_KEY",
+        "description": "Set by the Hub: this node's capture key (derived from the Hub's master key), so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      }
+    ],
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-networkservicedecoy",
+    "image_tag": "dev",
+    "image_digest": ""
+  }
+}

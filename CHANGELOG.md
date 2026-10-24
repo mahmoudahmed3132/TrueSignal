@@ -1,3 +1,16 @@
+# [Unreleased] - Database, Remote Access and Network Service decoys (2026-10-24)
+
+### Three new sensors
+* **Database Decoy** (`ts-sensor-database-decoy`): MySQL, PostgreSQL and SQL Server (TDS 7.x) up to the login, each refused with the server's real error (1045, 28P01, 18456). PostgreSQL asks for a cleartext password and SQL Server's LOGIN7 password is decoded; both go through the capture policy. MySQL yields user, database and client attributes (the password is challenge/response). Runs **non-root (65532) with no added capabilities**. Verified against `psql`, PyMySQL, python-tds and impacket (whose fixed-layout PRELOGIN parser forced a strict four-option response; impacket also turns out to spoof SSMS as its app name, which is now recorded).
+* **Remote Access Decoy** (`ts-sensor-remote-access-decoy`): SSH (OpenSSH 8.9 banner, ed25519 host key derived from the node key so it is stable without disk), Telnet and FTP (vsftpd banner). Records passwords, keyboard-interactive answers and offered public keys (type and SHA256 fingerprint). SSH defaults to port 2222 to avoid the host's sshd. Verified against paramiko, `ftplib` and a raw telnet session. **No unit tests yet.**
+* **Network Service Decoy** (`ts-sensor-network-service-decoy`): SNMP v1/v2c/v3 and log-only DNS over UDP. SNMP answers the system group only for `TS_SNMP_COMMUNITY` and stays silent otherwise, like a real agent; communities are HMAC'd; SET is high severity; v3 records the USM user. DNS answers REFUSED and never resolves or forwards (Trapster's forwarding is deliberately not reproduced). AXFR is high severity. Replies are rate-limited with events, so the decoy can't act as a reflector. Verified against dnspython and raw SNMP datagrams.
+* All three use per-node capture keys (`TS_CAPTURE_HASH_KEY`), so their usernames and passwords feed honeytoken matching. They declare `listen_ports_env` and support `TS_TEST_MODE`.
+
+### Shared and Hub
+* New `SDKs/go-truesignal/decoy` package: `TS_SERVICES` parsing, capture policy, accept loop, sanitising, and a per-source limiter (20 events/min; the rest are counted as `suppressed_since_last`).
+* New Hub test: every `Sensors/official/*/*.json` must pass the Hub's strict decode, sandbox validation and major-version check.
+* CI matrix, `.gitignore` and NOTICE (Trapster concept attribution) updated.
+
 # [Unreleased] - Honeytokens (2026-10-24)
 
 ### Credential honeytokens linked to the decoys

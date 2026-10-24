@@ -24,6 +24,9 @@ yarn-error.log*
 /Sensors/official/TcpTarpit/tcptarpit
 /Sensors/official/IdentityDecoy/identitydecoy
 /Sensors/official/WebRouterDecoy/webrouterdecoy
+/Sensors/official/DatabaseDecoy/databasedecoy
+/Sensors/official/RemoteAccessDecoy/remoteaccessdecoy
+/Sensors/official/NetworkServiceDecoy/networkservicedecoy
 /wizard/wizard
 
 
