@@ -1,6 +1,18 @@
 {
-  "generated": "2026-10-24T15:34:26Z",
+  "generated": "2026-10-24T15:36:07Z",
   "sensors": [
+    {
+      "id": "ts-sensor-identity-decoy",
+      "name": "Identity Decoy (AD Services Trap)",
+      "category": "identity",
+      "icon_svg": "M12 11c0-1.1.9-2 2-2s2 .9 2 2-2 4-2 4m-5 4v-1a7 7 0 0114 0v1M12 7a4 4 0 100-8 4 4 0 000 8z",
+      "latest": "2.0.0",
+      "versions": [
+        {
+          "v": "2.0.0"
+        }
+      ]
+    },
     {
       "id": "ts-sensor-network-scan-detector",
       "name": "Network Scan Detector",
