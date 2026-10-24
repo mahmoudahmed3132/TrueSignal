@@ -46,9 +46,10 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 
 **Hub** (`Docs/operations.md` §7, `Hub/docker-compose.yml`)
 - Deploy: `docker compose up -d`, then complete setup in the UI with the **one-time setup token printed in the Hub log** (or `TS_SETUP_TOKEN`), a ≥12-char password and the Hub endpoint. Or set `TS_DASHBOARD_PASSWORD` to lock setup.
-- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_TRUSTED_PROXIES` (IPs/CIDRs whose forwarding headers are believed; empty = any peer, warned at startup; invalid = fatal), `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473).
+- Env vars (`Hub/internal/services/config/service.go`): `TS_PORT`, `TS_DB_PATH`, `TS_ENV` (only `development` drops the cookie Secure flag and the WS origin check), `TS_TRUST_PROXY`, `TS_TRUSTED_PROXIES` (IPs/CIDRs whose forwarding headers are believed; empty = any peer, warned at startup; invalid = fatal), `TS_REQUIRE_MFA` (admin MFA mandatory: an unenrolled login gets an enroll-only session; MFA can't be disabled), `TS_DASHBOARD_PASSWORD`, `TS_SETUP_TOKEN`, `TS_SESSION_TTL` (12h), `TS_SESSION_IDLE_TIMEOUT` (15m), `TS_ALLOW_UNPINNED_IMAGES` (dev only), `TS_SIEM_CA_FILE`, `TS_SYSLOG_PEN` (32473).
 - Update: `docker compose pull && docker compose up -d`. Schema migrations run on boot and take a `*.pre-vN-*.bak` VACUUM snapshot first (`Hub/internal/store/migrations.go:304-306`).
 - Roll back: `Docs/operations.md` §7. No schema change → pin the old `TS_HUB_VERSION`. Schema migrated → the old Hub refuses the newer DB, so stop, move `truesignal.db{,-wal,-shm}` aside (evidence), copy the `pre-vN` `.bak` in, start the old image; data since the upgrade is lost from the Hub and node keys rotated since the snapshot are valid again (rotate them).
+- Admin MFA (`Docs/operations.md` §12, `Hub/internal/services/auth/{totp,mfa}.go`): TOTP (RFC 6238, SHA-1/6/30 s, ±1 step, replay-protected via `mfa_last_step`) + 10 single-use recovery codes (sha256 in `mfa_recovery_codes`); secret in config `mfa_secret`. Enroll/disable/regenerate need the password again (disable/regenerate also a code). Wrong codes count toward the per-IP lockout plus an account-wide lock (10 → 15 min). Lost device: `docker compose run --rm truesignal-hub /app/truesignal-hub mfa-reset`, audited to the SIEM on next boot. The wizard prompts for the code (`TS_DASHBOARD_MFA_CODE` for scripts). Factory reset clears MFA with the admin account.
 - TLS: the Hub serves plain HTTP. `Hub/docker-compose.tls.yml` adds a digest-pinned unprivileged nginx (`Hub/deploy/nginx/truesignal.conf`) and unpublishes 8080; `TS_BIND_ADDR` limits the published port for an external proxy. F5 BIG-IP: `Docs/operations.md` §11 (iRule to replace, not append, X-Real-IP/XFF; WebSocket profile).
 
 **Node / sensors** (`Docs/operations.md` §1-5)
@@ -72,7 +73,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 - IDs: sensor `ts-sensor-<kebab>`; container name = sensor ID (`ts-` prefixed if missing); node `node-<8hex>`; node key `ts_key_<64hex>` (DB stores `sha256:<hex>`); config revision `rev_<8hex>` (sha256 of sorted sensor ID+version+env, `Hub/internal/services/node/service.go:265-286`).
 - Images: `ghcr.io/<owner>/truesignal-<lowercasefoldername>`. Source manifests use `image_tag: "dev"` and an empty digest; CI fills both.
 - Git tags: `hub/v*`, `wizard/v*`, `sensor/<name>/v*` (`Docs/architecture/README.md` §Tagging).
-- Compatibility: a sensor or wizard **major** version must equal the Hub major (`HubVersion = "2.1.0"`, `Hub/internal/models/models.go:6`). A wizard mismatch returns HTTP 426.
+- Compatibility: a sensor or wizard **major** version must equal the Hub major (`HubVersion = "2.2.0"`, `Hub/internal/models/models.go:6`). A wizard mismatch returns HTTP 426.
 - Paths: node `/opt/truesignal/sensors/truesignal-compose.yml` (0600), `/etc/truesignal/config.json` (0600); Hub `/data/truesignal.db`.
 - Env: all sensor config is `TS_*`. Reserved (user cannot override): `TS_HUB_ENDPOINT`, `TS_HUB_KEY`, `TS_SENSOR_ID`, `TS_CONFIG_REV`, `TS_TEST_MODE`, `TS_CAPTURE_HASH_KEY` (per-node derived key, injected where the manifest declares it), `TS_HONEYTOKEN` (`Hub/internal/compose/env.go`).
 - Severity enum: `info|low|medium|high|critical`. The sensor sets it from `TS_SEVERITY`; the Hub maps anything else to `medium` (`models.NormalizeSeverity`).
@@ -96,7 +97,7 @@ Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 10. New sensors must support `TS_TEST_MODE=true`: send a synthetic alert, then exit 0.
 
 Not stated anywhere in the repo, so treat as [NOT IN PROJECT]: decoy egress restrictions, a "no real data on decoys" rule, network segmentation of decoys, a data classification of captured credentials.
-Residual gaps (unsigned manifests/images, root + host netns sensors, single admin without MFA) are in KNOWLEDGE-GAPS §4.
+Residual gaps (unsigned manifests/images, root + host netns sensors, single admin without RBAC; MFA is opt-in unless `TS_REQUIRE_MFA`) are in KNOWLEDGE-GAPS §4.
 
 ## 6. Distribution endpoints (owner GitHub; repo is public; first release published 2026-10-24)
 

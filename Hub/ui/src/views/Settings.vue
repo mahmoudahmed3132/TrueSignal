@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useAppStore } from '../stores/System/app'
 import { useConfigStore } from '../stores/Config/config'
 import { useFleetStore } from '../stores/Fleet/fleet'
@@ -12,6 +12,8 @@ import BaseDivider from '../components/ui/layout/BaseDivider.vue'
 import BaseVerticalNav from '../components/ui/navigation/BaseVerticalNav.vue'
 import BaseRadioGroup from '../components/ui/forms/BaseRadioGroup.vue'
 import BaseNumberStepper from '../components/ui/forms/BaseNumberStepper.vue'
+import MfaEnrollment from '../components/security/MfaEnrollment.vue'
+import RecoveryCodes from '../components/security/RecoveryCodes.vue'
 
 const appStore = useAppStore()
 const configStore = useConfigStore()
@@ -232,6 +234,55 @@ const getSeverityStyle = (sev, isActive) => {
 }
 
 // --- SECURITY MODALS (ephemeral UI + store delegation) ---
+
+// --- Admin MFA ---
+const mfa = ref(null)
+const showMfaEnroll = ref(false)
+// 'disable' or 'regenerate': both need the password and a current code
+const mfaAction = ref('')
+const mfaForm = ref({ password: '', code: '' })
+const mfaError = ref('')
+const mfaBusy = ref(false)
+const newRecoveryCodes = ref([])
+
+const loadMfa = async () => { mfa.value = await appStore.mfaStatus() }
+onMounted(loadMfa)
+
+const openMfaAction = (action) => {
+    mfaForm.value = { password: '', code: '' }
+    mfaError.value = ''
+    newRecoveryCodes.value = []
+    mfaAction.value = action
+}
+
+const closeMfaAction = () => {
+    mfaAction.value = ''
+    newRecoveryCodes.value = []
+    loadMfa()
+}
+
+const submitMfaAction = async () => {
+    mfaBusy.value = true
+    mfaError.value = ''
+    const { password, code } = mfaForm.value
+    if (mfaAction.value === 'disable') {
+        const res = await appStore.mfaDisable(password, code.trim())
+        mfaBusy.value = false
+        if (!res.success) { mfaError.value = res.error; return }
+        closeMfaAction()
+    } else {
+        const res = await appStore.mfaRegenerateCodes(password, code.trim())
+        mfaBusy.value = false
+        if (res.error) { mfaError.value = res.error; return }
+        newRecoveryCodes.value = res.recoveryCodes || []
+    }
+    mfaForm.value = { password: '', code: '' }
+}
+
+const mfaEnrolled = () => {
+    showMfaEnroll.value = false
+    loadMfa()
+}
 
 const showPasswordModal = ref(false)
 const pwdData = ref({ current: '', new: '', confirmNew: '' })
@@ -555,6 +606,29 @@ const submitFactoryReset = async () => {
                         </BaseButton>
                     </BaseCard>
 
+                    <BaseCard title="Two-Factor Authentication">
+                        <template v-if="mfa">
+                            <p class="text-sm text-text-m mb-4 max-w-2xl">
+                                <template v-if="mfa.enabled">
+                                    Enabled. Sign-in needs a code from your authenticator app or a recovery code
+                                    ({{ mfa.recoveryCodesRemaining }} recovery codes left).
+                                </template>
+                                <template v-else>
+                                    Off. Add a time-based code (TOTP) from an authenticator app to the dashboard sign-in.
+                                </template>
+                                <template v-if="mfa.required"> Required on this Hub (TS_REQUIRE_MFA).</template>
+                            </p>
+                            <div class="flex flex-wrap gap-3">
+                                <BaseButton v-if="!mfa.enabled" variant="primary" @click="showMfaEnroll = true">Enable MFA</BaseButton>
+                                <template v-else>
+                                    <BaseButton variant="secondary" @click="openMfaAction('regenerate')">New recovery codes</BaseButton>
+                                    <BaseButton v-if="!mfa.required" variant="danger" @click="openMfaAction('disable')">Disable MFA</BaseButton>
+                                </template>
+                            </div>
+                        </template>
+                        <p v-else class="text-sm text-text-m">MFA status unavailable.</p>
+                    </BaseCard>
+
                     <BaseCard danger>
                         <template #icon>
                             <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
@@ -592,6 +666,35 @@ const submitFactoryReset = async () => {
                     <BaseButton variant="ghost" @click="showPasswordModal = false">Cancel</BaseButton>
                     <BaseButton variant="primary" type="submit" :disabled="pwdLoading">
                         {{ pwdLoading ? 'Updating...' : 'Update Password' }}
+                    </BaseButton>
+                </div>
+            </form>
+        </BaseModal>
+
+        <BaseModal :show="showMfaEnroll" title="Enable Two-Factor Authentication" @close="showMfaEnroll = false">
+            <MfaEnrollment v-if="showMfaEnroll" @done="mfaEnrolled" @cancel="showMfaEnroll = false" />
+        </BaseModal>
+
+        <BaseModal :show="!!mfaAction" :title="mfaAction === 'disable' ? 'Disable Two-Factor Authentication' : 'New Recovery Codes'" :danger="mfaAction === 'disable'" @close="closeMfaAction">
+            <div v-if="newRecoveryCodes.length" class="space-y-4">
+                <RecoveryCodes :codes="newRecoveryCodes" />
+                <div class="flex justify-end">
+                    <BaseButton variant="primary" @click="closeMfaAction">I have saved these codes</BaseButton>
+                </div>
+            </div>
+            <form v-else @submit.prevent="submitMfaAction" class="space-y-4">
+                <p class="text-sm text-text-m">
+                    {{ mfaAction === 'disable'
+                        ? 'Sign-in will need only the password. Confirm with your password and a current code.'
+                        : 'All existing recovery codes stop working. Confirm with your password and a current code.' }}
+                </p>
+                <BaseInput v-model="mfaForm.password" label="Password" type="password" required autofocus />
+                <BaseInput v-model="mfaForm.code" label="Authentication code" placeholder="123456 or a recovery code" required />
+                <div v-if="mfaError" class="text-xs text-danger-text bg-danger-bg p-2.5 rounded-md border border-danger-border">{{ mfaError }}</div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <BaseButton variant="ghost" @click="closeMfaAction">Cancel</BaseButton>
+                    <BaseButton :variant="mfaAction === 'disable' ? 'danger' : 'primary'" type="submit" :disabled="mfaBusy">
+                        {{ mfaBusy ? 'Working...' : (mfaAction === 'disable' ? 'Disable MFA' : 'Generate codes') }}
                     </BaseButton>
                 </div>
             </form>

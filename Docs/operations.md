@@ -214,3 +214,21 @@ If you edit the config: nginx drops every server-level `proxy_set_header` in a l
 - **Monitor:** HTTP `GET /api/v2/version`, receive string `"version"`. It needs no authentication.
 - If a WAF policy (ASM/Advanced WAF) sits on the virtual server, exempt `/api/v2/event` and `/api/v2/heartbeat` from body-content signatures: sensor events carry attacker payloads by design and would otherwise be blocked, which silently drops alerts.
 
+## 12. Admin MFA
+
+The dashboard admin can add a time-based one-time code (TOTP, RFC 6238: 6 digits, 30 s) from any authenticator app to the sign-in. PCI DSS 8.4 expects MFA for administrative access to systems in or connected to the CDE.
+
+- **Enable:** Settings → Security & Access → Two-Factor Authentication → *Enable MFA*. Re-enter the password, scan the QR code (or type the key), confirm with a code. Save the 10 recovery codes shown once; each signs in once. The Hub keeps only their hashes.
+- **Sign-in:** password, then the code (or a recovery code). A code works once: a captured code cannot be replayed, even within its 30 s window.
+- **Brute force:** wrong codes count towards the 10-attempt per-IP lockout, and 10 wrong codes from any mix of sources lock MFA for 15 minutes.
+- **Changes:** disabling MFA and issuing new recovery codes need the password and a current code, so a stolen session cannot turn MFA off or replace the authenticator. Every change is in the audit trail (Hub log and SIEM).
+- **Enforce:** `TS_REQUIRE_MFA=true`. An admin without MFA can sign in only to enroll; every other endpoint returns `403 mfa_enrollment_required` until enrollment completes. MFA cannot be disabled while this is set.
+- **Wizard:** commands that use the dashboard password (`link` with provisioning, `discover`) ask for the code. For a scripted run, set `TS_DASHBOARD_MFA_CODE` to a current code just before. Wizard 2.2.0 or later is needed; older wizards fail to sign in to a Hub with MFA.
+- **Lost authenticator and recovery codes:** from the Hub host,
+  ```bash
+  docker compose run --rm truesignal-hub /app/truesignal-hub mfa-reset
+  docker compose restart truesignal-hub
+  ```
+  This removes MFA (the password still applies) and sends an `MFA RESET` audit record to the SIEM when the Hub starts. Anyone who can run it already controls the Hub database; alert on that audit record.
+- A factory reset clears MFA together with the admin account.
+

@@ -37,6 +37,7 @@ type RouterConfig struct {
 	Config            *ConfigHandler
 	Compose           *ComposeHandler
 	Honeytokens       *HoneytokenHandler
+	MFA               *MFAHandler
 	WSService         *websocket.Service
 	SessionValidator  SessionValidator
 	NodeAuthenticator NodeAuthenticator
@@ -74,6 +75,15 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Use(audit)
 
 		r.Get("/api/v2/ws", cfg.WSService.HandleWS)
+
+		// Admin MFA (an enroll-only session reaches only the first three)
+		if cfg.MFA != nil {
+			r.Get("/api/v2/auth/mfa", cfg.MFA.Status)
+			r.Post("/api/v2/auth/mfa/setup", cfg.MFA.Setup)
+			r.Post("/api/v2/auth/mfa/enable", cfg.MFA.Enable)
+			r.Post("/api/v2/auth/mfa/disable", cfg.MFA.Disable)
+			r.Post("/api/v2/auth/mfa/recovery-codes", cfg.MFA.RecoveryCodes)
+		}
 
 		// UI Compose Preview
 		r.Post("/api/v2/compose/generate", cfg.Compose.GenerateCompose) // Used by UI modal for live preview

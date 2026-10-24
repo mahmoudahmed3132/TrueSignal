@@ -99,7 +99,7 @@ Sensors execute as isolated containers.
   * **Blinding is visible:** whitelisted sources are no longer dropped; their events are stored (archived) and still forwarded to the SIEM flagged `whitelisted=true`. Removing a sensor or deleting a node keeps its events (the events table has no foreign key cascade) (`Hub/internal/services/event/service.go`, `Hub/internal/store/migrations.go` v3).
 * **Gaps (NOT IMPLEMENTED):**
   * Signed deployment artifact enforcement (planned).
-  * Single admin account: no RBAC, no MFA. Disarm, silence, whitelist and "delete all events" are available to that one account (they are audited, not prevented).
+  * Single admin account: no RBAC. MFA (TOTP) is available and can be enforced with `TS_REQUIRE_MFA`; it is off by default. Disarm, silence, whitelist and "delete all events" are available to that one account (they are audited, not prevented).
   * The Hub serves plain HTTP. TLS must be terminated by a reverse proxy in front of it; no proxy configuration ships with the repo.
   * Audit records are not persisted in the Hub database; without a SIEM they exist only in the container log.
 

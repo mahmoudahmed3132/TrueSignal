@@ -61,7 +61,7 @@ func (a *App) RequireDashboardAuth() error {
 	if envPW := os.Getenv("TS_DASHBOARD_PASSWORD"); envPW != "" {
 		authCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		cookie, err := a.Hub.AuthenticateDashboard(authCtx, envPW)
+		cookie, err := cli.DashboardLogin(authCtx, a.Hub, envPW)
 		if err != nil {
 			return fmt.Errorf("authentication via TS_DASHBOARD_PASSWORD failed: %w", err)
 		}
@@ -81,7 +81,7 @@ func (a *App) RequireDashboardAuth() error {
 	// Use a fresh context
 	authCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cookie, err := a.Hub.AuthenticateDashboard(authCtx, password)
+	cookie, err := cli.DashboardLogin(authCtx, a.Hub, password)
 	if err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}

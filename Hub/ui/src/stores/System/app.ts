@@ -229,18 +229,96 @@ export const useAppStore = defineStore('app', () => {
 
   // --- ACTIONS: AUTH & SETUP ---
   
-  const login = async (password: string): Promise<{ success: boolean; status?: number }> => {
+  // login returns mfaRequired when the password was right and a code is
+  // needed, and enrollRequired when TS_REQUIRE_MFA demands enrollment first
+  // (the session then only reaches the MFA endpoints; call finishLogin once
+  // enrolled).
+  const login = async (password: string, code = ''): Promise<{ success: boolean; status?: number; mfaRequired?: boolean; invalidCode?: boolean; enrollRequired?: boolean }> => {
     state.value.authError = null
     try {
-      await api.post('/login', { password })
-      transitionSession('authenticated')
-      // Fetch system state and updates after successful auth
-      await checkCoreConfiguration().catch(() => {})
+      const res = await api.post('/login', code ? { password, code } : { password })
+      const data = (await res.json().catch(() => ({}))) as { status?: string }
+      if (data.status === 'mfa_enrollment_required') {
+        return { success: false, enrollRequired: true }
+      }
+      await finishLogin()
       return { success: true }
     } catch (err: any) {
       transitionSession('unauthenticated')
       state.value.authError = 'Invalid credentials'
-      return { success: false, status: err.status }
+      return {
+        success: false,
+        status: err.status,
+        mfaRequired: err.message === 'mfa_required',
+        invalidCode: err.message === 'invalid_code'
+      }
+    }
+  }
+
+  const finishLogin = async (): Promise<void> => {
+    transitionSession('authenticated')
+    // Fetch system state and updates after successful auth
+    await checkCoreConfiguration().catch(() => {})
+  }
+
+  // --- ACTIONS: ADMIN MFA ---
+  // Errors come back as machine-readable codes (invalid_password,
+  // invalid_code, too_many_requests, ...); mfaErrorText turns them into text.
+  const mfaErrorText = (err: any): string => {
+    switch (err?.message) {
+      case 'invalid_password': return 'Incorrect password.'
+      case 'invalid_code': return 'That code is not valid. Use the current code from your app or an unused recovery code.'
+      case 'too_many_requests': return 'Too many attempts. Try again in 15 minutes.'
+      case 'mfa_already_enabled': return 'MFA is already enabled.'
+      case 'mfa_not_enabled': return 'MFA is not enabled.'
+      case 'mfa_required_by_policy': return 'MFA is required on this Hub (TS_REQUIRE_MFA) and cannot be disabled.'
+      case 'no_pending_enrollment': return 'Enrollment expired. Start again.'
+      default: return err?.message || 'Request failed.'
+    }
+  }
+
+  const mfaStatus = async (): Promise<{ enabled: boolean; required: boolean; recoveryCodesRemaining: number; enrollmentRequired: boolean } | null> => {
+    try {
+      const res = await api.get('/api/v2/auth/mfa')
+      return await res.json()
+    } catch {
+      return null
+    }
+  }
+
+  const mfaSetup = async (password: string): Promise<{ secret?: string; uri?: string; qr?: string; error?: string }> => {
+    try {
+      const res = await api.post('/api/v2/auth/mfa/setup', { password })
+      return await res.json()
+    } catch (err: any) {
+      return { error: mfaErrorText(err) }
+    }
+  }
+
+  const mfaEnable = async (code: string): Promise<{ recoveryCodes?: string[]; error?: string }> => {
+    try {
+      const res = await api.post('/api/v2/auth/mfa/enable', { code })
+      return await res.json()
+    } catch (err: any) {
+      return { error: mfaErrorText(err) }
+    }
+  }
+
+  const mfaDisable = async (password: string, code: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await api.post('/api/v2/auth/mfa/disable', { password, code })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: mfaErrorText(err) }
+    }
+  }
+
+  const mfaRegenerateCodes = async (password: string, code: string): Promise<{ recoveryCodes?: string[]; error?: string }> => {
+    try {
+      const res = await api.post('/api/v2/auth/mfa/recovery-codes', { password, code })
+      return await res.json()
+    } catch (err: any) {
+      return { error: mfaErrorText(err) }
     }
   }
 
@@ -357,7 +435,8 @@ export const useAppStore = defineStore('app', () => {
     authError, setupError, requiresSetup, isInitialized, bootstrapError,
     isAuthenticated, isReady, isBootstrapping, canAccessDashboard,
     toggleTheme, toggleSidebar, toggleArchive, setVelocityTimeframe,
-    toggleArmed, changePassword, factoryReset, login, logout, completeSetup,
+    toggleArmed, changePassword, factoryReset, login, finishLogin, logout, completeSetup,
+    mfaStatus, mfaSetup, mfaEnable, mfaDisable, mfaRegenerateCodes,
     acknowledgeWizardUpdate,
     initAppStore, fetchSystemState, fetchSystemUpdates, checkSystemUpdatesManual, enableDebugSetup
   }

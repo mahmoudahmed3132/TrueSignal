@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 )
 
 const wizardUserAgent = "TrueSignal-Wizard/2.0"
-const WizardVersion = "2.1.0"
+const WizardVersion = "2.2.0"
 
 type HubClient struct {
 	baseURL string
@@ -92,8 +93,22 @@ func readBodyTruncated(resp *http.Response) string {
 	return msg
 }
 
+// ErrMFARequired means the password was accepted and the Hub wants an MFA
+// code (TOTP or recovery code); retry with AuthenticateDashboardCode.
+var ErrMFARequired = errors.New("the Hub requires an MFA code")
+
+// AuthenticateDashboard logs in with the dashboard password alone.
 func (c *HubClient) AuthenticateDashboard(ctx context.Context, password string) (string, error) {
+	return c.AuthenticateDashboardCode(ctx, password, "")
+}
+
+// AuthenticateDashboardCode logs in with the password and, when the Hub has
+// MFA enabled, a code.
+func (c *HubClient) AuthenticateDashboardCode(ctx context.Context, password, code string) (string, error) {
 	payload := map[string]string{"password": password}
+	if code != "" {
+		payload["code"] = code
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal login request: %w", err)
@@ -106,6 +121,16 @@ func (c *HubClient) AuthenticateDashboard(ctx context.Context, password string) 
 		return "", fmt.Errorf("network error: %w", err)
 	}
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		msg := readBodyTruncated(resp)
+		switch {
+		case strings.Contains(msg, `"mfa_required"`):
+			return "", ErrMFARequired
+		case strings.Contains(msg, `"invalid_code"`):
+			return "", fmt.Errorf("invalid MFA code")
+		}
+		return "", fmt.Errorf("hub returned error (HTTP %d): %s", resp.StatusCode, msg)
+	}
 	if err := checkStatus(resp, http.StatusOK); err != nil {
 		return "", err
 	}
@@ -116,6 +141,15 @@ func (c *HubClient) AuthenticateDashboard(ctx context.Context, password string) 
 			cookieValue = cookie.Value
 			break
 		}
+	}
+	var status struct {
+		Status string `json:"status"`
+	}
+	if data, err := readBody(resp); err == nil {
+		_ = json.Unmarshal(data, &status)
+	}
+	if status.Status == "mfa_enrollment_required" {
+		return "", fmt.Errorf("the Hub requires MFA and this account has none yet: sign in to the dashboard once to enroll, then retry")
 	}
 	if cookieValue == "" {
 		return "", fmt.Errorf("hub did not return authentication cookie")

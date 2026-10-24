@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ type loginState struct {
 
 type Store interface {
 	GetConfigValue(key string) (string, error)
+	UpdateConfigValue(key, value string) error
 	GetNodeByKey(token string) (string, error)
 }
 
@@ -35,11 +37,15 @@ const (
 type SessionPolicy struct {
 	TTL  time.Duration // absolute lifetime
 	Idle time.Duration // inactivity timeout; 0 disables
+	// RequireMFA (TS_REQUIRE_MFA) forces MFA: a login without MFA enrolled
+	// gets a session that can only enroll, and MFA cannot be disabled.
+	RequireMFA bool
 }
 
 type session struct {
-	expires  time.Time
-	lastSeen time.Time
+	expires    time.Time
+	lastSeen   time.Time
+	enrollOnly bool // may only reach the MFA enrollment endpoints
 }
 
 type Service struct {
@@ -57,6 +63,12 @@ type Service struct {
 
 	// Node auth cache
 	nodeAuthCache sync.Map
+
+	// MFA (mfa.go)
+	mfaMu          sync.Mutex
+	pending        *pendingEnrollment
+	mfaFailures    int
+	mfaLockedUntil time.Time
 }
 
 func NewService(store Store, dashboardPassword string, policy ...SessionPolicy) *Service {
@@ -66,6 +78,7 @@ func NewService(store Store, dashboardPassword string, policy ...SessionPolicy) 
 			p.TTL = policy[0].TTL
 		}
 		p.Idle = policy[0].Idle
+		p.RequireMFA = policy[0].RequireMFA
 	}
 	return &Service{
 		store:             store,
@@ -110,6 +123,10 @@ func (s *Service) cleanupSessions(ctx context.Context) {
 }
 
 func (s *Service) CreateSession() (string, error) {
+	return s.createSession(false)
+}
+
+func (s *Service) createSession(enrollOnly bool) (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
@@ -118,7 +135,7 @@ func (s *Service) CreateSession() (string, error) {
 
 	now := time.Now()
 	s.sessionMu.Lock()
-	s.sessions[token] = &session{expires: now.Add(s.policy.TTL), lastSeen: now}
+	s.sessions[token] = &session{expires: now.Add(s.policy.TTL), lastSeen: now, enrollOnly: enrollOnly}
 	s.sessionMu.Unlock()
 
 	return token, nil
@@ -183,52 +200,52 @@ func (s *Service) cleanupAuthTracker(ctx context.Context) {
 	}
 }
 
+// Login authenticates with the password alone; it fails with
+// ErrMFARequired once MFA is enrolled.
 func (s *Service) Login(password, ip string) (string, error) {
-	// Rate Limiter Pre-Check
-	s.authMutex.Lock()
-	if state, exists := s.authTracker[ip]; exists {
-		if state.attempts >= 10 {
-			if time.Now().Before(state.lockedUntil) {
-				s.authMutex.Unlock()
-				return "", errors.New("too_many_requests")
-			}
-			delete(s.authTracker, ip)
-		}
-	}
-	s.authMutex.Unlock()
+	token, _, err := s.LoginMFA(password, "", ip)
+	return token, err
+}
 
-	// Evaluate Authorization
-	var isAuthorized bool
+// LoginMFA checks the password, then the second factor when MFA is enrolled.
+// A correct password without a code returns ErrMFARequired and does not count
+// as a failure (the UI asks for the code in a second step); a wrong password
+// or wrong code counts towards the per-IP lockout. enrollOnly is true when
+// TS_REQUIRE_MFA is on and no MFA is enrolled yet: the session may only
+// enroll.
+func (s *Service) LoginMFA(password, code, ip string) (token string, enrollOnly bool, err error) {
+	if s.ipLocked(ip) {
+		return "", false, ErrTooManyRequests
+	}
+	if !s.passwordOK(password) {
+		s.recordFailure(ip)
+		return "", false, ErrInvalidPassword
+	}
+	if s.MFAEnabled() {
+		if strings.TrimSpace(code) == "" {
+			return "", false, ErrMFARequired
+		}
+		if err := s.checkSecondFactor(code); err != nil {
+			s.recordFailure(ip)
+			return "", false, err
+		}
+	} else if s.policy.RequireMFA {
+		enrollOnly = true
+	}
+	s.clearFailures(ip)
+	token, err = s.createSession(enrollOnly)
+	return token, enrollOnly, err
+}
+
+func (s *Service) passwordOK(password string) bool {
 	if s.dashboardPassword != "" {
-		isAuthorized = subtle.ConstantTimeCompare([]byte(password), []byte(s.dashboardPassword)) == 1
-	} else {
-		dbHash, err := s.store.GetConfigValue("admin_hash")
-		if err == nil {
-			err = bcrypt.CompareHashAndPassword([]byte(dbHash), []byte(password))
-			isAuthorized = (err == nil)
-		}
+		return subtle.ConstantTimeCompare([]byte(password), []byte(s.dashboardPassword)) == 1
 	}
-
-	if isAuthorized {
-		s.authMutex.Lock()
-		delete(s.authTracker, ip)
-		s.authMutex.Unlock()
-		return s.CreateSession()
+	dbHash, err := s.store.GetConfigValue("admin_hash")
+	if err != nil {
+		return false
 	}
-
-	// Handle Failure & Increment Rate Limiter
-	s.authMutex.Lock()
-	if _, exists := s.authTracker[ip]; !exists {
-		s.authTracker[ip] = &loginState{}
-	}
-	s.authTracker[ip].attempts++
-	if s.authTracker[ip].attempts >= 10 {
-		s.authTracker[ip].lockedUntil = time.Now().Add(15 * time.Minute)
-		log.Printf("[!] AUDIT: IP %s locked out of dashboard for 15 minutes due to brute-force", ip)
-	}
-	s.authMutex.Unlock()
-
-	return "", errors.New("invalid_password")
+	return bcrypt.CompareHashAndPassword([]byte(dbHash), []byte(password)) == nil
 }
 
 // --- Node Authentication ---

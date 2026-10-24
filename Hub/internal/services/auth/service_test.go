@@ -24,6 +24,14 @@ func (m *mockAuthStore) GetConfigValue(key string) (string, error) {
 	return "", errors.New("not found")
 }
 
+func (m *mockAuthStore) UpdateConfigValue(key, value string) error {
+	if m.configMap == nil {
+		m.configMap = map[string]string{}
+	}
+	m.configMap[key] = value
+	return nil
+}
+
 func (m *mockAuthStore) GetNodeByKey(token string) (string, error) {
 	m.nodeCalls++
 	if val, ok := m.nodeMap[token]; ok {
