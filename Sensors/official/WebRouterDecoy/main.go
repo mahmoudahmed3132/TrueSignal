@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/truesignal/sdk-go"
+	sdkdecoy "github.com/truesignal/sdk-go/decoy"
 )
 
 // reporter is the slice of the SDK the handlers use, so they can be tested
@@ -32,8 +33,14 @@ type decoy struct {
 	passwordMode string
 	passwordKey  []byte
 	probes       *probeLimiter
-	loginDelay   time.Duration
+	// logins caps web_login_attempt events per source, so a password spray
+	// cannot fill the SDK queue (1000) and push out other alerts.
+	logins     *sdkdecoy.Limiter
+	loginDelay time.Duration
 }
+
+// loginsPerMinute matches the other credential decoys.
+const loginsPerMinute = 20
 
 // brandProfiles keeps the page footer consistent with the advertised brand;
 // a "Netgear" header over a Cisco model number is an instant tell.
@@ -87,6 +94,7 @@ func main() {
 		passwordMode: strings.ToLower(getEnv("TS_CAPTURE_PASSWORDS", "hash")),
 		passwordKey:  passwordHashKey(os.Getenv("TS_CAPTURE_HASH_KEY"), os.Getenv("TS_HUB_KEY")),
 		probes:       newProbeLimiter(60 * time.Second),
+		logins:       sdkdecoy.NewLimiter(loginsPerMinute, time.Minute),
 		loginDelay:   1500 * time.Millisecond,
 	}
 
@@ -251,8 +259,16 @@ func (d *decoy) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 // reportLogin records a web_login_attempt. attempted_username is the key the
 // Hub matches honeytokens on.
+//
+// Events beyond loginsPerMinute per source are dropped and counted; the next
+// event emitted for that source carries suppressed_since_last. The attacker
+// sees no difference: every attempt still gets the delay and the error page.
 func (d *decoy) reportLogin(r *http.Request, user, password, auth string, extra sdk.EventDetails) {
 	srcIP := clientIP(r)
+	ok, suppressed := d.logins.Allow(srcIP)
+	if !ok {
+		return
+	}
 	username := truncate(user, 256)
 	log.Printf("[!] Login attempt from %s (User: %q, skin %s)", srcIP, username, d.skin.Name)
 	details := sdk.EventDetails{
@@ -265,6 +281,9 @@ func (d *decoy) reportLogin(r *http.Request, user, password, auth string, extra 
 		sdk.EventDetail{Key: "auth", Value: auth},
 		sdk.EventDetail{Key: "path", Value: truncate(r.URL.Path, 256)})
 	details = append(details, extra...)
+	if suppressed > 0 {
+		details = append(details, sdk.EventDetail{Key: "suppressed_since_last", Value: suppressed})
+	}
 	details = append(details, sdk.EventDetail{Key: "action_taken", Value: "logged"})
 	// Empty severity: the sensor's TS_SEVERITY (critical by default).
 	d.ts.ReportEventSeverity("", "web_login_attempt", srcIP, d.target(), details)

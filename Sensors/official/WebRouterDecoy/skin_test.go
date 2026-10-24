@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sdk "github.com/truesignal/sdk-go"
+	sdkdecoy "github.com/truesignal/sdk-go/decoy"
 )
 
 type event struct {
@@ -42,7 +43,8 @@ func (f *fakeReporter) last() event {
 func newTestDecoy(t *testing.T, skin Skin) (*decoy, *fakeReporter, http.Handler) {
 	t.Helper()
 	fr := &fakeReporter{}
-	d := &decoy{ts: fr, skin: skin, passwordMode: "hash", passwordKey: []byte("k"), probes: newProbeLimiter(time.Minute)}
+	d := &decoy{ts: fr, skin: skin, passwordMode: "hash", passwordKey: []byte("k"), probes: newProbeLimiter(time.Minute),
+		logins: sdkdecoy.NewLimiter(loginsPerMinute, time.Minute)}
 	return d, fr, d.routes()
 }
 
@@ -193,5 +195,47 @@ func TestCustomSkinValidation(t *testing.T) {
 	}
 	if _, err := loadSkin("sharepoint", "", "", ""); err == nil {
 		t.Error("unknown built-in accepted")
+	}
+}
+
+func TestLoginEventsAreRateLimited(t *testing.T) {
+	skin, _ := loadSkin("admin", "", "", "")
+	d, fr, h := newTestDecoy(t, skin)
+	d.logins = sdkdecoy.NewLimiter(3, time.Minute)
+	for i := 0; i < 10; i++ {
+		// Every attempt still gets the failure page.
+		if w := serve(h, post("/admin/login", url.Values{"username": {"u"}, "password": {"p"}})); w.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d = %d", i, w.Code)
+		}
+	}
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.SetBasicAuth("u", "p") // ignored by a form skin; only the page view counts
+	serve(h, r)
+	n := 0
+	for _, e := range fr.events {
+		if e.trigger == "web_login_attempt" {
+			n++
+		}
+	}
+	if n != 3 {
+		t.Fatalf("login events = %d, want 3", n)
+	}
+}
+
+func TestSuppressedCountIsReported(t *testing.T) {
+	skin, _ := loadSkin("basic", "", "", "")
+	d, fr, h := newTestDecoy(t, skin)
+	d.logins = sdkdecoy.NewLimiter(1, 50*time.Millisecond)
+	for i := 0; i < 4; i++ {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.SetBasicAuth("admin", "x")
+		serve(h, r)
+	}
+	time.Sleep(60 * time.Millisecond)
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.SetBasicAuth("admin", "x")
+	serve(h, r)
+	if e := fr.last(); e.trigger != "web_login_attempt" || e.details["suppressed_since_last"] != 3 {
+		t.Fatalf("event after window = %+v", e)
 	}
 }

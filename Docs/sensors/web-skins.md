@@ -52,4 +52,6 @@ Triggers are unchanged (`web_login_attempt`, `web_page_view`, `web_path_probe`).
 * `auth`: `form` or `basic`; `path`: the request path.
 * `form_<name>` for each extra form field (e.g. `form_realm`), at most 256 bytes.
 
+Login events are limited to 20 per source per minute; the rest are dropped and counted, and the next event from that source carries `suppressed_since_last`. The attacker sees no difference (same delay and error page). A honeytoken submitted inside a suppressed burst is not reported for that attempt; it is caught when it is submitted again after the window.
+
 Severity is `TS_SEVERITY` (critical by default) for logins and medium for views and probes. The target is `Web Interface (<product>)`.
