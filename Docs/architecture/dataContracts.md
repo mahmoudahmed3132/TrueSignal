@@ -186,6 +186,12 @@ When `siemAddress` is set, the Hub forwards every stored event (including whitel
 - **MSG:** the full event as single-line JSON (for an Elastic `json` processor or LogScale `parseJson()`).
 - **PEN:** `TS_SYSLOG_PEN`, default `32473` (the RFC 5612 documentation number). Set your organisation's IANA Private Enterprise Number.
 
+Honeytoken inventory records (`Docs/siem/honeytoken-detection.md`) use PRI `<134>` (local0.info) and MSGID `HONEYTOKEN`. They are sent when a token is created, at Hub start and every 24 h, and never include the secret:
+
+```text
+<134>1 TIMESTAMP truesignal truesignalSensor - HONEYTOKEN [truesignal-honeytoken@PEN honeytoken_id="ht_956c6041" username="svc_reports97ef" planted_node_id="node-d41340e4" planted_sensor_id="ts-sensor-file-canary" status="active"] {"honeytoken_id":"ht_956c6041","username":"svc_reports97ef",...}
+```
+
 Audit records use PRI `<133>` (local0.notice):
 
 ```text

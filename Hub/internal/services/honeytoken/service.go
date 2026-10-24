@@ -2,20 +2,25 @@
 // credential in each File Canary instance's lures and recognises it when an
 // attacker later tries it against any service decoy in the fleet.
 //
-// Passwords are compared by keyed HMAC: the Hub owns one fleet capture key
-// (config capture_hash_key) and hands it to every decoy that hashes captured
-// passwords (TS_CAPTURE_HASH_KEY), so a decoy's password_hmac for a planted
-// secret equals the honeytoken's secret_hmac. Usernames are compared in
-// plaintext, which also covers NTLM and RDP captures that carry no password.
+// Passwords are compared by keyed HMAC. The Hub owns a master key (config
+// capture_master_key) that never leaves it. Each node's password-hashing
+// decoys get a key derived from it for that node only (TS_CAPTURE_HASH_KEY =
+// HMAC(master, node ID)), so root on one node can at most test that node's own
+// captures. The Hub re-derives the node key of each incoming event and
+// compares HMACs of every honeytoken secret under it, which keeps matching
+// fleet-wide. Usernames are compared in plaintext, which also covers NTLM and
+// RDP captures that carry no password.
 package honeytoken
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 	"sync"
@@ -27,34 +32,52 @@ import (
 // Trigger is the event raised when a honeytoken is used.
 const Trigger = "honeytoken_used"
 
-const captureKeyConfig = "capture_hash_key"
+const captureKeyConfig = "capture_master_key"
 
 type Store interface {
 	GetConfigValue(key string) (string, error)
 	UpdateConfigValue(key, value string) error
 	GetHoneytoken(nodeID, sensorID string) (*models.Honeytoken, error)
 	InsertHoneytoken(h models.Honeytoken) error
-	FindHoneytokens(usernames, hmacs []string) ([]models.Honeytoken, error)
+	FindHoneytokens(usernames []string) ([]models.Honeytoken, error)
 	RecordHoneytokenUse(id, ts string) error
 	ListHoneytokens() ([]models.Honeytoken, error)
 }
 
-type Service struct {
-	store Store
-	mu    sync.Mutex
+// Publisher receives honeytoken inventory records (never secrets) so the SIEM
+// can watch for the planted usernames on real systems.
+type Publisher interface {
+	QueueHoneytoken(h models.Honeytoken)
 }
+
+type Service struct {
+	store     Store
+	mu        sync.Mutex
+	publisher Publisher
+}
+
+// SetPublisher forwards new honeytokens and periodic resyncs to the SIEM.
+func (s *Service) SetPublisher(p Publisher) { s.publisher = p }
 
 func NewService(store Store) *Service {
 	return &Service{store: store}
 }
 
-// CaptureKey returns the fleet capture key, creating it on first use. It is
-// read from the store every time, so a factory reset (which wipes config)
-// yields a fresh key rather than a stale cached one.
-func (s *Service) CaptureKey() (string, error) {
+// NodeCaptureKey returns the capture HMAC key for one node's decoys, derived
+// from the master key (created on first use). The master is read from the
+// store every time rather than cached, so a purge that wipes it is honoured.
+func (s *Service) NodeCaptureKey(nodeID string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.captureKeyLocked()
+	master, err := s.captureKeyLocked()
+	if err != nil {
+		return "", err
+	}
+	return deriveNodeKey(master, nodeID), nil
+}
+
+func deriveNodeKey(master, nodeID string) string {
+	return hmacHex(master, "truesignal-capture-node:"+nodeID)
 }
 
 func (s *Service) captureKeyLocked() (string, error) {
@@ -82,7 +105,7 @@ func hmacHex(key, value string) string {
 }
 
 // keyID matches the decoys' hmac_key_id, so the Hub only compares HMACs that
-// were produced with the fleet key.
+// were produced with the reporting node's key.
 func keyID(key string) string {
 	return hmacHex(key, "truesignal-key-id")[:8]
 }
@@ -136,10 +159,6 @@ func (s *Service) TokenFor(nodeID, sensorID string) (models.Honeytoken, error) {
 	} else if h != nil {
 		return *h, nil
 	}
-	key, err := s.captureKeyLocked()
-	if err != nil {
-		return models.Honeytoken{}, err
-	}
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
 		user, secret, err := generate()
@@ -151,15 +170,17 @@ func (s *Service) TokenFor(nodeID, sensorID string) (models.Honeytoken, error) {
 			return models.Honeytoken{}, err
 		}
 		h := models.Honeytoken{
-			ID:         "ht_" + id,
-			Username:   user,
-			Secret:     secret,
-			SecretHMAC: hmacHex(key, secret),
-			NodeID:     nodeID,
-			SensorID:   sensorID,
-			CreatedAt:  time.Now().UTC().Format(time.RFC3339),
+			ID:        "ht_" + id,
+			Username:  user,
+			Secret:    secret,
+			NodeID:    nodeID,
+			SensorID:  sensorID,
+			CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		}
 		if lastErr = s.store.InsertHoneytoken(h); lastErr == nil {
+			if s.publisher != nil {
+				s.publisher.QueueHoneytoken(h)
+			}
 			return h, nil
 		}
 	}
@@ -214,11 +235,10 @@ func candidateUsernames(details map[string]any) []string {
 	return out
 }
 
-// candidateHMACs returns password HMACs under the fleet key: hashed captures
-// whose hmac_key_id is the fleet key's, and plaintext captures (plain mode)
-// hashed here.
-func candidateHMACs(details map[string]any, key string) []string {
-	var out []string
+// candidatePasswords returns the password evidence in an event: HMACs made
+// with this node's key (hmac_key_id must match, so captures under any other
+// key are ignored) and plaintext captures from plain mode.
+func candidatePasswords(details map[string]any, nodeKey string) (hmacs, plain []string) {
 	id, _ := details["hmac_key_id"].(string)
 	for k, v := range details {
 		str, ok := v.(string)
@@ -226,13 +246,13 @@ func candidateHMACs(details map[string]any, key string) []string {
 			continue
 		}
 		switch {
-		case strings.HasSuffix(k, "password_hmac") && id == keyID(key):
-			out = append(out, strings.ToLower(str))
+		case strings.HasSuffix(k, "password_hmac") && id == keyID(nodeKey):
+			hmacs = append(hmacs, strings.ToLower(str))
 		case k == "password" || k == "attempted_password":
-			out = append(out, hmacHex(key, str))
+			plain = append(plain, str)
 		}
 	}
-	return out
+	return hmacs, plain
 }
 
 // Match finds honeytokens used in an event. Hub-raised honeytoken events are
@@ -245,37 +265,63 @@ func (s *Service) Match(e models.Event) ([]Match, error) {
 	if err := json.Unmarshal(e.Details, &details); err != nil || details == nil {
 		return nil, nil
 	}
-	key, err := s.CaptureKey()
+	nodeKey, err := s.NodeCaptureKey(e.NodeID)
 	if err != nil {
 		return nil, err
 	}
 	users := candidateUsernames(details)
-	hmacs := candidateHMACs(details, key)
-	tokens, err := s.store.FindHoneytokens(users, hmacs)
-	if err != nil || len(tokens) == 0 {
-		return nil, err
+	hmacs, plain := candidatePasswords(details, nodeKey)
+
+	found := map[string]*Match{}
+	var order []string
+	note := func(t models.Honeytoken, on string) {
+		m, ok := found[t.ID]
+		if !ok {
+			m = &Match{Token: t}
+			found[t.ID] = m
+			order = append(order, t.ID)
+		}
+		if !strings.Contains(m.MatchedOn, on) {
+			if m.MatchedOn != "" {
+				m.MatchedOn += "+"
+			}
+			m.MatchedOn += on
+		}
 	}
 
-	userSet := map[string]bool{}
-	for _, u := range users {
-		userSet[u] = true
+	byUser, err := s.store.FindHoneytokens(users)
+	if err != nil {
+		return nil, err
 	}
-	hmacSet := map[string]bool{}
-	for _, h := range hmacs {
-		hmacSet[h] = true
+	for _, t := range byUser {
+		note(t, "username")
 	}
-	var out []Match
-	for _, t := range tokens {
-		var on []string
-		if userSet[strings.ToLower(t.Username)] {
-			on = append(on, "username")
+
+	// Password evidence is compared against every honeytoken under this
+	// node's key. Deception deployments hold few tokens, so this is cheap.
+	if len(hmacs) > 0 || len(plain) > 0 {
+		all, err := s.store.ListHoneytokens()
+		if err != nil {
+			return nil, err
 		}
-		if hmacSet[strings.ToLower(t.SecretHMAC)] {
-			on = append(on, "password")
+		for _, t := range all {
+			want := hmacHex(nodeKey, t.Secret)
+			hit := false
+			for _, h := range hmacs {
+				hit = hit || hmac.Equal([]byte(h), []byte(want))
+			}
+			for _, p := range plain {
+				hit = hit || hmac.Equal([]byte(p), []byte(t.Secret))
+			}
+			if hit {
+				note(t, "password")
+			}
 		}
-		if len(on) > 0 {
-			out = append(out, Match{Token: t, MatchedOn: strings.Join(on, "+")})
-		}
+	}
+
+	out := make([]Match, 0, len(order))
+	for _, id := range order {
+		out = append(out, *found[id])
 	}
 	return out, nil
 }
@@ -283,4 +329,36 @@ func (s *Service) Match(e models.Event) ([]Match, error) {
 // RecordUse notes that a honeytoken was used.
 func (s *Service) RecordUse(id string) error {
 	return s.store.RecordHoneytokenUse(id, time.Now().UTC().Format(time.RFC3339))
+}
+
+// StartWatchlistSync publishes every honeytoken to the SIEM at start and then
+// every interval, so a SIEM watchlist or indicator index stays complete even
+// after its own retention ages out the creation records.
+func (s *Service) StartWatchlistSync(ctx context.Context, interval time.Duration) {
+	if s.publisher == nil {
+		return
+	}
+	publish := func() {
+		tokens, err := s.store.ListHoneytokens()
+		if err != nil {
+			log.Printf("[WARNING] Honeytoken watchlist sync failed: %v", err)
+			return
+		}
+		for _, t := range tokens {
+			s.publisher.QueueHoneytoken(t)
+		}
+	}
+	go func() {
+		publish()
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				publish()
+			}
+		}
+	}()
 }

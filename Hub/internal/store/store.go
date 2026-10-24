@@ -13,7 +13,7 @@ type DataStore interface {
 	GetAllConfig() (map[string]string, error)
 	CompleteSetup(adminHash, hubEndpoint, hubKey string) error
 	UpdateConfigBatch(req map[string]interface{}) error
-	FactoryReset() error
+	FactoryReset(purgeHoneytokens bool) error
 
 	// Events
 	InsertEvent(e *models.Event, nowStr string, detailsStr string) (int, error)

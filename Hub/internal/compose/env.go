@@ -8,7 +8,7 @@ var forbiddenUserVars = map[string]bool{
 	"TS_SENSOR_ID":    true,
 	"TS_CONFIG_REV":   true,
 	"TS_TEST_MODE":    true,
-	// Set by the Hub: the fleet capture key and the planted honeytoken.
+	// Set by the Hub: the node's capture key and the planted honeytoken.
 	"TS_CAPTURE_HASH_KEY": true,
 	"TS_HONEYTOKEN":       true,
 }

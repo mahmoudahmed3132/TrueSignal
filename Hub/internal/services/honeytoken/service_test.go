@@ -1,12 +1,14 @@
 package honeytoken_test
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -92,34 +94,119 @@ func TestMatchUsernameForms(t *testing.T) {
 	}
 }
 
-func TestMatchPasswordByFleetHMAC(t *testing.T) {
-	svc := honeytoken.NewService(newStore(t))
-	tok, _ := svc.TokenFor("node-a", "ts-sensor-file-canary")
-	key, _ := svc.CaptureKey()
+func onNode(e models.Event, nodeID string) models.Event { e.NodeID = nodeID; return e }
 
-	h, id := decoyHMAC(key, tok.Secret)
-	m, _ := svc.Match(event_("web_login_attempt", map[string]any{"attempted_username": "admin", "attempted_password_hmac": h, "hmac_key_id": id}))
-	if len(m) != 1 || m[0].MatchedOn != "password" {
-		t.Fatalf("password HMAC not matched: %+v", m)
+func TestNodeCaptureKeysArePerNode(t *testing.T) {
+	st := newStore(t)
+	svc := honeytoken.NewService(st)
+	ka, _ := svc.NodeCaptureKey("node-a")
+	kb, _ := svc.NodeCaptureKey("node-b")
+	master, _ := st.GetConfigValue("capture_master_key")
+	if ka == "" || ka == kb || ka == master || kb == master {
+		t.Fatalf("node keys must be distinct and never the master (a=%q b=%q)", ka, kb)
 	}
+	if again, _ := svc.NodeCaptureKey("node-a"); again != ka {
+		t.Fatal("node key must be stable")
+	}
+}
 
-	m, _ = svc.Match(event_("ldap_login", map[string]any{"bind_dn": "cn=" + tok.Username + ",dc=corp", "password_hmac": h, "hmac_key_id": id}))
+func TestMatchPasswordByNodeHMAC(t *testing.T) {
+	svc := honeytoken.NewService(newStore(t))
+	tok, _ := svc.TokenFor("node-a", "ts-sensor-file-canary") // planted on A
+	kb, _ := svc.NodeCaptureKey("node-b")
+
+	// Used against a decoy on node B: B's key HMAC matches.
+	h, id := decoyHMAC(kb, tok.Secret)
+	m, _ := svc.Match(onNode(event_("web_login_attempt", map[string]any{"attempted_username": "admin", "attempted_password_hmac": h, "hmac_key_id": id}), "node-b"))
+	if len(m) != 1 || m[0].MatchedOn != "password" || m[0].Token.NodeID != "node-a" {
+		t.Fatalf("cross-node password match failed: %+v", m)
+	}
+	m, _ = svc.Match(onNode(event_("ldap_login", map[string]any{"bind_dn": "cn=" + tok.Username + ",dc=corp", "password_hmac": h, "hmac_key_id": id}), "node-b"))
 	if len(m) != 1 || m[0].MatchedOn != "username+password" {
 		t.Fatalf("combined match = %+v", m)
 	}
 
-	// An HMAC from a different key (a sensor with its own key) is ignored.
-	other, otherID := decoyHMAC("not-the-fleet-key", tok.Secret)
-	if m, _ := svc.Match(event_("ldap_login", map[string]any{"password_hmac": other, "hmac_key_id": otherID})); len(m) != 0 {
+	// Node isolation: node B's key does not validate on node C.
+	if m, _ := svc.Match(onNode(event_("ldap_login", map[string]any{"password_hmac": h, "hmac_key_id": id}), "node-c")); len(m) != 0 {
+		t.Fatalf("node-b HMAC accepted on node-c: %+v", m)
+	}
+	// An HMAC from an unrelated key is ignored.
+	other, otherID := decoyHMAC("not-a-node-key", tok.Secret)
+	if m, _ := svc.Match(onNode(event_("ldap_login", map[string]any{"password_hmac": other, "hmac_key_id": otherID}), "node-b")); len(m) != 0 {
 		t.Fatalf("foreign-key HMAC matched: %+v", m)
 	}
 	// Plain capture mode.
-	if m, _ := svc.Match(event_("ldap_login", map[string]any{"password": tok.Secret})); len(m) != 1 {
+	if m, _ := svc.Match(onNode(event_("ldap_login", map[string]any{"password": tok.Secret}), "node-b")); len(m) != 1 {
 		t.Fatalf("plaintext password not matched: %+v", m)
 	}
 	// Hub-raised honeytoken events are never re-matched.
 	if m, _ := svc.Match(event_(honeytoken.Trigger, map[string]any{"username": tok.Username})); len(m) != 0 {
 		t.Fatal("honeytoken_used re-matched")
+	}
+}
+
+type recordingPublisher struct {
+	mu  sync.Mutex
+	got []models.Honeytoken
+}
+
+func (r *recordingPublisher) QueueHoneytoken(h models.Honeytoken) {
+	r.mu.Lock()
+	r.got = append(r.got, h)
+	r.mu.Unlock()
+}
+
+func (r *recordingPublisher) snapshot() []models.Honeytoken {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]models.Honeytoken(nil), r.got...)
+}
+
+func TestPublisherGetsNewAndResyncedTokens(t *testing.T) {
+	svc := honeytoken.NewService(newStore(t))
+	pub := &recordingPublisher{}
+	svc.SetPublisher(pub)
+	tok, _ := svc.TokenFor("node-a", "ts-sensor-file-canary")
+	svc.TokenFor("node-a", "ts-sensor-file-canary") // existing: not republished
+	if got := pub.snapshot(); len(got) != 1 || got[0].Username != tok.Username {
+		t.Fatalf("creation publish = %+v", got)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWatchlistSync(ctx, time.Hour)
+	deadline := time.Now().Add(2 * time.Second)
+	for len(pub.snapshot()) < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := pub.snapshot(); len(got) != 2 {
+		t.Fatalf("startup resync did not publish: %+v", got)
+	}
+}
+
+func TestFactoryResetKeepsHoneytokensUnlessPurged(t *testing.T) {
+	st := newStore(t)
+	svc := honeytoken.NewService(st)
+	tok, _ := svc.TokenFor("node-a", "ts-sensor-file-canary")
+	ka, _ := svc.NodeCaptureKey("node-a")
+
+	if err := st.FactoryReset(false); err != nil {
+		t.Fatal(err)
+	}
+	if kb, _ := svc.NodeCaptureKey("node-a"); kb != ka {
+		t.Fatal("master key must survive a default factory reset")
+	}
+	if m, _ := svc.Match(event_("ldap_login", map[string]any{"username": tok.Username})); len(m) != 1 {
+		t.Fatal("honeytoken must still match after a default factory reset")
+	}
+
+	if err := st.FactoryReset(true); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := svc.List(); len(list) != 0 {
+		t.Fatalf("purge left honeytokens: %+v", list)
+	}
+	if kc, _ := svc.NodeCaptureKey("node-a"); kc == ka {
+		t.Fatal("purge must rotate the master key")
 	}
 }
 
@@ -198,7 +285,7 @@ func TestListNeverSerialisesSecret(t *testing.T) {
 	tok, _ := svc.TokenFor("node-a", "ts-sensor-file-canary")
 	list, _ := svc.List()
 	b, _ := json.Marshal(list)
-	if strings.Contains(string(b), tok.Secret) || strings.Contains(string(b), tok.SecretHMAC) {
+	if strings.Contains(string(b), tok.Secret) {
 		t.Fatalf("secret material serialised: %s", b)
 	}
 }

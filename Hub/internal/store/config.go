@@ -1,6 +1,8 @@
 package store
 
 import (
+	"database/sql"
+	"errors"
 	"strconv"
 	"strings"
 )
@@ -118,13 +120,28 @@ func (s *SQLiteStore) UpdateConfigBatch(req map[string]interface{}) error {
 	return tx.Commit()
 }
 
-// FactoryReset completely wipes the database back to a blank slate
-func (s *SQLiteStore) FactoryReset() error {
+// captureMasterKey is the Hub's honeytoken/capture master key (see
+// services/honeytoken). It is kept across a factory reset together with the
+// honeytokens unless the caller purges them.
+const captureMasterKey = "capture_master_key"
+
+// FactoryReset wipes the database back to a blank slate. Honeytokens and the
+// capture master key survive unless purgeHoneytokens is set: lures carrying
+// them stay on disk after nodes are wiped (uninstall never deletes lures), and
+// dropping them would turn those lures into credentials nobody recognises.
+func (s *SQLiteStore) FactoryReset(purgeHoneytokens bool) error {
 	tx, err := s.DB.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() // Rollback on any error.
+
+	var masterKey string
+	if !purgeHoneytokens {
+		if err := tx.QueryRow("SELECT value FROM config WHERE key = ?", captureMasterKey).Scan(&masterKey); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
 
 	// Wipe all tables. The order is important for manual deletion without cascades.
 	// It is best practice to be explicit, even though ON DELETE CASCADE is enabled.
@@ -134,9 +151,11 @@ func (s *SQLiteStore) FactoryReset() error {
 		"DELETE FROM node_sensors",
 		"DELETE FROM nodes",
 		"DELETE FROM config",
-		"DELETE FROM honeytokens",
 		// Reset the autoincrement counter for the events table.
 		"DELETE FROM sqlite_sequence WHERE name = 'events'",
+	}
+	if purgeHoneytokens {
+		queries = append(queries, "DELETE FROM honeytokens")
 	}
 
 	for _, q := range queries {
@@ -149,12 +168,17 @@ func (s *SQLiteStore) FactoryReset() error {
 	if err := initializeDefaultConfigTx(tx); err != nil {
 		return err
 	}
+	if masterKey != "" {
+		if _, err := tx.Exec("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", captureMasterKey, masterKey); err != nil {
+			return err
+		}
+	}
 
 	return tx.Commit()
 }
 
 // FactoryResetDryRun calculates the number of rows that would be deleted
-func (s *SQLiteStore) FactoryResetDryRun() (map[string]int, error) {
+func (s *SQLiteStore) FactoryResetDryRun(purgeHoneytokens bool) (map[string]int, error) {
 	stats := make(map[string]int)
 
 	queries := map[string]string{
@@ -162,7 +186,9 @@ func (s *SQLiteStore) FactoryResetDryRun() (map[string]int, error) {
 		"sensor_status_changes": "SELECT COUNT(*) FROM sensor_status_changes",
 		"node_sensors":          "SELECT COUNT(*) FROM node_sensors",
 		"nodes":                 "SELECT COUNT(*) FROM nodes",
-		"honeytokens":           "SELECT COUNT(*) FROM honeytokens",
+	}
+	if purgeHoneytokens {
+		queries["honeytokens"] = "SELECT COUNT(*) FROM honeytokens"
 	}
 
 	for key, query := range queries {

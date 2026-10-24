@@ -314,3 +314,30 @@ func TestHTTPOutputDoesNotFollowRedirects(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestHoneytokenRecordsNeverCarrySecret(t *testing.T) {
+	svc := NewService(nil)
+	h := models.Honeytoken{ID: "ht_1a2b3c4d", Username: "svc_backup7f3a", Secret: "Qx7pLm2Rv9TzKw!", NodeID: "node-a", SensorID: "ts-sensor-file-canary", CreatedAt: "2026-10-24T00:00:00Z"}
+
+	line := svc.formatHoneytoken(h)
+	if !strings.HasPrefix(line, "<134>1 ") || !strings.Contains(line, " - HONEYTOKEN [truesignal-honeytoken@32473 honeytoken_id=\"ht_1a2b3c4d\" username=\"svc_backup7f3a\"") {
+		t.Fatalf("syslog = %q", line)
+	}
+	doc := roundTrip(t, svc.ecsHoneytoken(h))
+	if get(doc, "event.dataset") != "truesignal.honeytoken" || get(doc, "event.kind") != "enrichment" ||
+		get(doc, "user.name") != "svc_backup7f3a" || get(doc, "threat.indicator.type") != "user-account" ||
+		get(doc, "truesignal.honeytoken.planted_node_id") != "node-a" {
+		t.Fatalf("ecs = %v", doc)
+	}
+	ecsJSON, _ := json.Marshal(doc)
+	for _, out := range []string{line, string(ecsJSON)} {
+		if strings.Contains(out, h.Secret) {
+			t.Fatalf("secret leaked: %s", out)
+		}
+	}
+	// QueueHoneytoken strips the secret before it reaches the queue.
+	svc.QueueHoneytoken(h)
+	if item := <-svc.eventQueue; item.honeytoken == nil || item.honeytoken.Secret != "" {
+		t.Fatalf("queued record = %+v", item.honeytoken)
+	}
+}

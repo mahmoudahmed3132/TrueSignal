@@ -125,7 +125,7 @@
       },
       {
         "name": "TS_CAPTURE_HASH_KEY",
-        "description": "Set by the Hub: the fleet capture key, so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
+        "description": "Set by the Hub: this node's capture key (derived from the Hub's master key), so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
         "default": "",
         "type": "string",
         "required": false,

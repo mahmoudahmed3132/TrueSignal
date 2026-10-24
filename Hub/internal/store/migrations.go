@@ -322,7 +322,6 @@ var migrations = []Migration{
 					id           TEXT PRIMARY KEY,
 					username     TEXT NOT NULL UNIQUE COLLATE NOCASE,
 					secret       TEXT NOT NULL,
-					secret_hmac  TEXT NOT NULL,
 					node_id      TEXT NOT NULL,
 					sensor_id    TEXT NOT NULL,
 					created_at   TEXT NOT NULL,
@@ -330,7 +329,6 @@ var migrations = []Migration{
 					use_count    INTEGER NOT NULL DEFAULT 0,
 					UNIQUE(node_id, sensor_id)
 				);
-				CREATE INDEX IF NOT EXISTS idx_honeytokens_hmac ON honeytokens(secret_hmac);
 			`)
 			return err
 		},

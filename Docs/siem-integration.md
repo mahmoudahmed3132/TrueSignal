@@ -39,6 +39,8 @@ The Hub forwards every event (including whitelisted evidence and Hub-generated l
 | `tags` | `truesignal`, `deception` (plus `whitelisted`; audit: `audit`) |
 | `truesignal.*` | The complete TrueSignal record, including `truesignal.details` |
 
+Honeytoken inventory records (dataset `truesignal.honeytoken`, `event.kind: enrichment`, `event.category: threat`, `event.type: indicator`) carry `user.name`, `threat.indicator.type: user-account` and `truesignal.honeytoken.*`. They are the indicator side of the honeytoken rule in `Docs/siem/honeytoken-detection.md`.
+
 Captured secrets (`password_hmac`, `netntlmv2` and similar) appear only under `truesignal.details`, never in ECS `user.*`. If `TS_CAPTURE_NTLM=hash` or `TS_CAPTURE_PASSWORDS=plain` is enabled on any sensor, the destination index or repository holds credential material: keep it out of PCI scope and restrict who can read it.
 
 ## Elastic setup

@@ -74,6 +74,7 @@ func main() {
 	notifyService := notify.NewService(nodeSvc)
 	eventSvc := event.NewService(dbStore, wsService, siemService, notifyService)
 	honeytokenSvc := honeytoken.NewService(dbStore)
+	honeytokenSvc.SetPublisher(siemService)
 	eventSvc.SetHoneytokenMatcher(honeytokenSvc)
 	sensorSvc := sensor.NewService(dbStore, wsService, eventSvc)
 	configService := config.NewService(dbStore, authService, siemService, notifyService, cfg.DashboardPassword, cfg.Version)
@@ -152,6 +153,11 @@ func main() {
 		Format:   loadConfigSafe(dbStore, "siem_format", siem.FormatRFC5424),
 		Token:    loadConfigSafe(dbStore, "siem_token", ""),
 	})
+
+	// Keep the SIEM's honeytoken watchlist complete despite its retention.
+	// Started after the SIEM output is loaded so the first publish is not
+	// dropped by a not-yet-configured worker.
+	honeytokenSvc.StartWatchlistSync(rootCtx, 24*time.Hour)
 
 	go eventSvc.StartRetentionWorker(rootCtx)
 

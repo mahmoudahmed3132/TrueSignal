@@ -126,6 +126,10 @@ func (h *ConfigHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 func (h *ConfigHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Password string `json:"password"`
+		// PurgeHoneytokens also deletes planted honeytokens and the capture
+		// master key. Lures already on disk then carry credentials the Hub no
+		// longer recognises, so remove them first.
+		PurgeHoneytokens bool `json:"purgeHoneytokens"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, "Invalid payload", http.StatusBadRequest)
@@ -136,7 +140,7 @@ func (h *ConfigHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 	dryrun := r.URL.Query().Get("dryrun") == "true"
 
 	if dryrun {
-		stats, err := h.service.FactoryResetDryRun(req.Password)
+		stats, err := h.service.FactoryResetDryRun(req.Password, req.PurgeHoneytokens)
 		if err != nil {
 			if err.Error() == "incorrect_password" {
 				RespondError(w, "Incorrect password", http.StatusUnauthorized)
@@ -153,7 +157,7 @@ func (h *ConfigHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.FactoryReset(req.Password, ip); err != nil {
+	if err := h.service.FactoryReset(req.Password, ip, req.PurgeHoneytokens); err != nil {
 		if err.Error() == "incorrect_password" {
 			RespondError(w, "Incorrect password", http.StatusUnauthorized)
 			return

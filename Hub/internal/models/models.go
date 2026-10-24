@@ -220,7 +220,6 @@ type Honeytoken struct {
 	ID         string `json:"id"`
 	Username   string `json:"username"`
 	Secret     string `json:"-"`
-	SecretHMAC string `json:"-"`
 	NodeID     string `json:"nodeId"`
 	SensorID   string `json:"sensorId"`
 	CreatedAt  string `json:"createdAt"`

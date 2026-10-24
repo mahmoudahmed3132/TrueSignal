@@ -225,10 +225,43 @@ func (s *Service) ecsAudit(rec AuditRecord) map[string]any {
 	return doc
 }
 
+// ecsHoneytoken renders a honeytoken inventory record as an ECS enrichment
+// document: the indicator a SIEM rule matches real authentication logs
+// against (Docs/siem/honeytoken-detection.md).
+func (s *Service) ecsHoneytoken(h models.Honeytoken) map[string]any {
+	return map[string]any{
+		"@timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"ecs":        map[string]any{"version": ecsVersion},
+		"message":    fmt.Sprintf("TrueSignal honeytoken %s planted by %s on %s", h.Username, h.SensorID, h.NodeID),
+		"event": map[string]any{
+			"kind":     "enrichment",
+			"category": []string{"threat"},
+			"type":     []string{"indicator"},
+			"action":   "honeytoken_planted",
+			"dataset":  "truesignal.honeytoken",
+			"module":   "truesignal",
+		},
+		"user": map[string]any{"name": h.Username},
+		"threat": map[string]any{
+			"indicator": map[string]any{
+				"type":        "user-account",
+				"description": "TrueSignal honeytoken: fabricated account planted in a lure. Any authentication by it is malicious.",
+				"provider":    "TrueSignal",
+			},
+		},
+		"observer":   map[string]any{"type": "honeypot", "vendor": "TrueSignal", "product": "TrueSignal"},
+		"tags":       []string{"truesignal", "honeytoken"},
+		"truesignal": map[string]any{"honeytoken": honeytokenRecord(h)},
+	}
+}
+
 // ecsDoc renders a queue item as an ECS document.
 func (s *Service) ecsDoc(item queueItem) map[string]any {
 	if item.audit != nil {
 		return s.ecsAudit(*item.audit)
+	}
+	if item.honeytoken != nil {
+		return s.ecsHoneytoken(*item.honeytoken)
 	}
 	return s.ecsEvent(*item.event)
 }

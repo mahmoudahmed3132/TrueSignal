@@ -8,11 +8,11 @@ import (
 	"github.com/truesignal/hub/internal/models"
 )
 
-const honeytokenColumns = `id, username, secret, secret_hmac, node_id, sensor_id, created_at, last_used_at, use_count`
+const honeytokenColumns = `id, username, secret, node_id, sensor_id, created_at, last_used_at, use_count`
 
 func scanHoneytoken(row interface{ Scan(...any) error }) (models.Honeytoken, error) {
 	var h models.Honeytoken
-	err := row.Scan(&h.ID, &h.Username, &h.Secret, &h.SecretHMAC, &h.NodeID, &h.SensorID, &h.CreatedAt, &h.LastUsedAt, &h.UseCount)
+	err := row.Scan(&h.ID, &h.Username, &h.Secret, &h.NodeID, &h.SensorID, &h.CreatedAt, &h.LastUsedAt, &h.UseCount)
 	return h, err
 }
 
@@ -31,32 +31,22 @@ func (s *SQLiteStore) GetHoneytoken(nodeID, sensorID string) (*models.Honeytoken
 // InsertHoneytoken stores a new honeytoken. It fails on a duplicate username
 // or a second token for the same sensor.
 func (s *SQLiteStore) InsertHoneytoken(h models.Honeytoken) error {
-	_, err := s.DB.Exec(`INSERT INTO honeytokens (`+honeytokenColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, '', 0)`,
-		h.ID, h.Username, h.Secret, h.SecretHMAC, h.NodeID, h.SensorID, h.CreatedAt)
+	_, err := s.DB.Exec(`INSERT INTO honeytokens (`+honeytokenColumns+`) VALUES (?, ?, ?, ?, ?, ?, '', 0)`,
+		h.ID, h.Username, h.Secret, h.NodeID, h.SensorID, h.CreatedAt)
 	return err
 }
 
-// FindHoneytokens returns honeytokens whose username (case-insensitive) or
-// secret HMAC is in the given sets.
-func (s *SQLiteStore) FindHoneytokens(usernames, hmacs []string) ([]models.Honeytoken, error) {
-	if len(usernames) == 0 && len(hmacs) == 0 {
+// FindHoneytokens returns honeytokens whose username (case-insensitive) is
+// in the given set.
+func (s *SQLiteStore) FindHoneytokens(usernames []string) ([]models.Honeytoken, error) {
+	if len(usernames) == 0 {
 		return nil, nil
 	}
-	var conds []string
-	var args []any
-	if len(usernames) > 0 {
-		conds = append(conds, "username IN ("+placeholders(len(usernames))+")")
-		for _, u := range usernames {
-			args = append(args, u)
-		}
+	args := make([]any, len(usernames))
+	for i, u := range usernames {
+		args[i] = u
 	}
-	if len(hmacs) > 0 {
-		conds = append(conds, "secret_hmac IN ("+placeholders(len(hmacs))+")")
-		for _, h := range hmacs {
-			args = append(args, h)
-		}
-	}
-	rows, err := s.DB.Query(`SELECT `+honeytokenColumns+` FROM honeytokens WHERE `+strings.Join(conds, " OR "), args...)
+	rows, err := s.DB.Query(`SELECT `+honeytokenColumns+` FROM honeytokens WHERE username IN (`+placeholders(len(usernames))+`)`, args...)
 	if err != nil {
 		return nil, err
 	}

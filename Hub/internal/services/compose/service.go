@@ -40,10 +40,10 @@ type Service struct {
 	honeytokens   HoneytokenProvider
 }
 
-// HoneytokenProvider supplies the fleet capture key and each File Canary
+// HoneytokenProvider supplies each node's capture key and each File Canary
 // instance's planted credential.
 type HoneytokenProvider interface {
-	CaptureKey() (string, error)
+	NodeCaptureKey(nodeID string) (string, error)
 	TokenFor(nodeID, sensorID string) (models.Honeytoken, error)
 }
 
@@ -343,12 +343,13 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 		if effectiveRevision != "" {
 			sysVars["TS_CONFIG_REV"] = effectiveRevision
 		}
-		// Decoys that hash captured passwords get the fleet key, so their
-		// HMACs can be matched against honeytokens; File Canary instances get
-		// the credential to plant in their lures.
+		// Decoys that hash captured passwords get this node's capture key (a
+		// per-node key derived from the Hub's master), so the Hub can match
+		// their HMACs against honeytokens; File Canary instances get the
+		// credential to plant in their lures.
 		if s.honeytokens != nil {
 			if declaresEnv(manifest, "TS_CAPTURE_HASH_KEY") {
-				key, err := s.honeytokens.CaptureKey()
+				key, err := s.honeytokens.NodeCaptureKey(nodeID)
 				if err != nil {
 					return nil, fmt.Errorf("capture_key: %w", err)
 				}

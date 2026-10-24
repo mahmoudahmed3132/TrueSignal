@@ -409,11 +409,11 @@ Changes the dashboard admin password. When `TS_DASHBOARD_PASSWORD` is set, this 
 #### POST /api/v2/system/reset
 
 Performs a full factory reset of the runtime database, clearing events, sensors, heartbeats, and config.
-Requires the current admin password.
+Requires the current admin password. Honeytokens and the capture master key are **kept** by default, because their lures are still on disk. `purgeHoneytokens: true` deletes them and rotates the key; delete the lure files first, or they become credentials the Hub no longer recognises. `?dryrun=true` with the same body returns row counts (it includes `honeytokens` only when purging).
 
 **Request:**
 ```json
-{ "password": "your_master_password" }
+{ "password": "your_master_password", "purgeHoneytokens": false }
 ```
 
 **Response:** `200 OK`
@@ -471,7 +471,7 @@ Returns a list of events, newest first.
 
 ### GET /api/v2/honeytokens
 
-Lists the honeytokens the Hub has planted (one per File Canary instance, created on its first compose render). The secret and its HMAC are never returned; the secret is in the lure files.
+Lists the honeytokens the Hub has planted (one per File Canary instance, created on its first compose render). The secret is never returned; it is in the lure files. `?format=csv` returns `username,honeytoken_id,planted_node_id,planted_sensor_id,created_at` for SIEM lookup files.
 
 ```json
 [{"id":"ht_956c6041","username":"svc_reports97ef","nodeId":"node-d41340e4","sensorId":"ts-sensor-file-canary","createdAt":"2026-10-24T02:19:11Z","lastUsedAt":"2026-10-24T02:19:40Z","useCount":2}]

@@ -417,7 +417,9 @@ func TestPreview_RejectsPortConflict(t *testing.T) {
 
 type fakeHoneytokens struct{ calls []string }
 
-func (f *fakeHoneytokens) CaptureKey() (string, error) { return "fleetkey0123", nil }
+func (f *fakeHoneytokens) NodeCaptureKey(nodeID string) (string, error) {
+	return "nodekey-" + nodeID, nil
+}
 func (f *fakeHoneytokens) TokenFor(nodeID, sensorID string) (models.Honeytoken, error) {
 	f.calls = append(f.calls, nodeID+"/"+sensorID)
 	return models.Honeytoken{Username: "svc_backup7f3a", Secret: "Qx7pLm2Rv9TzKw!"}, nil
@@ -459,7 +461,7 @@ func TestComposeInjectsFleetKeyAndHoneytoken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetNodeCompose failed: %v", err)
 	}
-	for _, want := range []string{"TS_CAPTURE_HASH_KEY=fleetkey0123", "TS_HONEYTOKEN=svc_backup7f3a:Qx7pLm2Rv9TzKw!"} {
+	for _, want := range []string{"TS_CAPTURE_HASH_KEY=nodekey-node-1", "TS_HONEYTOKEN=svc_backup7f3a:Qx7pLm2Rv9TzKw!"} {
 		if !contains(yamlData, want) {
 			t.Errorf("compose missing %q:\n%s", want, yamlData)
 		}
