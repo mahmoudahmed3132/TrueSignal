@@ -1,6 +1,18 @@
 {
-  "generated": "2026-10-24T15:31:15Z",
+  "generated": "2026-10-24T15:32:38Z",
   "sensors": [
+    {
+      "id": "ts-sensor-network-service-decoy",
+      "name": "Network Service Decoy (SNMP / DNS)",
+      "category": "network",
+      "icon_svg": "M12 3v6m0 6v6M5 12H3m18 0h-2M7.8 7.8 6.3 6.3m11.4 11.4-1.5-1.5m0-8.4 1.5-1.5M6.3 17.7l1.5-1.5M12 15a3 3 0 100-6 3 3 0 000 6z",
+      "latest": "2.0.0",
+      "versions": [
+        {
+          "v": "2.0.0"
+        }
+      ]
+    },
     {
       "id": "ts-sensor-remote-access-decoy",
       "name": "Remote Access Decoy (SSH / Telnet / FTP)",
