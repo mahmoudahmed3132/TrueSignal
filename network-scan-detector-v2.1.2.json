@@ -1,0 +1,120 @@
+{
+  "id": "ts-sensor-network-scan-detector",
+  "version": "2.1.2",
+  "name": "Network Scan Detector",
+  "category": "network",
+  "osi_layer": "Network Layer",
+  "icon_svg": "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z M10 7v3m0 0v3m0-3h3m-3 0H7",
+  "description": "Detects horizontal port scanning (Nmap sweeps) across the LAN.",
+  "documentation": {
+    "summary": "The Network Scan Detector identifies compromised internal machines performing horizontal port scans. By silently tracking SYN packets on the network interface, it catches internal Nmap sweeps before they map out the local network.",
+    "sections": [
+      {
+        "title": "Features",
+        "type": "list",
+        "content": [
+          "Threshold-Based Detection: Configurable scan detection parameters for noisy environments.",
+          "Inbound Only: Ignores frames the host itself sends, so a busy client is never reported as scanning.",
+          "Source Tracking: Logs internal attacker IP addresses and precise scan patterns (SYN, NULL, FIN, XMAS, OS probes). IPv4 only."
+        ]
+      },
+      {
+        "title": "Security Architecture",
+        "type": "list",
+        "content": [
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities, enforces a read-only filesystem, and applies strict log rotation.",
+          "Execution Privilege: Runs as container root holding only CAP_NET_RAW (all other capabilities dropped, no-new-privileges).",
+          "Required Capabilities: Adds 'NET_RAW' to allow deep packet-level inspection of TCP headers."
+        ]
+      }
+    ]
+  },
+  "heuristics": {
+    "triggers": {},
+    "recommendation_reason": "Core Network Sensor, tracks stealthy subnet mapping. Might generate false positives in noisy environments."
+  },
+  "deployment": {
+    "network_mode": "host",
+    "user": "0:0",
+    "cap_add": [
+      "NET_RAW"
+    ],
+    "env_vars": [
+      {
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
+        "default": "__HUB_ENDPOINT__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_HUB_KEY",
+        "description": "The shared Node Key.",
+        "default": "__HUB_KEY__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SENSOR_ID",
+        "description": "Unique identifier for this specific trap.",
+        "default": "ts-sensor-network-scan-detector",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SEVERITY",
+        "description": "Alert severity sent to the Hub.",
+        "default": "high",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
+        "name": "TS_TEST_MODE",
+        "description": "Enable CI/CD synthetic alerts.",
+        "default": "false",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SCAN_THRESHOLD",
+        "description": "Minimum unique ports scanned to trigger an alert (stealth scans bypass this).",
+        "default": "5",
+        "type": "int",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SCAN_WINDOW",
+        "description": "Time window in seconds for scan detection.",
+        "default": "5",
+        "type": "int",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_IGNORE_LOCALHOST",
+        "description": "Ignore traffic originating from the host machine to prevent false positives.",
+        "default": "true",
+        "type": "boolean",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_IGNORE_PORTS",
+        "description": "Comma-separated list of ports to exclude from scan detection.",
+        "default": "{{ if .IgnorePorts }}{{ .IgnorePorts }}{{ else }}22,80,443{{ end }}",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      }
+    ],
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-networkscandetector",
+    "image_tag": "v2.1.2",
+    "image_digest": "sha256:5edf91392205cb45e7c64a5906bb28a27585b32f2f6ac7eedca1dcf7461d0631"
+  }
+}
