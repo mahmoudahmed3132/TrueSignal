@@ -28,19 +28,24 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		Password string `json:"password"`
+		Code     string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	token, err := h.service.Login(req.Password, ip)
+	token, enrollOnly, err := h.service.LoginMFA(req.Password, req.Code, ip)
 	if err != nil {
-		if err.Error() == "too_many_requests" {
+		switch err {
+		case auth.ErrTooManyRequests:
 			RespondError(w, "Too many failed attempts. Try again later.", http.StatusTooManyRequests)
-			return
+		case auth.ErrMFARequired, auth.ErrInvalidCode:
+			// Machine-readable: the UI and the wizard prompt for a code.
+			RespondError(w, err.Error(), http.StatusUnauthorized)
+		default:
+			RespondError(w, "Invalid Password", http.StatusUnauthorized)
 		}
-		RespondError(w, "Invalid Password", http.StatusUnauthorized)
 		return
 	}
 
@@ -56,7 +61,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
-	SendJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	status := "ok"
+	if enrollOnly {
+		status = auth.ErrMFAEnrollmentRequired.Error()
+	}
+	SendJSON(w, http.StatusOK, map[string]string{"status": status})
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {

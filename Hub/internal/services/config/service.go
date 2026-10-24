@@ -36,6 +36,10 @@ type Config struct {
 	// Empty means any peer, which lets a client that reaches the Hub
 	// directly spoof its IP; main warns at startup.
 	TrustedProxies []netip.Prefix
+	// RequireMFA (TS_REQUIRE_MFA=true) forces admin MFA: until it is
+	// enrolled, a login can only reach the enrollment endpoints, and it
+	// cannot be disabled from the dashboard.
+	RequireMFA bool
 
 	// SessionTTL / SessionIdle bound dashboard sessions (TS_SESSION_TTL,
 	// TS_SESSION_IDLE_TIMEOUT; Go durations, idle "0" disables).
@@ -153,6 +157,7 @@ func Load() *Config {
 		Env:               getEnv("TS_ENV", "production"),
 		TrustProxy:        isProxyTrusted,
 		TrustedProxies:    trustedProxies,
+		RequireMFA:        getBool("TS_REQUIRE_MFA"),
 
 		SessionTTL:          getDuration("TS_SESSION_TTL", 12*time.Hour),
 		SessionIdle:         getDuration("TS_SESSION_IDLE_TIMEOUT", 15*time.Minute),

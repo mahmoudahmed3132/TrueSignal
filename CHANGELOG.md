@@ -1,3 +1,14 @@
+# [Unreleased] - Admin MFA (Hub 2.2.0, Wizard 2.2.0) (2026-10-24)
+
+* **TOTP for the dashboard admin** (RFC 6238, works with any authenticator app). The QR code is rendered by the Hub, so the UI needs no QR library. There are 10 single-use recovery codes, stored as SHA-256 hashes.
+* **Replay protection:** the last accepted time step is stored, so a code works once even within its 30 s window.
+* **Brute-force limits:** wrong codes count toward the existing per-IP lockout. 10 wrong codes from any mix of IPs also lock MFA account-wide for 15 minutes.
+* **Re-authentication:** enrolling needs the password again, and the new authenticator must prove itself with a code before it takes effect. Disabling MFA or issuing new recovery codes needs the password and a current code. A hijacked session therefore cannot add its own authenticator or switch MFA off.
+* **`TS_REQUIRE_MFA=true`:** an admin without MFA can sign in only to enroll; every other endpoint returns `403 mfa_enrollment_required`. MFA can't be disabled while this is set.
+* **Break-glass:** `truesignal-hub mfa-reset` removes MFA when the authenticator and recovery codes are lost. The reset is sent to the SIEM as an audit record on the next Hub start.
+* **Wizard:** prompts for the code when the Hub has MFA (`TS_DASHBOARD_MFA_CODE` for scripted runs). It gives a clear error when the Hub demands enrollment first. Older wizards cannot sign in to a Hub with MFA enabled.
+* Hub and Wizard bumped to 2.2.0. The guide is `Docs/operations.md` §12.
+
 # [Unreleased] - Release process fixes (2026-10-24)
 
 * **First release published:** Hub and Wizard 2.1.0, and all nine sensors at their manifest versions.

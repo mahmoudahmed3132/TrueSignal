@@ -206,7 +206,7 @@ func provisionNewNode(hubURL, customAlias, tagsStr string, force bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	cookie, err := hub.AuthenticateDashboard(ctx, password)
+	cookie, err := cli.DashboardLogin(ctx, hub, password)
 	if err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}

@@ -50,9 +50,12 @@ func loadConfigSafe(s *store.SQLiteStore, key string, fallback string) string {
 }
 
 func main() {
+	cfg := config.Load()
+	if len(os.Args) > 1 {
+		os.Exit(runCommand(cfg, os.Args[1:]))
+	}
 	log.Printf("Starting TrueSignal Hub v%s initialization...\n", models.HubVersion)
 
-	cfg := config.Load()
 	if cfg.TrustProxy && len(cfg.TrustedProxies) == 0 {
 		log.Println("[WARNING] TS_TRUST_PROXY is on without TS_TRUSTED_PROXIES: any client that reaches the Hub directly can spoof its IP (login rate limit, audit log). Set TS_TRUSTED_PROXIES to your proxy's address.")
 	}
@@ -68,7 +71,10 @@ func main() {
 	defer rootCancel()
 
 	wsService := websocket.NewService()
-	authService := auth.NewService(dbStore, cfg.DashboardPassword, auth.SessionPolicy{TTL: cfg.SessionTTL, Idle: cfg.SessionIdle})
+	authService := auth.NewService(dbStore, cfg.DashboardPassword, auth.SessionPolicy{TTL: cfg.SessionTTL, Idle: cfg.SessionIdle, RequireMFA: cfg.RequireMFA})
+	if cfg.RequireMFA {
+		log.Println("[*] TS_REQUIRE_MFA: dashboard logins must use MFA; an admin without it can only enroll.")
+	}
 
 	catalogService := catalog.NewService(dbStore, wsService)
 
@@ -120,6 +126,7 @@ func main() {
 		Config:            configHandler,
 		Compose:           composeHandler,
 		Honeytokens:       api.NewHoneytokenHandler(honeytokenSvc),
+		MFA:               api.NewMFAHandler(authService, cfg),
 		WSService:         wsService,
 		SessionValidator:  authService,
 		NodeAuthenticator: authService,
@@ -161,6 +168,15 @@ func main() {
 	// Started after the SIEM output is loaded so the first publish is not
 	// dropped by a not-yet-configured worker.
 	honeytokenSvc.StartWatchlistSync(rootCtx, 24*time.Hour)
+
+	// A break-glass `mfa-reset` ran while the Hub was down or from another
+	// container: record it in the SIEM now that the output is configured.
+	if at := loadConfigSafe(dbStore, auth.MFAResetKey, ""); at != "" {
+		auditLogger{siem: siemService}.Audit("MFA RESET (mfa-reset command, "+at+")", "cli:mfa-reset", http.StatusOK, "local")
+		if err := dbStore.UpdateConfigValue(auth.MFAResetKey, ""); err != nil {
+			log.Printf("[ERROR] Could not clear %s: %v", auth.MFAResetKey, err)
+		}
+	}
 
 	go eventSvc.StartRetentionWorker(rootCtx)
 

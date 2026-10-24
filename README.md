@@ -123,6 +123,8 @@ services:
       # TS_TRUSTED_PROXIES is the proxy's address as the Hub sees it
       # - TS_TRUST_PROXY=true
       # - TS_TRUSTED_PROXIES=<proxy IP or CIDR>
+      # Require admin MFA (TOTP); an admin without it can only enroll
+      # - TS_REQUIRE_MFA=true
       # Optional: choose the one-time setup token instead of reading it from the log
       # - TS_SETUP_TOKEN=<random string>
       # Optional: Hardcode the dashboard password (disables the UI password reset feature)

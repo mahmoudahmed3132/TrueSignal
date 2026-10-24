@@ -71,12 +71,39 @@ func NodeIDFromContext(ctx context.Context) string {
 }
 
 // UIAuthMiddleware strictly requires a valid session cookie for ALL dashboard routes
+// enrollmentGate is implemented by session validators that can restrict a
+// session to MFA enrollment (TS_REQUIRE_MFA).
+type enrollmentGate interface {
+	EnrollmentPending(token string) bool
+}
+
+// enrollmentPaths are the only UI endpoints an enroll-only session may use.
+var enrollmentPaths = map[string]bool{
+	"GET /api/v2/auth/mfa":         true,
+	"POST /api/v2/auth/mfa/setup":  true,
+	"POST /api/v2/auth/mfa/enable": true,
+}
+
+// enrollmentBlocked answers 403 mfa_enrollment_required when the session may
+// only enroll MFA and r is not an enrollment endpoint. Every middleware that
+// accepts a dashboard session must call it.
+func enrollmentBlocked(w http.ResponseWriter, r *http.Request, v SessionValidator, token string) bool {
+	if g, ok := v.(enrollmentGate); ok && g.EnrollmentPending(token) && !enrollmentPaths[r.Method+" "+r.URL.Path] {
+		RespondError(w, "mfa_enrollment_required", http.StatusForbidden)
+		return true
+	}
+	return false
+}
+
 func UIAuthMiddleware(sessionValidator SessionValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookieName)
 			if err != nil || !sessionValidator.IsValid(cookie.Value) {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if enrollmentBlocked(w, r, sessionValidator, cookie.Value) {
 				return
 			}
 
@@ -167,6 +194,9 @@ func DualAuthMiddleware(sessionValidator SessionValidator, auth NodeAuthenticato
 			// 2. Try UI Session Cookie (Fallback)
 			cookie, err := r.Cookie(AuthCookieName)
 			if err == nil && cookie.Value != "" && sessionValidator.IsValid(cookie.Value) {
+				if enrollmentBlocked(w, r, sessionValidator, cookie.Value) {
+					return
+				}
 				next.ServeHTTP(w, r)
 				return
 			}

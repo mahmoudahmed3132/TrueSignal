@@ -26,7 +26,7 @@ COPY . .
 COPY --from=frontend-builder /app/ui/dist ./ui/dist
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o truesignal-hub ./cmd/hub/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o truesignal-hub ./cmd/hub
 
 # STAGE 3: Distroless Production Image
 # The "static" image contains literally nothing except SSL certificates and a non-root user.

@@ -8,33 +8,59 @@ import BaseAlert from '../components/ui/feedback/BaseAlert.vue'
 import PageHeader from '../components/ui/layout/PageHeader.vue'
 import ThemeToggle from '../components/ui/branding/ThemeToggle.vue'
 import BaseLogo from '../components/ui/branding/BaseLogo.vue'
+import MfaEnrollment from '../components/security/MfaEnrollment.vue'
 
 const emit = defineEmits(['login-success', 'toggle-theme'])
 const appStore = useAppStore()
 
 const password = ref('')
+const code = ref('')
+// 'password' -> 'code' (MFA enrolled) or 'enroll' (TS_REQUIRE_MFA, not enrolled)
+const step = ref('password')
 const loading = ref(false)
 const error = ref(false)
+const errorText = ref('Access Denied: Invalid Key')
 const rateLimited = ref(false)
+
+const reset = () => {
+    step.value = 'password'
+    password.value = ''
+    code.value = ''
+}
 
 const doLogin = async () => {
     loading.value = true
     error.value = false
     rateLimited.value = false
     
-    const result = await appStore.login(password.value)
+    const result = await appStore.login(password.value, step.value === 'code' ? code.value.trim() : '')
     
     if (result.success) {
         emit('login-success')
+    } else if (result.enrollRequired) {
+        step.value = 'enroll'
+    } else if (result.mfaRequired) {
+        step.value = 'code'
     } else if (result.status === 429) {
         rateLimited.value = true
-        password.value = ''
-    } else {
+        reset()
+    } else if (result.invalidCode) {
+        errorText.value = 'Invalid code'
         error.value = true
-        password.value = ''
+        code.value = ''
+    } else {
+        errorText.value = 'Access Denied: Invalid Key'
+        error.value = true
+        reset()
     }
     
     loading.value = false
+}
+
+const enrolled = async () => {
+    password.value = ''
+    await appStore.finishLogin()
+    emit('login-success')
 }
 </script>
 
@@ -59,24 +85,40 @@ const doLogin = async () => {
             <BaseCard class="relative overflow-hidden transition-all duration-normal">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-brand-accent"></div>
 
-                <form @submit.prevent="doLogin" class="mt-2 space-y-6">
+                <div v-if="step === 'enroll'" class="mt-2">
+                    <p class="text-sm text-text-m mb-4">This Hub requires two-factor authentication. Set it up to continue.</p>
+                    <MfaEnrollment :password="password" @done="enrolled" @cancel="reset" />
+                </div>
+
+                <form v-else @submit.prevent="doLogin" class="mt-2 space-y-6">
                     <BaseInput 
-                        v-model="password" 
-                        label="Authentication Key" 
-                        type="password" 
-                        placeholder="••••••••••••" 
-                        required 
+                        v-if="step === 'password'"
+                        v-model="password"
+                        label="Authentication Key"
+                        type="password"
+                        placeholder="••••••••••••"
+                        required
                         autofocus
                     />
-                    
-                    <BaseButton 
-                        variant="primary" 
-                        type="submit" 
+                    <BaseInput
+                        v-else
+                        v-model="code"
+                        label="Authentication code"
+                        description="6-digit code from your authenticator app, or a recovery code."
+                        placeholder="123456"
+                        required
+                        autofocus
+                    />
+
+                    <BaseButton
+                        variant="primary"
+                        type="submit"
                         :disabled="loading || rateLimited"
                         class="w-full h-11"
                     >
-                        {{ loading ? 'Authenticating...' : 'Sign in' }}
+                        {{ loading ? 'Authenticating...' : (step === 'code' ? 'Verify' : 'Sign in') }}
                     </BaseButton>
+                    <button v-if="step === 'code'" type="button" class="w-full text-xs text-text-m hover:underline" @click="reset">Use a different password</button>
                 </form>
 
                 <Transition
@@ -88,7 +130,7 @@ const doLogin = async () => {
                     leave-to-class="transform -translate-y-2 opacity-0"
                 >
                     <div v-if="error" class="mt-6">
-                        <BaseAlert variant="danger" message="Access Denied: Invalid Key" />
+                        <BaseAlert variant="danger" :message="errorText" />
                     </div>
                 </Transition>
 

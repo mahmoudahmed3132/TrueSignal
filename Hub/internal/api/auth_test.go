@@ -16,6 +16,7 @@ type mockStore struct{}
 
 func (m *mockStore) GetConfigValue(k string) (string, error) { return "", nil }
 func (m *mockStore) GetNodeByKey(t string) (string, error)   { return "", nil }
+func (m *mockStore) UpdateConfigValue(k, v string) error     { return nil }
 
 func setupAuthTestEnv(env string) (*AuthHandler, *auth.Service) {
 	svc := auth.NewService(&mockStore{}, "admin123")
