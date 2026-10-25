@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T15:40:50Z",
+  "generated": "2026-10-25T10:38:28Z",
   "sensors": [
     {
       "id": "ts-sensor-database-decoy",
@@ -90,10 +90,13 @@
       "name": "TCP Tarpit (Credential Trap)",
       "category": "network",
       "icon_svg": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-      "latest": "2.0.2",
+      "latest": "2.0.3",
       "versions": [
         {
           "v": "2.0.2"
+        },
+        {
+          "v": "2.0.3"
         }
       ]
     },
