@@ -1,15 +1,18 @@
 {
-  "generated": "2026-10-25T10:41:15Z",
+  "generated": "2026-10-25T10:41:19Z",
   "sensors": [
     {
       "id": "ts-sensor-database-decoy",
       "name": "Database Decoy (MySQL / PostgreSQL / MSSQL)",
       "category": "database",
       "icon_svg": "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zm0 0v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
-      "latest": "2.0.0",
+      "latest": "2.0.1",
       "versions": [
         {
           "v": "2.0.0"
+        },
+        {
+          "v": "2.0.1"
         }
       ]
     },

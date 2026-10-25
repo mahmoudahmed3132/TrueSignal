@@ -1,0 +1,134 @@
+{
+  "id": "ts-sensor-database-decoy",
+  "version": "2.0.1",
+  "name": "Database Decoy (MySQL / PostgreSQL / MSSQL)",
+  "category": "database",
+  "osi_layer": "Application Layer",
+  "icon_svg": "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zm0 0v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  "description": "Emulates MySQL, PostgreSQL and Microsoft SQL Server logins so anyone who tries a database, often with credentials taken from a config file, is detected and the account recorded.",
+  "documentation": {
+    "summary": "The Database Decoy answers like real database servers up to the login step and refuses every login with the server's genuine error (MySQL 1045, PostgreSQL 28P01, SQL Server 18456). It catches credential reuse and the use of database passwords lifted from configuration files, including TrueSignal honeytokens planted by the File Canary.",
+    "sections": [
+      {
+        "title": "Features",
+        "type": "list",
+        "content": [
+          "MySQL: records the user, default database and client connection attributes (program, OS, library). The password is a challenge/response and is never on the wire.",
+          "PostgreSQL: declines TLS, requests a cleartext password and records the user, database, application name and password.",
+          "SQL Server (TDS 7.x): declines encryption and decodes LOGIN7 (user, password, client host, application, database). Clients that require TLS disconnect before sending credentials and are recorded as a connection only.",
+          "Honeytokens: the username and password feed the Hub's honeytoken matching, so a lure credential used here raises honeytoken_used."
+        ]
+      },
+      {
+        "title": "Security Architecture",
+        "type": "list",
+        "content": [
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities and enforces a read-only filesystem.",
+          "Execution Privilege: Runs as non-root (UID 65532) with no added capabilities; the default ports are all above 1024.",
+          "Data Handling: Captured passwords are HMAC-hashed by default with this node's Hub-derived key, so planted honeytokens are recognised; cleartext ('plain') is opt-in and should stay out of PCI scope.",
+          "Rate limiting: at most 20 events per source per minute; the rest are counted (suppressed_since_last), so a spray cannot flood the Hub or SIEM."
+        ]
+      }
+    ]
+  },
+  "heuristics": {
+    "triggers": {
+      "processes": [
+        "mysqld",
+        "mariadbd",
+        "postgres",
+        "sqlservr"
+      ],
+      "ports": [
+        3306,
+        5432,
+        1433
+      ]
+    },
+    "recommendation_reason": "Database services detected. Deploy the Database Decoy next to them to catch credential reuse and stolen database passwords."
+  },
+  "deployment": {
+    "network_mode": "host",
+    "user": "65532:65532",
+    "listen_ports_env": [
+      "TS_SERVICES"
+    ],
+    "env_vars": [
+      {
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
+        "default": "__HUB_ENDPOINT__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_HUB_KEY",
+        "description": "The shared Node Key.",
+        "default": "__HUB_KEY__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SENSOR_ID",
+        "description": "Unique identifier for this specific trap.",
+        "default": "ts-sensor-database-decoy",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SEVERITY",
+        "description": "Fallback alert severity (the sensor sets critical for logins, low for bare connections, medium for queries).",
+        "default": "high",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
+        "name": "TS_TEST_MODE",
+        "description": "Enable CI/CD synthetic alerts.",
+        "default": "false",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SERVICES",
+        "description": "Comma-separated services to run, as proto:port (proto is mysql, postgres or mssql). Do not reuse a port a real database on this host already uses.",
+        "default": "mysql:3306,postgres:5432,mssql:1433",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_PERSONA_HOSTNAME",
+        "description": "Server name the decoy reports (SQL Server error messages).",
+        "default": "DB01",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_PASSWORDS",
+        "description": "How captured passwords are recorded: hash (default, keyed HMAC), plain (cleartext; keep out of PCI scope) or none (only that one was sent).",
+        "default": "hash",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_HASH_KEY",
+        "description": "Set by the Hub: this node's capture key (derived from the Hub's master key), so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      }
+    ],
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-databasedecoy",
+    "image_tag": "v2.0.1",
+    "image_digest": "sha256:e28eb334be828ac2ab8878d634d9fbd0626a72c8953dc3b7344667a1679dbcab"
+  }
+}
