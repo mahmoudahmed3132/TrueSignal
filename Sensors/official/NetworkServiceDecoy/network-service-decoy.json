@@ -1,6 +1,6 @@
 {
   "id": "ts-sensor-network-service-decoy",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "Network Service Decoy (SNMP / DNS)",
   "category": "network",
   "osi_layer": "Application Layer",

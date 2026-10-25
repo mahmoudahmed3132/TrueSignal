@@ -1,6 +1,7 @@
 package composesvc
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/truesignal/hub/internal/compose/security"
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/node"
+	"github.com/truesignal/hub/internal/signing"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,7 +40,12 @@ type Service struct {
 	mu            sync.RWMutex
 	allowUnpinned bool
 	honeytokens   HoneytokenProvider
+	verifier      signing.ManifestVerifier
 }
+
+// SetManifestVerifier makes the Hub accept only registry manifests whose
+// Sigstore bundle verifies (main wires it unless TS_ALLOW_UNSIGNED_MANIFESTS).
+func (s *Service) SetManifestVerifier(v signing.ManifestVerifier) { s.verifier = v }
 
 // HoneytokenProvider supplies each node's capture key and each File Canary
 // instance's planted credential.
@@ -59,8 +66,12 @@ func declaresEnv(m models.SensorManifest, name string) bool {
 	return false
 }
 
-// maxManifestBytes bounds registry responses; real manifests are a few KB.
-const maxManifestBytes = 1 << 20
+// maxManifestBytes bounds registry responses; real manifests are a few KB,
+// Sigstore bundles under 10 KB.
+const (
+	maxManifestBytes = 1 << 20
+	maxBundleBytes   = 1 << 20
+)
 
 var (
 	sensorIDPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -139,25 +150,9 @@ func (s *Service) fetchStrictCatalogManifests(currentHubVersion string) ([]model
 			continue
 		}
 
-		sensorName := strings.TrimPrefix(sensor.ID, "ts-sensor-")
-		manifestURL := fmt.Sprintf("%s/%s-v%s.json", strings.TrimRight(registryURL, "/"), sensorName, targetVersion)
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		mResp, fetchErr := client.Get(manifestURL)
+		manifest, fetchErr := s.fetchManifest(registryURL, sensor.ID, strings.TrimPrefix(targetVersion, "v"))
 		if fetchErr != nil {
-			log.Printf("[WARNING] Failed to fetch %s: %v", manifestURL, fetchErr)
-			continue
-		}
-
-		if mResp.StatusCode != http.StatusOK {
-			mResp.Body.Close()
-			continue
-		}
-
-		manifest, decodeErr := security.DecodeManifestStrict(io.LimitReader(mResp.Body, maxManifestBytes))
-		mResp.Body.Close()
-		if decodeErr != nil {
-			log.Printf("[WARNING] Failed to decode %s: %v", manifestURL, decodeErr)
+			log.Printf("[WARNING] Skipping %s v%s: %v", sensor.ID, targetVersion, fetchErr)
 			continue
 		}
 
@@ -187,9 +182,6 @@ func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models
 		return nil, fmt.Errorf("registry_url is not configured in database")
 	}
 
-	sensorName := strings.TrimPrefix(sensorID, "ts-sensor-")
-	manifestURL := fmt.Sprintf("%s/%s-v%s.json", strings.TrimRight(registryURL, "/"), sensorName, cleanVersion)
-
 	cacheKey := sensorID + "-v" + cleanVersion
 	s.mu.RLock()
 	cached, ok := s.cache[cacheKey]
@@ -199,27 +191,10 @@ func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models
 		return &cached, nil
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	mResp, fetchErr := client.Get(manifestURL)
-	if fetchErr != nil {
-		log.Printf("[ERROR] FetchSpecificManifest network error: %v", fetchErr)
-		return nil, fetchErr
-	}
-	defer mResp.Body.Close()
-
-	if mResp.StatusCode != 200 {
-		log.Printf("[ERROR] FetchSpecificManifest received HTTP %d from %s", mResp.StatusCode, manifestURL)
-		return nil, fmt.Errorf("unexpected status %d", mResp.StatusCode)
-	}
-
-	// Same strict decoding as the catalog path: unknown fields are rejected.
-	specific, dErr := security.DecodeManifestStrict(io.LimitReader(mResp.Body, maxManifestBytes))
-	if dErr != nil {
-		log.Printf("[ERROR] FetchSpecificManifest failed to decode %s: %v", manifestURL, dErr)
-		return nil, dErr
-	}
-	if specific.ID != sensorID || strings.TrimPrefix(specific.Version, "v") != cleanVersion {
-		return nil, fmt.Errorf("manifest identity mismatch: requested %s v%s, got %s v%s", sensorID, cleanVersion, specific.ID, specific.Version)
+	specific, err := s.fetchManifest(registryURL, sensorID, cleanVersion)
+	if err != nil {
+		log.Printf("[ERROR] FetchSpecificManifest %s v%s: %v", sensorID, cleanVersion, err)
+		return nil, err
 	}
 
 	s.mu.Lock()
@@ -227,6 +202,62 @@ func (s *Service) FetchSpecificManifest(sensorID, targetVersion string) (*models
 	s.mu.Unlock()
 
 	return &specific, nil
+}
+
+// fetchManifest downloads one versioned manifest and, when a verifier is set,
+// its Sigstore bundle, and checks the signature over the exact bytes before
+// decoding them. Only verified bytes are ever decoded, and the manifest must
+// name the sensor and version it was requested as.
+func (s *Service) fetchManifest(registryURL, sensorID, version string) (models.SensorManifest, error) {
+	if !sensorIDPattern.MatchString(sensorID) || !versionPattern.MatchString(version) || strings.HasPrefix(version, "v") {
+		return models.SensorManifest{}, fmt.Errorf("invalid sensor %q version %q", sensorID, version)
+	}
+	sensorName := strings.TrimPrefix(sensorID, "ts-sensor-")
+	manifestURL := fmt.Sprintf("%s/%s-v%s.json", strings.TrimRight(registryURL, "/"), sensorName, version)
+
+	body, err := httpGetLimited(manifestURL, maxManifestBytes)
+	if err != nil {
+		return models.SensorManifest{}, err
+	}
+	if s.verifier != nil {
+		bundle, err := httpGetLimited(manifestURL+signing.BundleSuffix, maxBundleBytes)
+		if err != nil {
+			return models.SensorManifest{}, fmt.Errorf("no signature for %s: %w", manifestURL, err)
+		}
+		if err := s.verifier.VerifyManifest(sensorName, version, body, bundle); err != nil {
+			return models.SensorManifest{}, fmt.Errorf("%s: %w", manifestURL, err)
+		}
+	}
+
+	// Same strict decoding everywhere: unknown fields are rejected.
+	m, err := security.DecodeManifestStrict(bytes.NewReader(body))
+	if err != nil {
+		return models.SensorManifest{}, fmt.Errorf("decode %s: %w", manifestURL, err)
+	}
+	if m.ID != sensorID || strings.TrimPrefix(m.Version, "v") != version {
+		return models.SensorManifest{}, fmt.Errorf("manifest identity mismatch: requested %s v%s, got %s v%s", sensorID, version, m.ID, m.Version)
+	}
+	return m, nil
+}
+
+func httpGetLimited(url string, limit int64) ([]byte, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > limit {
+		return nil, fmt.Errorf("%s is larger than %d bytes", url, limit)
+	}
+	return body, nil
 }
 
 // --- GENERATION LOGIC ---

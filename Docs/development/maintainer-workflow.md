@@ -133,12 +133,13 @@ Hub and Wizard: `make tag-release` tags `hub/v<HubVersion>` and `wizard/v<Wizard
 The `publish-sensor-registry` workflow (GitHub or Gitea) will:
 1. Read `Sensors/official/FileCanary/file-canary.json` at the tagged commit
 2. Build and push the image, inject `"version": "1.2.0"`, set `image_tag` to `"v1.2.0"`, and write the pushed image's `image_digest` into the main and init containers (the Hub refuses unpinned images)
-3. Write `file-canary-v1.2.0.json` to the `registry-pages` branch. A version already there is never overwritten: the job fails before building, so the published digest stays tagged and pullable
-4. Regenerate `index.json`
+3. Sign the versioned manifest and the image with Sigstore keyless (`cosign sign-blob` / `cosign sign`, workflow identity at the tag; needs `id-token: write`), and verify the manifest signature before publishing
+4. Write `file-canary-v1.2.0.json` and its bundle `file-canary-v1.2.0.json.sigstore.json` to the `registry-pages` branch. A version already there is never overwritten: the job fails before building, so the published digest stays tagged and pullable
+5. Regenerate `index.json`
 
 ### Step 4: Verify
 Check the `registry-pages` branch to confirm:
-- The versioned JSON file exists
+- The versioned JSON file and its `.sigstore.json` bundle exist (the Hub refuses a manifest without a valid bundle; see `Docs/operations.md` §13)
 - `index.json` lists the new version
 - The `latest` field points to the new version
 

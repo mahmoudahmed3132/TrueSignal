@@ -1,6 +1,6 @@
 {
   "id": "ts-sensor-remote-access-decoy",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "Remote Access Decoy (SSH / Telnet / FTP)",
   "category": "remote-access",
   "osi_layer": "Application Layer",

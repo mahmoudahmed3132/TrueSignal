@@ -17,6 +17,9 @@ concurrency:
 permissions:
   contents: write
   packages: write
+  # Sigstore keyless signing: the job's OIDC token gets a short-lived
+  # signing certificate bound to this workflow and tag.
+  id-token: write
 
 jobs:
   publish:
@@ -37,6 +40,11 @@ jobs:
             echo "::error::Tag version $VERSION does not match HubVersion $CODE_VERSION"
             exit 1
           fi
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.1.4'
 
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -69,8 +77,13 @@ jobs:
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
             --label "org.opencontainers.image.version=$VERSION" \
             -f Hub/Dockerfile Hub/
-          docker push "$IMAGE_TAG"
+          docker push "$IMAGE_TAG" | tee push_out.log
           docker push "$LATEST_TAG"
+          DIGEST=$(grep -o 'sha256:[a-f0-9]\{64\}' push_out.log | tail -n 1)
+          [ -n "$DIGEST" ] || { echo "::error::no digest in push output"; exit 1; }
+          # Keyless signature by digest (verify with cosign verify, see
+          # Docs/operations.md section 13).
+          cosign sign --yes "ghcr.io/${{ github.repository_owner }}/truesignal-hub@$DIGEST"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2

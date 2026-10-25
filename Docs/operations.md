@@ -232,3 +232,48 @@ The dashboard admin can add a time-based one-time code (TOTP, RFC 6238: 6 digits
   This removes MFA (the password still applies) and sends an `MFA RESET` audit record to the SIEM when the Hub starts. Anyone who can run it already controls the Hub database; alert on that audit record.
 - A factory reset clears MFA together with the admin account.
 
+## 13. Signed releases (Sigstore)
+
+Every release artifact is signed in CI with Sigstore keyless signing. A short-lived certificate is bound to this repository's publish workflow at the release tag, and every signature is recorded in the public Rekor transparency log. There is no private key to store or leak.
+
+**What the Hub enforces.** Before using any registry manifest, the Hub downloads `<sensor>-v<version>.json.sigstore.json` next to it and verifies it offline against the Sigstore trusted root built into the Hub. It pins the signer to exactly:
+
+```
+https://github.com/mahmoudahmed3132/TrueSignal/.github/workflows/publish-sensor-registry.yml@refs/tags/sensor/<sensor>/v<version>
+issuer https://token.actions.githubusercontent.com
+```
+
+It also requires a CT-logged certificate, a Rekor entry and a verified timestamp. A manifest that is unsigned, modified, signed by another repository or workflow, signed from a branch, or replayed under another sensor name or version is skipped and logged. A node that uses it then gets no compose. The manifest pins its image by `@sha256` digest, so the signature also covers the image the node runs. Docker on the nodes needs no extra tooling.
+
+| Variable | Effect |
+|---|---|
+| `TS_MANIFEST_SIGNER_REPO` | `owner/name` whose publish workflow must have signed (default `mahmoudahmed3132/TrueSignal`). Set it if you fork and publish your own registry. |
+| `TS_SIGSTORE_TRUSTED_ROOT` | Path to a newer Sigstore `trusted_root.json`, when Sigstore rotates keys before a Hub release ships the new root. |
+| `TS_ALLOW_UNSIGNED_MANIFESTS=true` | Turns verification off (logged as a warning). Development, or a mirror you sign yourself, only. |
+
+Manifests published before 2026-10-24's signing release (sensor 2.0.x/2.1.x as first released) carry no bundle. A Hub with verification on only uses the re-released signed versions. Publish those before upgrading the Hub; this release bumps every sensor's patch version for that.
+
+**Verify by hand** (`cosign` 2.4+; `REPO=mahmoudahmed3132/TrueSignal`):
+
+```bash
+# A sensor manifest from the registry
+cosign verify-blob --bundle tcp-tarpit-v2.0.3.json.sigstore.json \
+  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-sensor-registry.yml@refs/tags/sensor/tcp-tarpit/v2.0.3" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com tcp-tarpit-v2.0.3.json
+
+# A sensor or Hub image, by digest
+cosign verify ghcr.io/mahmoudahmed3132/truesignal-tcptarpit@sha256:<digest> \
+  --certificate-identity-regexp "^https://github.com/$REPO/.github/workflows/publish-sensor-registry.yml@refs/tags/sensor/" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify ghcr.io/mahmoudahmed3132/truesignal-hub@sha256:<digest> \
+  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-hub.yml@refs/tags/hub/v2.2.0" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+# The wizard binary (release assets include <file>.sigstore.json)
+cosign verify-blob --bundle truesignal-linux-amd64.sigstore.json \
+  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-wizard.yml@refs/tags/wizard/v2.2.0" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com truesignal-linux-amd64
+```
+
+**What it does not cover.** Anyone who can push a `sensor/*` tag to this repository can still get a release signed, because the publish workflow runs on any such tag. Close that gap in GitHub: add a tag ruleset restricting who may create `sensor/*`, `hub/*` and `wizard/*` tags, and require reviews on `main` and on `.github/workflows/`. Alert on unexpected signatures under this identity in the Rekor log; the Sigstore `rekor-monitor` can do this.
+

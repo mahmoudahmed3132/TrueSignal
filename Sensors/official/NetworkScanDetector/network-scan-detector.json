@@ -1,6 +1,6 @@
 {
   "id": "ts-sensor-network-scan-detector",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "name": "Network Scan Detector",
   "category": "network",
   "osi_layer": "Network Layer",

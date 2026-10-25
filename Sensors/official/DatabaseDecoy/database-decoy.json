@@ -1,6 +1,6 @@
 {
   "id": "ts-sensor-database-decoy",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "Database Decoy (MySQL / PostgreSQL / MSSQL)",
   "category": "database",
   "osi_layer": "Application Layer",

@@ -19,6 +19,7 @@ import (
 
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/siem"
+	"github.com/truesignal/hub/internal/signing"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -40,6 +41,16 @@ type Config struct {
 	// enrolled, a login can only reach the enrollment endpoints, and it
 	// cannot be disabled from the dashboard.
 	RequireMFA bool
+	// AllowUnsignedManifests (TS_ALLOW_UNSIGNED_MANIFESTS=true) turns off
+	// Sigstore verification of registry manifests. Development or a
+	// temporary migration aid only.
+	AllowUnsignedManifests bool
+	// ManifestSignerRepo (TS_MANIFEST_SIGNER_REPO, owner/name) is the
+	// repository whose publish workflow must have signed each manifest.
+	ManifestSignerRepo string
+	// SigstoreTrustedRoot (TS_SIGSTORE_TRUSTED_ROOT) is an optional path to
+	// a newer Sigstore trusted_root.json than the one built in.
+	SigstoreTrustedRoot string
 
 	// SessionTTL / SessionIdle bound dashboard sessions (TS_SESSION_TTL,
 	// TS_SESSION_IDLE_TIMEOUT; Go durations, idle "0" disables).
@@ -158,6 +169,10 @@ func Load() *Config {
 		TrustProxy:        isProxyTrusted,
 		TrustedProxies:    trustedProxies,
 		RequireMFA:        getBool("TS_REQUIRE_MFA"),
+
+		AllowUnsignedManifests: getBool("TS_ALLOW_UNSIGNED_MANIFESTS"),
+		ManifestSignerRepo:     getEnv("TS_MANIFEST_SIGNER_REPO", signing.DefaultSignerRepo),
+		SigstoreTrustedRoot:    getEnv("TS_SIGSTORE_TRUSTED_ROOT", ""),
 
 		SessionTTL:          getDuration("TS_SESSION_TTL", 12*time.Hour),
 		SessionIdle:         getDuration("TS_SESSION_IDLE_TIMEOUT", 15*time.Minute),

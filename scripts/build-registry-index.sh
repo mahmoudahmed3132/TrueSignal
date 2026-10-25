@@ -44,6 +44,8 @@ echo "📊 Building index from ${#MANIFEST_FILES[@]} manifest file(s)..."
 # Step 1: Extract metadata from each manifest into a flat JSONL stream
 ENTRIES=""
 for FILE in "${MANIFEST_FILES[@]}"; do
+  # Signature bundles (<manifest>.sigstore.json) sit next to the manifests.
+  case "$FILE" in *.sigstore.json) continue ;; esac
   # Validate the file has required fields for the registry
   if ! jq -e '.id and .name and .version and .category' "$FILE" >/dev/null 2>&1; then
     echo "⚠️  Skipping invalid or incomplete manifest: $FILE"
