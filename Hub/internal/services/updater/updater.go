@@ -15,7 +15,9 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-var githubAPIURL = "https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases"
+// Releases live in the public distribution repository (the source
+// repository is private).
+var githubAPIURL = "https://api.github.com/repos/mahmoudahmed3132/truesignal-dist/releases"
 
 // SetGitHubAPIURLForTest overrides GitHub API URL during testing
 func SetGitHubAPIURLForTest(url string) {

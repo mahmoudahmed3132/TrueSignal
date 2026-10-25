@@ -14,8 +14,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# Releases go to the public distribution repository; this source repository
+# is private. Must match the URLs compiled into the Hub (registry_url
+# default, update check) and install.sh. DIST_REPO_TOKEN: fine-grained PAT,
+# that repository only, Contents read/write (Docs/development/maintainer-workflow.md).
+env:
+  DIST_REPO: mahmoudahmed3132/truesignal-dist
+
 permissions:
-  contents: write
+  contents: read
   packages: write
   # Sigstore keyless signing: the job's OIDC token gets a short-lived
   # signing certificate bound to this workflow and tag.
@@ -33,6 +40,15 @@ jobs:
         with:
           go-version: '1.26'
 
+      - name: Check distribution repository credential
+        env:
+          DIST_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
+        run: |
+          if [ -z "$DIST_TOKEN" ]; then
+            echo "::error::Secret DIST_REPO_TOKEN is not set; cannot publish to $DIST_REPO."
+            exit 1
+          fi
+
       - name: Extract Version
         id: vars
         run: |
@@ -48,7 +64,7 @@ jobs:
 
       - name: Refuse to re-release a published version
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
         run: |
           # Re-uploading would replace the binaries under the same version and
           # break anyone who pinned their checksum. Bump WizardVersion instead.
@@ -56,7 +72,7 @@ jobs:
           # before uploading) may be completed; any API error stops the job.
           TAG="wizard/v${{ steps.vars.outputs.VERSION }}"
           CODE=$(curl -sS -o release.json -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}")
+            "https://api.github.com/repos/${DIST_REPO}/releases/tags/${TAG}")
           case "$CODE" in
             404) echo "No release for $TAG yet." ;;
             200)
@@ -95,12 +111,40 @@ jobs:
           done
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          name: "Wizard v${{ steps.vars.outputs.VERSION }}"
-          files: |
-            build/truesignal-linux-amd64
-            build/truesignal-linux-arm64
-            build/checksums.txt
-            build/*.sigstore.json
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
+          VERSION: ${{ steps.vars.outputs.VERSION }}
+          IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/publish-wizard.yml@${{ github.ref }}
+        run: |
+          TAG="wizard/v$VERSION"
+          cd build
+          {
+            echo "TrueSignal Wizard v$VERSION (linux amd64/arm64, static)."
+            echo
+            echo 'Install:'
+            echo '```'
+            echo "curl -fsSL https://raw.githubusercontent.com/$DIST_REPO/main/install.sh | bash -s -- --version v$VERSION"
+            echo '```'
+            echo
+            echo 'SHA-256 (`checksums.txt`):'
+            echo '```'
+            cat checksums.txt
+            echo '```'
+            echo
+            echo 'Verify the Sigstore signature:'
+            echo '```'
+            echo "cosign verify-blob --bundle truesignal-linux-amd64.sigstore.json \\"
+            echo "  --certificate-identity $IDENTITY \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\"
+            echo "  truesignal-linux-amd64"
+            echo '```'
+          } > notes.md
+          FILES="truesignal-linux-amd64 truesignal-linux-arm64 checksums.txt truesignal-linux-amd64.sigstore.json truesignal-linux-arm64.sigstore.json checksums.txt.sigstore.json"
+          # The guard above let through only a missing release or one with no
+          # assets (an earlier run that died before uploading).
+          if gh release view "$TAG" --repo "$DIST_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" $FILES --repo "$DIST_REPO"
+          else
+            gh release create "$TAG" $FILES --repo "$DIST_REPO" --target main \
+              --title "Wizard v$VERSION" --notes-file notes.md
+          fi

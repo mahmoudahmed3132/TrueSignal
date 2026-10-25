@@ -1,3 +1,15 @@
+# [Unreleased] - Private source, public distribution (Hub 2.2.1, Wizard 2.2.1) (2026-10-25)
+
+* **Everything Hubs and nodes download now comes from the public repository `mahmoudahmed3132/truesignal-dist`**, so the source repository can be private without credentials on any Hub or node.
+  * Sensor registry: its `registry-pages` branch. The Hub's default `registry_url` points there. A Hub still on the old default is moved on boot; a custom `registry_url` is kept.
+  * Hub and Wizard releases: published there. The Hub's update check and `install.sh` read them from there.
+  * `install.sh`, `LICENSE`, `NOTICE` and a README: synced to its `main` by the new `publish-dist.yml`. That workflow also seeds `registry-pages` once, byte-for-byte from this repository's, so the existing signed manifests stay valid.
+  * The UI install commands point at the new `install.sh` URL.
+* **The signer does not change.** Sigstore signing still runs here, so the Hub's pinned identity (`TS_MANIFEST_SIGNER_REPO`) and every published sensor bundle stay valid. No sensor is re-released.
+* **Publishing needs `DIST_REPO_TOKEN`:** a fine-grained token for `truesignal-dist` only, with Contents read/write. Every publish workflow fails early without it. The workflows' own `GITHUB_TOKEN` drops to `contents: read`.
+* **Python template:** installs the SDK from this repository (build from the repository root) instead of pip-installing it from GitHub. CI builds the template image.
+* Hub and Wizard bumped to 2.2.1. The only changes are the distribution URLs. Setup is in `Docs/development/maintainer-workflow.md` §5.
+
 # [Unreleased] - Signed releases (Sigstore) (2026-10-24)
 
 * **The Hub accepts only signed sensor manifests.**

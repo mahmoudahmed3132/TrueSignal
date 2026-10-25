@@ -8,8 +8,15 @@ on:
         required: true
         default: 'all'
 
+# Releases go to the public distribution repository; this source repository
+# is private. Must match the URLs compiled into the Hub (registry_url
+# default, update check) and install.sh. DIST_REPO_TOKEN: fine-grained PAT,
+# that repository only, Contents read/write (Docs/development/maintainer-workflow.md).
+env:
+  DIST_REPO: mahmoudahmed3132/truesignal-dist
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   rollback:
@@ -27,14 +34,22 @@ jobs:
           chmod +x /tmp/build-registry-index.sh
 
       - name: Checkout registry-pages branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ${{ env.DIST_REPO }}
+          token: ${{ secrets.DIST_REPO_TOKEN }}
+          ref: registry-pages
+          path: dist-repo
+
+      - name: Configure git
+        working-directory: dist-repo
         run: |
           git config user.name "TrueSignal CI"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin registry-pages
-          git checkout registry-pages
 
       - name: Perform Rollback
         id: rollback
+        working-directory: dist-repo
         env:
           SENSOR_NAME: ${{ inputs.sensor_name }}
         run: |
@@ -87,12 +102,14 @@ jobs:
           
       - name: Rebuild index.json
         if: steps.rollback.outputs.count > 0
+        working-directory: dist-repo
         run: |
           /tmp/build-registry-index.sh
           echo "✅ index.json regenerated"
 
       - name: Commit and push changes
         if: steps.rollback.outputs.count > 0
+        working-directory: dist-repo
         env:
           SENSOR_NAME: ${{ inputs.sensor_name }}
         run: |

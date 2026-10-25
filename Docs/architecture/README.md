@@ -169,7 +169,7 @@ When a `sensor/**` tag is pushed, the `publish-sensor-registry` workflow (GitHub
 3. Writes a versioned manifest to the `registry-pages` branch
 4. Regenerates `index.json` with all sensor metadata and version/compat tables
 
-The `registry-pages` branch is served as a static file host (Gitea Pages, GitHub Pages, nginx, or S3).
+The `registry-pages` branch is served as a static file host (Gitea Pages, GitHub Pages, nginx, or S3). For the official releases it is the `registry-pages` branch of the public `mahmoudahmed3132/truesignal-dist` repository, which also carries the Hub and Wizard releases; the source repository is private (`Docs/development/maintainer-workflow.md` §5).
 
 ---
 

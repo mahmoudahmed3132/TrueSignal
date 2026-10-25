@@ -124,7 +124,7 @@ Or tag every sensor at its manifest version with `make tag-sensors` (existing ta
 
 Hub and Wizard: `make tag-release` tags `hub/v<HubVersion>` and `wizard/v<WizardVersion>` from the constants in `Hub/internal/models/models.go` and `wizard/core/api/client.go`; their workflows reject a tag that doesn't match the constant. Like sensors, a released Hub or Wizard version is never rebuilt: the Hub job fails if `truesignal-hub:v<version>` is already in GHCR, the Wizard job if the release already has assets. Re-running a published release would otherwise replace its image or binaries under the same version (and break anyone who pinned the digest or checksum).
 
-**First publish of a package:** GHCR creates packages under a personal account as **private**, even for a public repo. After the first run of each image, set it to Public in the package settings (Packages → `truesignal-*` → Package settings → Change visibility), or nodes and the Hub can't pull anonymously.
+**First publish of a package:** GHCR creates packages under a personal account as **private** (and the source repository is private too). After the first run of each image, set it to Public in the package settings (Packages → `truesignal-*` → Package settings → Change visibility), or nodes and the Hub can't pull anonymously.
 
 > [!WARNING]
 > **Immutability Rule:** In standard GitOps workflows, release tags are immutable. If you push `v1.2.0`, realize it's broken, and rollback your fleet, you **must not** overwrite the `v1.2.0` tag with a fix. Doing so causes cache poisoning in the Hub backend and Docker registries. Always bump the version (e.g. `v1.2.1`) and leave the rolled-back tag untouched.
@@ -134,11 +134,11 @@ The `publish-sensor-registry` workflow (GitHub or Gitea) will:
 1. Read `Sensors/official/FileCanary/file-canary.json` at the tagged commit
 2. Build and push the image, inject `"version": "1.2.0"`, set `image_tag` to `"v1.2.0"`, and write the pushed image's `image_digest` into the main and init containers (the Hub refuses unpinned images)
 3. Sign the versioned manifest and the image with Sigstore keyless (`cosign sign-blob` / `cosign sign`, workflow identity at the tag; needs `id-token: write`), and verify the manifest signature before publishing
-4. Write `file-canary-v1.2.0.json` and its bundle `file-canary-v1.2.0.json.sigstore.json` to the `registry-pages` branch. A version already there is never overwritten: the job fails before building, so the published digest stays tagged and pullable
+4. Write `file-canary-v1.2.0.json` and its bundle `file-canary-v1.2.0.json.sigstore.json` to the `registry-pages` branch of the public distribution repository (§5). A version already there is never overwritten: the job fails before building, so the published digest stays tagged and pullable
 5. Regenerate `index.json`
 
 ### Step 4: Verify
-Check the `registry-pages` branch to confirm:
+Check the `registry-pages` branch of `mahmoudahmed3132/truesignal-dist` to confirm:
 - The versioned JSON file and its `.sigstore.json` bundle exist (the Hub refuses a manifest without a valid bundle; see `Docs/operations.md` §13)
 - `index.json` lists the new version
 - The `latest` field points to the new version
@@ -149,3 +149,29 @@ The Hub's updater refreshes the registry catalog (and checks GitHub releases) in
 2. go into Fleet Management or Node Details view in the Hub Dashboard.
 
 This triggers an on-demand registry fetch. The Hub will compare the latest compatible versions against deployed sensors and flag nodes with an **"Update Available"** indicator. Users must click Update in the UI (`/api/v2/nodes/{id}/upgrade` or the per-sensor upgrade endpoint), which only changes the node's desired state, and then run `truesignal apply` on the node to pull the new image and restart the sensor. Nothing is pushed to nodes.
+
+---
+
+## 5. The Distribution Repository
+
+The source repository `mahmoudahmed3132/TrueSignal` is **private**. Hubs and nodes download anonymously, so everything they fetch is published to the public repository `mahmoudahmed3132/truesignal-dist`:
+
+| Branch / item | Content | Written by |
+|---|---|---|
+| `main` | `README.md` (from `distribution/`), `install.sh`, `LICENSE`, `NOTICE` | `publish-dist.yml` on every push to `main` that touches them |
+| `registry-pages` | `index.json`, versioned manifests and their `.sigstore.json` bundles | `publish-sensor-registry.yml`, `rollback-sensor-registry.yml` (seeded once by `publish-dist.yml`) |
+| Releases `hub/v*` | Image tag and digest, `cosign` command | `publish-hub.yml` |
+| Releases `wizard/v*` | Static binaries, `checksums.txt`, Sigstore bundles | `publish-wizard.yml` |
+
+GHCR images stay under `ghcr.io/mahmoudahmed3132/truesignal-*` and must stay **Public**. Package visibility is independent of the repository's, but check anonymous pulls after any visibility change.
+
+The Hub (`registry_url` default in `Hub/internal/store/sqlite.go`, update check in `Hub/internal/services/updater/updater.go`), `install.sh`, the UI install commands and the `DIST_REPO` env in the workflows all name this repository; change them together. Never edit `truesignal-dist` by hand: `publish-dist.yml` overwrites `main`.
+
+Sigstore signing still runs in the source repository, so the Hub's pinned signer (`TS_MANIFEST_SIGNER_REPO`, default `mahmoudahmed3132/TrueSignal`) is unchanged and the existing bundles stay valid.
+
+**Credential.** The workflows push with the secret `DIST_REPO_TOKEN`: a fine-grained personal access token, resource owner `mahmoudahmed3132`, **only** `truesignal-dist`, permission *Contents: Read and write* (nothing else). It expires; set a calendar reminder and rotate it before then (Settings → Developer settings → Fine-grained tokens → Regenerate, then update the secret). Every publish workflow fails early with `DIST_REPO_TOKEN is not set` if it is missing.
+
+**Protect it.** Add a tag ruleset to `truesignal-dist` like the source repository's (`hub/*`, `wizard/*`: restrict creation, update and deletion; bypass: repository admin). Releases there are created by the token, which acts as the owner (an admin); if a release fails with a ruleset error, check the bypass list. Restrict pushes to `main` and `registry-pages` to the owner as well.
+
+**Recovering a failed Hub release step.** The Hub job refuses to rebuild once the image is in GHCR, so if only the release step failed, create the release by hand: `gh release create hub/vX.Y.Z --repo mahmoudahmed3132/truesignal-dist --target main --title "Hub vX.Y.Z" --notes "<image@digest>"`. A Wizard release left without assets is completed by re-running its workflow.
+

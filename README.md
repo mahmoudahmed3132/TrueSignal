@@ -6,8 +6,8 @@
 <h1 align="center">TrueSignal</h1>
 
 <p align="center">
-  <a href="https://github.com/mahmoudahmed3132/TrueSignal/releases">
-    <img src="https://img.shields.io/badge/release-v2.1.0-blue.svg?style=flat-square" alt="Latest Release" />
+  <a href="https://github.com/mahmoudahmed3132/truesignal-dist/releases">
+    <img src="https://img.shields.io/badge/release-v2.2.1-blue.svg?style=flat-square" alt="Latest Release" />
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-AGPLv3-blue.svg?style=flat-square" alt="License: AGPLv3" />

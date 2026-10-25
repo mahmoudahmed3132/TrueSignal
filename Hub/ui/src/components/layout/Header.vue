@@ -19,9 +19,9 @@ const showInstallModal = ref(false)
 
 const installCommand = computed(() => {
     if (wizardUpdateAvailable.value && latestWizardVersion.value) {
-        return `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash -s -- --version ${latestWizardVersion.value}`
+        return `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | bash -s -- --version ${latestWizardVersion.value}`
     }
-    return 'curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash'
+    return 'curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | bash'
 })
 
 const handleDismissWizardUpdate = async () => {

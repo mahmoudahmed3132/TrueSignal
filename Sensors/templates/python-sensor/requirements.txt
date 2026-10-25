@@ -1,6 +1,6 @@
-# This single line installs the official TrueSignal SDK directly from GitHub.
-# It automatically fetches required libraries like 'requests' and 'aiohttp'.
-git+https://github.com/mahmoudahmed3132/TrueSignal.git@main#subdirectory=SDKs/python-truesignal
+# The TrueSignal SDK is installed by the Dockerfile from this repository's
+# SDKs/python-truesignal (the source repository is private, so pip cannot
+# fetch it from GitHub). It brings its own dependencies.
 
 # --- ADD YOUR SENSOR's SPECIFIC LIBRARIES BELOW ---
 # Example: 

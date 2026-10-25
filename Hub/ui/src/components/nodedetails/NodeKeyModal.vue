@@ -21,7 +21,7 @@ watch(() => props.show, (open) => {
 })
 
 const linkCommand = (key: string) =>
-    `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | TS_NODE_API_KEY=${key} bash -s -- --link ${props.hubUrl}`
+    `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | TS_NODE_API_KEY=${key} bash -s -- --link ${props.hubUrl}`
 
 const rotate = async () => {
     if (!props.nodeId) return

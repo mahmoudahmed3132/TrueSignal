@@ -85,6 +85,7 @@ jobs:
           - RemoteAccessDecoy
           - TcpTarpit
           - WebRouterDecoy
+          - PythonTemplate
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -93,6 +94,8 @@ jobs:
         run: |
           if [ "${{ matrix.image }}" = "Hub" ]; then
             docker build -f Hub/Dockerfile Hub/
+          elif [ "${{ matrix.image }}" = "PythonTemplate" ]; then
+            docker build -f Sensors/templates/python-sensor/Dockerfile .
           else
             docker build -f "Sensors/official/${{ matrix.image }}/Dockerfile" .
           fi
