@@ -1,0 +1,158 @@
+{
+  "id": "ts-sensor-identity-decoy",
+  "version": "2.0.1",
+  "name": "Identity Decoy (AD Services Trap)",
+  "category": "identity",
+  "osi_layer": "Application Layer",
+  "icon_svg": "M12 11c0-1.1.9-2 2-2s2 .9 2 2-2 4-2 4m-5 4v-1a7 7 0 0114 0v1M12 7a4 4 0 100-8 4 4 0 000 8z",
+  "description": "Emulates Windows identity services (LDAP, LDAPS, RDP) so intruders enumerating or authenticating against them are detected and their usernames and credentials recorded.",
+  "documentation": {
+    "summary": "The Identity Decoy answers like a domain controller: it serves LDAP/LDAPS directory binds and accepts RDP connections, then reports every authentication attempt, including NTLM binds from tools such as BloodHound.py, impacket and SharpHound. It targets the lateral-movement phase, where an attacker tries directory enumeration (ldapsearch, BloodHound) and credential reuse against RDP. Captured passwords are stored as a keyed hash by default, never in cleartext.",
+    "sections": [
+      {
+        "title": "Features",
+        "type": "list",
+        "content": [
+          "Shared persona: LDAP, LDAPS and RDP all present one hostname and AD domain, so the decoy looks like a single real machine.",
+          "Credential capture: LDAP simple-bind credentials and the RDP mstshash username are recorded; passwords are stored as a keyed HMAC by default (TS_CAPTURE_PASSWORDS).",
+          "Believable replies: a bad LDAP bind returns an AD-style 'data 52e' error, and the RDP connection confirm uses the handshake bytes a real Windows host returns.",
+          "In-memory TLS: LDAPS generates its certificate at startup, so nothing is written to the read-only filesystem."
+        ]
+      },
+      {
+        "title": "Security Architecture",
+        "type": "list",
+        "content": [
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities and enforces a read-only filesystem.",
+          "Execution Privilege: Runs as container root (UID 0) strictly to bind low-numbered ports (389, 636).",
+          "Required Capabilities: Adds 'NET_BIND_SERVICE' to bind ports below 1024 without full host network control.",
+          "Data Handling: Captured passwords are HMAC-hashed by default; cleartext ('plain') is opt-in and should stay out of PCI scope."
+        ]
+      }
+    ]
+  },
+  "heuristics": {
+    "triggers": {
+      "processes": [
+        "slapd",
+        "lsass",
+        "ns-slapd",
+        "winbindd",
+        "sssd",
+        "xrdp",
+        "vsftpd"
+      ],
+      "ports": [
+        389,
+        636,
+        3389,
+        88,
+        445
+      ]
+    },
+    "recommendation_reason": "Directory or remote-desktop services detected. Deploy the Identity Decoy to catch Active Directory enumeration, password spraying and RDP credential reuse during lateral movement."
+  },
+  "deployment": {
+    "network_mode": "host",
+    "user": "0:0",
+    "cap_add": [
+      "NET_BIND_SERVICE"
+    ],
+    "listen_ports_env": [
+      "TS_SERVICES"
+    ],
+    "env_vars": [
+      {
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
+        "default": "__HUB_ENDPOINT__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_HUB_KEY",
+        "description": "The shared Node Key.",
+        "default": "__HUB_KEY__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SENSOR_ID",
+        "description": "Unique identifier for this specific trap.",
+        "default": "ts-sensor-identity-decoy",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SEVERITY",
+        "description": "Fallback alert severity (the sensor sets critical for logins, low for bare connections, medium for queries).",
+        "default": "high",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
+        "name": "TS_TEST_MODE",
+        "description": "Enable CI/CD synthetic alerts.",
+        "default": "false",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SERVICES",
+        "description": "Comma-separated services to run, as proto:port (proto is ldap, ldaps or rdp). Standard ports keep the decoy believable.",
+        "default": "ldap:389,ldaps:636,rdp:3389",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_PERSONA_HOSTNAME",
+        "description": "Hostname the decoy claims (e.g. the fake DC name).",
+        "default": "DC01",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_PERSONA_DOMAIN",
+        "description": "Active Directory domain the decoy claims.",
+        "default": "corp.local",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_PASSWORDS",
+        "description": "How captured passwords are recorded: hash (keyed HMAC-SHA256 + length, default), plain (cleartext; avoid in PCI scope), none.",
+        "default": "hash",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_NTLM",
+        "description": "NTLM capture for RDP NLA and LDAP/LDAPS NTLM binds (Sicily and SASL GSS-SPNEGO): identity (default, record DOMAIN\\\\user + workstation), hash (also record the crackable NetNTLMv2; for threat intel, avoid in PCI scope), off (RDP mstshash cookie only; LDAP refuses NTLM with authMethodNotSupported).",
+        "default": "identity",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_HASH_KEY",
+        "description": "Set by the Hub: this node's capture key (derived from the Hub's master key), so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      }
+    ],
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-identitydecoy",
+    "image_tag": "v2.0.1",
+    "image_digest": "sha256:fe56095a26850001434a32d2b5018f5250dd7720bb8fa12bbeb3870b0c577747"
+  }
+}
