@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-25T10:41:37Z",
+  "generated": "2026-10-25T10:41:39Z",
   "sensors": [
     {
       "id": "ts-sensor-database-decoy",
@@ -81,10 +81,13 @@
       "name": "Network Service Decoy (SNMP / DNS)",
       "category": "network",
       "icon_svg": "M12 3v6m0 6v6M5 12H3m18 0h-2M7.8 7.8 6.3 6.3m11.4 11.4-1.5-1.5m0-8.4 1.5-1.5M6.3 17.7l1.5-1.5M12 15a3 3 0 100-6 3 3 0 000 6z",
-      "latest": "2.0.0",
+      "latest": "2.0.1",
       "versions": [
         {
           "v": "2.0.0"
+        },
+        {
+          "v": "2.0.1"
         }
       ]
     },
