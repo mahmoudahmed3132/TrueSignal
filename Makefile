@@ -19,8 +19,11 @@ tag-sensors:
 
 # Tag the Hub and Wizard at the versions compiled into them.
 tag-release:
-	@hub=$$(grep -oP 'HubVersion\s*=\s*"\K[^"]+' Hub/internal/models/models.go); \
-	wiz=$$(grep -oP 'WizardVersion\s*=\s*"\K[^"]+' wizard/core/api/client.go); \
+	@hub=$$(sed -nE 's/.*HubVersion[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' Hub/internal/models/models.go); \
+	wiz=$$(sed -nE 's/.*WizardVersion[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' wizard/core/api/client.go); \
+	if [ -z "$$hub" ] || [ -z "$$wiz" ]; then \
+		echo "ERROR: could not parse HubVersion/WizardVersion from source" >&2; exit 1; \
+	fi; \
 	git tag "hub/v$$hub" && echo "   + hub/v$$hub"; \
 	git tag "wizard/v$$wiz" && echo "   + wizard/v$$wiz"
 	@echo "Push with: make push-tags (not git push --tags: see below)"
