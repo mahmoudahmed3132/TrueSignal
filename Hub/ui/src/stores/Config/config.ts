@@ -20,6 +20,7 @@ export interface ConfigApiResponse {
   siemFormat: 'rfc5424' | 'ecs'
   siemTokenSet: boolean
   whitelistedSources: string
+  knownScanners: string
 }
 
 // Represents the internal reactive state used by Vue components
@@ -39,6 +40,7 @@ export interface ConfigState {
   siemFormat: 'rfc5424' | 'ecs'
   siemTokenSet: boolean
   whitelistedSources: string
+  knownScanners: string
 }
 
 export const useConfigStore = defineStore('config', () => {
@@ -57,7 +59,8 @@ export const useConfigStore = defineStore('config', () => {
     siemProtocol: 'tcp',
     siemFormat: 'rfc5424',
     siemTokenSet: false,
-    whitelistedSources: ''
+    whitelistedSources: '',
+    knownScanners: ''
   })
 
   const fetchConfig = async (): Promise<void> => {
@@ -84,6 +87,7 @@ export const useConfigStore = defineStore('config', () => {
       state.value.siemFormat = data.siemFormat || 'rfc5424'
       state.value.siemTokenSet = !!data.siemTokenSet
       state.value.whitelistedSources = data.whitelistedSources || ''
+      state.value.knownScanners = data.knownScanners || ''
       
       state.value.isLoaded = true
     } catch (error) {

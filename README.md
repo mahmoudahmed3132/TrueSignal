@@ -37,7 +37,7 @@ Place a sensor exactly where you want it. If it trips, you have an intruder.
   - **Synthetic Deception**: Deploy lures like the [ICMP Canary](./Sensors/official/IcmpCanary/) or [Network Scan Detector](./Sensors/official/NetworkScanDetector/) to act as decoys. Since these sensors provide no legitimate business value, nearly all of their traffic deserves a look; the exceptions are known infrastructure such as monitoring probes and authorised scanners, which you whitelist.
 
 Set up multiple and you start to have a pretty clear idea of the lateral movement of an intruder. Expect little tuning and little noise compared with log-based detection, but not zero: uptime monitors ping, vulnerability scanners scan, and backup or indexing jobs can touch lure files.
-If you have legitimate automated security scanners tripping TrueSignal sensors, whitelist them from the Hub's settings. Whitelisted events are still stored (archived) and still forwarded to your SIEM, flagged `whitelisted=true`, so a whitelist cannot silently hide activity.
+If you have legitimate automated security scanners tripping TrueSignal sensors, add them to **Known Scanners** (or trusted hosts to **Whitelisted Sources**) in the Hub's settings. Both take IPs, CIDR ranges or exact source names, and can import IPs from a text or CSV file. Their events are still stored (archived) and still forwarded to your SIEM, flagged `known_scanner=true` or `whitelisted=true`, so neither list can silently hide activity. Honeytoken use is never suppressed.
 
 ## 🔌 The Universal Event Standard (Bring Your Own Sensor)
 

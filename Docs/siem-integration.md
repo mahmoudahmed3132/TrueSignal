@@ -20,7 +20,7 @@ The Hub forwards every event (including whitelisted evidence and Hub-generated l
 | ECS field | Value |
 |---|---|
 | `@timestamp` | Event time from the sensor |
-| `event.kind` | `alert`. `event` for whitelisted sources, Hub liveness (`sensor_*`) and audit records |
+| `event.kind` | `alert`. `event` for whitelisted and known-scanner sources, Hub liveness (`sensor_*`) and audit records |
 | `event.category` | `intrusion_detection` plus `authentication` (`*_login`, `web_login_attempt`), `file` (`decoy_file_*`), `web` (`web_*`) or `network`. Liveness is `host` |
 | `event.type` | `info` (audit changes: `change`) |
 | `event.action` | The `eventTrigger` (e.g. `ldap_login`) or the audited `METHOD /route` |
@@ -36,8 +36,8 @@ The Hub forwards every event (including whitelisted evidence and Hub-generated l
 | `user_agent.original`, `http.request.method` | Web decoy details |
 | `host.name`, `host.id`, `observer.hostname` | Node alias, node ID |
 | `observer.type` / `vendor` / `product` | `honeypot` / `TrueSignal` / `TrueSignal` |
-| `tags` | `truesignal`, `deception` (plus `whitelisted`; audit: `audit`) |
-| `truesignal.*` | The complete TrueSignal record, including `truesignal.details` |
+| `tags` | `truesignal`, `deception` (plus `whitelisted` or `known_scanner`; audit: `audit`) |
+| `truesignal.*` | The complete TrueSignal record, including `truesignal.details`, `truesignal.whitelisted` and `truesignal.known_scanner` (added 2026-10-26) |
 
 Honeytoken inventory records (dataset `truesignal.honeytoken`, `event.kind: enrichment`, `event.category: threat`, `event.type: indicator`) carry `user.name`, `threat.indicator.type: user-account` and `truesignal.honeytoken.*`. They are the indicator side of the honeytoken rule in `Docs/siem/honeytoken-detection.md`.
 

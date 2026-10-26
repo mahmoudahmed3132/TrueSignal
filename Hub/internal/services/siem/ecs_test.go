@@ -111,6 +111,20 @@ func TestECSNonIPSourceAndWhitelist(t *testing.T) {
 	}
 }
 
+func TestECSKnownScanner(t *testing.T) {
+	svc := NewService(nil)
+	ev := ldapLoginEvent()
+	ev.KnownScanner = true
+	doc := roundTrip(t, svc.ecsEvent(ev))
+	if get(doc, "event.kind") != "event" || get(doc, "truesignal.known_scanner") != true {
+		t.Errorf("kind = %v, known_scanner = %v", get(doc, "event.kind"), get(doc, "truesignal.known_scanner"))
+	}
+	tags, _ := json.Marshal(doc["tags"])
+	if !strings.Contains(string(tags), "known_scanner") {
+		t.Errorf("tags = %s", tags)
+	}
+}
+
 func TestECSLivenessAndFileMapping(t *testing.T) {
 	svc := NewService(nil)
 	live := roundTrip(t, svc.ecsEvent(models.Event{EventTrigger: "sensor_heartbeat_lost", Severity: "high", Source: "truesignal-hub"}))

@@ -525,20 +525,22 @@ func (s *Service) formatSyslog(event models.Event) string {
 		{"node_id", event.NodeID},
 		{"sensor", event.SensorID},
 		{"whitelisted", fmt.Sprint(event.Whitelisted)},
+		{"known_scanner", fmt.Sprint(event.KnownScanner)},
 	})
 
 	body, _ := json.Marshal(map[string]any{
-		"event_id":    event.ID,
-		"timestamp":   event.Timestamp,
-		"node_id":     event.NodeID,
-		"node":        nodeAlias,
-		"sensor_id":   event.SensorID,
-		"trigger":     event.EventTrigger,
-		"severity":    event.Severity,
-		"source":      event.Source,
-		"target":      event.Target,
-		"whitelisted": event.Whitelisted,
-		"details":     json.RawMessage(detailsJSON),
+		"event_id":      event.ID,
+		"timestamp":     event.Timestamp,
+		"node_id":       event.NodeID,
+		"node":          nodeAlias,
+		"sensor_id":     event.SensorID,
+		"trigger":       event.EventTrigger,
+		"severity":      event.Severity,
+		"source":        event.Source,
+		"target":        event.Target,
+		"whitelisted":   event.Whitelisted,
+		"known_scanner": event.KnownScanner,
+		"details":       json.RawMessage(detailsJSON),
 	})
 
 	return fmt.Sprintf("<%d>1 %s %s %s - EVENT %s %s",

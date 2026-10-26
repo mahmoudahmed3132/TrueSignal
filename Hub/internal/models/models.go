@@ -54,6 +54,7 @@ type ConfigPayload struct {
 	// itself is write-only and never returned.
 	SiemTokenSet       bool   `json:"siemTokenSet"`
 	WhitelistedSources string `json:"whitelistedSources"`
+	KnownScanners      string `json:"knownScanners"`
 }
 
 type Event struct {
@@ -72,6 +73,10 @@ type Event struct {
 	// Whitelisted marks events from whitelisted sources (stored archived, not
 	// notified). Not persisted as a column.
 	Whitelisted bool `json:"whitelisted,omitempty"`
+	// KnownScanner marks events from the known-scanner list (authorized
+	// scanners, bots): handled like whitelisted, flagged separately for the
+	// SIEM. Not persisted as a column.
+	KnownScanner bool `json:"knownScanner,omitempty"`
 }
 
 // Heartbeat represents a routine ping from a sensor

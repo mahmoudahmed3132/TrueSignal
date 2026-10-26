@@ -127,3 +127,15 @@ func TestFormatAudit(t *testing.T) {
 		t.Fatalf("unexpected audit format: %q", msg)
 	}
 }
+
+func TestFormatSyslog_KnownScannerFlag(t *testing.T) {
+	svc := NewService(nil, Options{PEN: "99999"})
+	msg := svc.formatSyslog(models.Event{ID: 1, NodeID: "n", Timestamp: "2026-01-01T00:00:00Z", Severity: "low",
+		EventTrigger: "tcp_connection", Source: "172.16.5.3", SensorID: "s", Details: json.RawMessage("{}"), KnownScanner: true})
+	if !strings.Contains(msg, `whitelisted="false" known_scanner="true"]`) {
+		t.Fatalf("structured data lacks known_scanner: %s", msg)
+	}
+	if !strings.Contains(msg, `"known_scanner":true`) {
+		t.Fatalf("JSON body lacks known_scanner: %s", msg)
+	}
+}

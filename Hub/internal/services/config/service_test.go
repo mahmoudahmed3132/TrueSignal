@@ -35,6 +35,10 @@ func TestValidateConfigUpdate(t *testing.T) {
 		{"unknown snake_case key", map[string]interface{}{"registry_url": "http://x"}, true},
 		{"unknown typo key", map[string]interface{}{"webhookUrlx": "http://x"}, true},
 		{"known key alongside unknown", map[string]interface{}{"webhookType": "ntfy", "bogus": 1.0}, true},
+		{"whitelist with cidr and names", map[string]interface{}{"whitelistedSources": "10.0.0.0/8, Wizard Live Test"}, false},
+		{"whitelist bad cidr", map[string]interface{}{"whitelistedSources": "10.0.0.0/33"}, true},
+		{"scanners list", map[string]interface{}{"knownScanners": "172.16.5.0/28\nnessus-01"}, false},
+		{"scanners not a string", map[string]interface{}{"knownScanners": 1.0}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -87,6 +91,16 @@ func (m *tokenStore) UpdateConfigBatch(updates map[string]interface{}) error { r
 func (m *tokenStore) UpdateConfigValue(key, value string) error              { return nil }
 func (m *tokenStore) FactoryReset(bool) error                                { return nil }
 func (m *tokenStore) FactoryResetDryRun(bool) (map[string]int, error)        { return nil, nil }
+
+func TestValidateConfigUpdateNormalizesSourceLists(t *testing.T) {
+	req := map[string]interface{}{"knownScanners": "# scanners\n172.16.5.0/28\r\nnessus-01, 172.16.5.0/28\n"}
+	if err := validateConfigUpdate(req); err != nil {
+		t.Fatal(err)
+	}
+	if got := req["knownScanners"]; got != "172.16.5.0/28, nessus-01" {
+		t.Fatalf("stored form = %q", got)
+	}
+}
 
 func TestGetConfigNeverReturnsSiemToken(t *testing.T) {
 	svc := &Service{store: &tokenStore{values: map[string]string{

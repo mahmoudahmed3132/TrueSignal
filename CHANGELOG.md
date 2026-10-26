@@ -4,6 +4,9 @@
   * Tiles: decoys touched out of deployed, unique attacker sources, critical interactions, honeytokens used.
   * Bar charts: interactions per decoy type, and unique attacker sources per decoy type.
   * Donut: deployed decoys touched vs untouched.
+* **Whitelist takes CIDR ranges, and a new Known Scanners list.** Both lists accept IPs, CIDR ranges (IPv4/IPv6) and exact source names, one per line, and can import IPs from a text or CSV file in Settings. A source with a port (`10.0.0.5:4431`) matches its address. Known-scanner events are handled like whitelisted ones (stored archived, sent to the SIEM, never notified) but flagged separately.
+  * **SIEM contract change (additive):** RFC 5424 structured data and the JSON body gain `known_scanner`; ECS gains `truesignal.known_scanner` and the `known_scanner` tag, with `event.kind: event`. Existing parsers keep working; rules that exclude `whitelisted=true` should also exclude `known_scanner=true`.
+  * Lists are validated and normalised on save (`400` on a bad CIDR, over 10,000 entries or an entry over 256 characters). A list saved earlier with a non-CIDR entry containing "/" still matches it as a name.
 * New endpoint `GET /api/v2/insights` (`Hub/internal/projections/insights`). Hub liveness events are excluded from attacker counts.
 
 # [Unreleased] - Signed releases (Sigstore) (2026-10-24)
