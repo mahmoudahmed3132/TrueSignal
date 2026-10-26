@@ -43,6 +43,9 @@ type Source struct {
 
 // AssetActivity aggregates every in-range source that belongs to one
 // inventory asset (a CIDR asset can cover several attacking addresses).
+// Entries sharing a name and criticality are one asset spread over
+// several ranges; a shared name with a different criticality stays a
+// separate row.
 type AssetActivity struct {
 	Name        string `json:"name"`
 	Criticality string `json:"criticality"`
@@ -161,15 +164,15 @@ func Build(active, archived []models.Event, decoys []store.DeployedSensor, token
 	}
 	sort.Slice(d.Daily, func(i, j int) bool { return d.Daily[i].Date < d.Daily[j].Date })
 
-	byAsset := map[string]*AssetActivity{}
+	byAsset := map[assets.Ref]*AssetActivity{}
 	for k, s := range srcs {
 		s.Decoys = len(srcDecoys[k])
 		d.TopSources = append(d.TopSources, *s)
 		if s.Asset != nil {
-			a := byAsset[s.Asset.Name]
+			a := byAsset[*s.Asset]
 			if a == nil {
 				a = &AssetActivity{Name: s.Asset.Name, Criticality: s.Asset.Criticality}
-				byAsset[s.Asset.Name] = a
+				byAsset[*s.Asset] = a
 			}
 			a.Sources++
 			a.Events += s.Events
@@ -182,7 +185,10 @@ func Build(active, archived []models.Event, decoys []store.DeployedSensor, token
 		if d.Assets[i].Events != d.Assets[j].Events {
 			return d.Assets[i].Events > d.Assets[j].Events
 		}
-		return d.Assets[i].Name < d.Assets[j].Name
+		if d.Assets[i].Name != d.Assets[j].Name {
+			return d.Assets[i].Name < d.Assets[j].Name
+		}
+		return d.Assets[i].Criticality < d.Assets[j].Criticality
 	})
 	d.SourcesTotal = len(d.TopSources)
 	sort.Slice(d.TopSources, func(i, j int) bool {

@@ -73,3 +73,31 @@ func TestAssetsAggregateBeyondTopSources(t *testing.T) {
 		t.Fatalf("assets = %+v", d.Assets)
 	}
 }
+
+// Inventory entries that share a name but not a criticality stay separate
+// rows, each with its own criticality; same name and criticality merge.
+func TestAssetsSameNameDifferentCriticality(t *testing.T) {
+	from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+	ev := func(src string) models.Event {
+		return models.Event{Timestamp: "2026-10-01T01:00:00Z", Source: src, NodeID: "n", SensorID: "s", EventTrigger: "tcp_connection", Severity: "low", Details: json.RawMessage(`{}`)}
+	}
+	active := []models.Event{ev("10.1.0.5"), ev("10.2.0.5"), ev("10.3.0.5"), ev("10.3.0.6")}
+	inv := assets.NewIndex([]assets.Asset{
+		{Name: "db", Address: "10.1.0.0/24", Criticality: "critical"},
+		{Name: "db", Address: "10.2.0.0/24", Criticality: "low"},
+		{Name: "db", Address: "10.3.0.0/24", Criticality: "critical"},
+	})
+	for i := 0; i < 20; i++ {
+		d := Build(active, nil, nil, nil, inv, from, to, to)
+		if len(d.Assets) != 2 {
+			t.Fatalf("assets = %+v", d.Assets)
+		}
+		if a := d.Assets[0]; a.Criticality != "critical" || a.Sources != 3 || a.Events != 3 {
+			t.Fatalf("critical row = %+v", a)
+		}
+		if a := d.Assets[1]; a.Criticality != "low" || a.Sources != 1 || a.Events != 1 {
+			t.Fatalf("low row = %+v", a)
+		}
+	}
+}
