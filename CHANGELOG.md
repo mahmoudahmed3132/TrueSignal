@@ -1,3 +1,15 @@
+# [Unreleased] - Evidence reports (2026-10-26)
+
+* **Reports page** (sidebar): an evidence report for the last 7, 30 or 90 days or a custom range.
+  * Executive summary with plain-language findings (known-asset sources, honeytoken use, ATT&CK techniques, archived events).
+  * Daily activity, and breakdowns by severity and by decoy type.
+  * Top sources with their assets, observed ATT&CK techniques and honeytoken uses.
+  * Decoy coverage per node.
+  * Control configuration: SIEM forwarding, notifications, armed state, admin MFA, retention, list sizes, Hub version.
+  * A scope statement (supporting evidence for PCI DSS v4.0 Requirement 11.5.1 and CBE reviews; it does not replace IDS/IPS) and a sign-off block.
+* **Output:** prints to PDF from the browser, switching to the light theme for printing, with print-safe layout and page breaks. A JSON download is the machine-readable copy.
+* New endpoint `GET /api/v2/report?from=&to=`.
+
 # [Unreleased] - Attack Path (2026-10-26)
 
 * **Attack Path page** (sidebar): one source's route through the decoys.

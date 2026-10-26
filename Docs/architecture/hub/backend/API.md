@@ -485,6 +485,12 @@ Decoy coverage for the dashboard: deployed vs touched decoys, attacker sources a
 
 `byType` lists every deployed type (zero activity included) and every type with events, busiest first. A decoy counts as touched when it has at least one event in the timeframe; `uniqueSources` per type counts a source once per type, the top-level `uniqueSources` once overall.
 
+### GET /api/v2/report
+
+Decoy activity for the evidence report in a date range. `from` / `to` are RFC 3339 times or `YYYY-MM-DD` dates (`to` exclusive); default: the last 30 days; the range must be positive and at most 366 days (`400` otherwise). Figures use active events (Hub liveness excluded); `archivedEvents` counts in-range archived events (whitelisted, known scanners, analyst triage), which are not in the figures.
+
+Returns `summary` (the `/api/v2/insights` shape for the range), `severity`, `daily` (one entry per UTC day), `topSources` (25, known assets first, then by critical events; each with its `asset`), `sourcesTotal`, `techniques` (observed ATT&CK techniques), `honeytokenUses`. The Reports page adds fleet and configuration state from the other endpoints and prints to PDF from the browser.
+
 ### GET /api/v2/path
 
 One source's route through the decoys, from all its events (active and archived, Hub liveness excluded, the most recent 2,000 at most; `truncated` says when more exist). `source` is required (≤256 characters).

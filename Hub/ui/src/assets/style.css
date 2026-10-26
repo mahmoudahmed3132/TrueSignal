@@ -462,3 +462,9 @@ button {
 .animate-bounce-subtle {
   animation: bounce-subtle 2s infinite;
 }
+/* Printed report: no decorative grid, and keep boxes whole across pages. */
+@media print {
+  .bg-grid { background-image: none !important; }
+  .print-avoid-break { break-inside: avoid; }
+  @page { margin: 14mm; }
+}

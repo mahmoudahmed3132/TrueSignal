@@ -119,6 +119,7 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Get("/api/v2/insights", cfg.Analytics.GetInsights)
 		r.Get("/api/v2/sources", cfg.Analytics.GetSources)
 		r.Get("/api/v2/path", cfg.Analytics.GetPath)
+		r.Get("/api/v2/report", cfg.Analytics.GetReport)
 		r.Get("/api/v2/attack", cfg.Analytics.GetAttack)
 		r.Get("/api/v2/attack/layer", cfg.Analytics.GetAttackLayer)
 		if cfg.Assets != nil {

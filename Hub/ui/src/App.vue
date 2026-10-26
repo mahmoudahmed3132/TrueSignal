@@ -174,11 +174,11 @@ onUnmounted(() => {
     <Login @toggle-theme="appStore.toggleTheme" />
   </div>
 
-  <div v-else class="flex h-screen overflow-hidden bg-bg text-text-h transition-colors duration-200">
+  <div v-else class="flex h-screen overflow-hidden bg-bg text-text-h transition-colors duration-200 print:block print:h-auto print:overflow-visible">
     <Sidebar />
-    <main class="flex-1 flex flex-col min-w-0 bg-grid">
+    <main class="flex-1 flex flex-col min-w-0 bg-grid print:block print:bg-none">
       <Header />
-      <div class="flex-1 overflow-auto custom-scroll">
+      <div class="flex-1 overflow-auto custom-scroll print:overflow-visible">
         <router-view />
       </div>
     </main>

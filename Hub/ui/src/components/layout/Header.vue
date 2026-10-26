@@ -35,7 +35,7 @@ const handleMarkAllRead = async () => {
 </script>
 
 <template>
-    <header class="h-14 bg-gradient-to- from-bg to-transparent flex items-center justify-between px-4 sm:px-6 shrink-0 backdrop-blur-sm">
+    <header class="print:hidden h-14 bg-gradient-to- from-bg to-transparent flex items-center justify-between px-4 sm:px-6 shrink-0 backdrop-blur-sm">
         
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2 pr-4 mr-2 border-r border-border-default">

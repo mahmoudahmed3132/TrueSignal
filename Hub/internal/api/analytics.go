@@ -8,6 +8,7 @@ import (
 	"github.com/truesignal/hub/internal/projections/attackmap"
 	"github.com/truesignal/hub/internal/projections/insights"
 	"github.com/truesignal/hub/internal/projections/path"
+	"github.com/truesignal/hub/internal/projections/report"
 	"github.com/truesignal/hub/internal/projections/severity"
 	"github.com/truesignal/hub/internal/projections/sources"
 	"github.com/truesignal/hub/internal/projections/summary"
@@ -150,6 +151,62 @@ func (h *AnalyticsHandler) GetPath(w http.ResponseWriter, r *http.Request) {
 	list, _ := assets.Decode(inv)
 	d.Asset = assets.NewIndex(list).Lookup(source)
 	SendJSON(w, http.StatusOK, d)
+}
+
+// GetReport handles GET /api/v2/report?from=&to=: decoy activity in a
+// date range for the evidence report. from/to are RFC 3339 times or
+// YYYY-MM-DD dates (to exclusive); the default is the last 30 days.
+func (h *AnalyticsHandler) GetReport(w http.ResponseWriter, r *http.Request) {
+	now := time.Now().UTC()
+	parse := func(v string) (time.Time, error) {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return t.UTC(), nil
+		}
+		return time.Parse("2006-01-02", v)
+	}
+	to, from := now, now.Add(-30*24*time.Hour)
+	var err error
+	if v := r.URL.Query().Get("to"); v != "" {
+		if to, err = parse(v); err != nil {
+			RespondError(w, "to must be an RFC 3339 time or a YYYY-MM-DD date", http.StatusBadRequest)
+			return
+		}
+	}
+	if v := r.URL.Query().Get("from"); v != "" {
+		if from, err = parse(v); err != nil {
+			RespondError(w, "from must be an RFC 3339 time or a YYYY-MM-DD date", http.StatusBadRequest)
+			return
+		}
+	}
+	if !from.Before(to) || to.Sub(from) > report.MaxRange {
+		RespondError(w, "from must be before to, and the range at most 366 days", http.StatusBadRequest)
+		return
+	}
+
+	fail := func(err error) { RespondError(w, err.Error(), http.StatusInternalServerError) }
+	active, err := h.Store.GetEvents(0, "", "")
+	if err != nil {
+		fail(err)
+		return
+	}
+	archived, err := h.Store.GetEvents(1, "", "")
+	if err != nil {
+		fail(err)
+		return
+	}
+	decoys, err := h.Store.ListDeployedSensors("", "")
+	if err != nil {
+		fail(err)
+		return
+	}
+	tokens, err := h.Store.ListHoneytokens()
+	if err != nil {
+		fail(err)
+		return
+	}
+	inv, _ := h.Store.GetConfigValue(assets.ConfigKey)
+	list, _ := assets.Decode(inv)
+	SendJSON(w, http.StatusOK, report.Build(active, archived, decoys, tokens, assets.NewIndex(list), from, to, now))
 }
 
 // GetSources handles GET /api/v2/sources: one activity profile per event
