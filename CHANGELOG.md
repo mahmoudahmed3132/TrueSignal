@@ -9,6 +9,7 @@
   * A scope statement (supporting evidence for PCI DSS v4.0 Requirement 11.5.1 and CBE reviews; it does not replace IDS/IPS) and a sign-off block.
 * **Output:** prints to PDF from the browser, switching to the light theme for printing, with print-safe layout and page breaks. A JSON download is the machine-readable copy.
 * New endpoint `GET /api/v2/report?from=&to=`.
+* Fix (Codex review of #25): "Assets involved" and its finding come from a new `assets` aggregate over **all** sources in the range (one row per inventory asset, with addresses and events). Previously they were derived from the 25-row top-sources table, counting one CIDR asset once per attacking address and missing assets beyond the cap.
 
 # [Unreleased] - Attack Path (2026-10-26)
 

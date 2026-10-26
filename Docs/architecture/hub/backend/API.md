@@ -489,7 +489,7 @@ Decoy coverage for the dashboard: deployed vs touched decoys, attacker sources a
 
 Decoy activity for the evidence report in a date range. `from` / `to` are RFC 3339 times or `YYYY-MM-DD` dates (`to` exclusive); default: the last 30 days; the range must be positive and at most 366 days (`400` otherwise). Figures use active events (Hub liveness excluded); `archivedEvents` counts in-range archived events (whitelisted, known scanners, analyst triage), which are not in the figures.
 
-Returns `summary` (the `/api/v2/insights` shape for the range), `severity`, `daily` (one entry per UTC day), `topSources` (25, known assets first, then by critical events; each with its `asset`), `sourcesTotal`, `techniques` (observed ATT&CK techniques), `honeytokenUses`. The Reports page adds fleet and configuration state from the other endpoints and prints to PDF from the browser.
+Returns `summary` (the `/api/v2/insights` shape for the range), `severity`, `daily` (one entry per UTC day), `topSources` (25, known assets first, then by critical events; each with its `asset`), `sourcesTotal`, `assets` (one row per inventory asset over **all** in-range sources: `name`, `criticality`, `sources`, `events`), `techniques` (observed ATT&CK techniques), `honeytokenUses`. The Reports page adds fleet and configuration state from the other endpoints and prints to PDF from the browser.
 
 ### GET /api/v2/path
 

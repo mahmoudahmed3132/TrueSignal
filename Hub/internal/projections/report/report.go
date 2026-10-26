@@ -41,6 +41,15 @@ type Source struct {
 	Asset    *assets.Ref `json:"asset"`
 }
 
+// AssetActivity aggregates every in-range source that belongs to one
+// inventory asset (a CIDR asset can cover several attacking addresses).
+type AssetActivity struct {
+	Name        string `json:"name"`
+	Criticality string `json:"criticality"`
+	Sources     int    `json:"sources"`
+	Events      int    `json:"events"`
+}
+
 type HoneytokenUse struct {
 	Timestamp string `json:"timestamp"`
 	Username  string `json:"username"`
@@ -51,14 +60,16 @@ type HoneytokenUse struct {
 
 // DTO is the read-model behind GET /api/v2/report.
 type DTO struct {
-	From           string                    `json:"from"`
-	To             string                    `json:"to"`
-	GeneratedAt    string                    `json:"generatedAt"`
-	Summary        *insights.InsightsDTO     `json:"summary"`
-	Severity       Severity                  `json:"severity"`
-	Daily          []Day                     `json:"daily"`
-	TopSources     []Source                  `json:"topSources"`
-	SourcesTotal   int                       `json:"sourcesTotal"`
+	From         string                `json:"from"`
+	To           string                `json:"to"`
+	GeneratedAt  string                `json:"generatedAt"`
+	Summary      *insights.InsightsDTO `json:"summary"`
+	Severity     Severity              `json:"severity"`
+	Daily        []Day                 `json:"daily"`
+	TopSources   []Source              `json:"topSources"`
+	SourcesTotal int                   `json:"sourcesTotal"`
+	// Assets covers all sources in range, not just TopSources.
+	Assets         []AssetActivity           `json:"assets"`
 	Techniques     []attackmap.TechniqueStat `json:"techniques"`
 	HoneytokenUses []HoneytokenUse           `json:"honeytokenUses"`
 	// ArchivedEvents counts in-range archived events (whitelisted, known
@@ -83,7 +94,7 @@ func Build(active, archived []models.Event, decoys []store.DeployedSensor, token
 	}
 	d := &DTO{
 		From: from.UTC().Format(time.RFC3339), To: to.UTC().Format(time.RFC3339), GeneratedAt: now.UTC().Format(time.RFC3339),
-		Daily: []Day{}, TopSources: []Source{}, Techniques: []attackmap.TechniqueStat{}, HoneytokenUses: []HoneytokenUse{},
+		Daily: []Day{}, TopSources: []Source{}, Assets: []AssetActivity{}, Techniques: []attackmap.TechniqueStat{}, HoneytokenUses: []HoneytokenUse{},
 	}
 	for _, e := range archived {
 		if in(e) && insights.IsAttackerEvent(e) {
@@ -150,10 +161,29 @@ func Build(active, archived []models.Event, decoys []store.DeployedSensor, token
 	}
 	sort.Slice(d.Daily, func(i, j int) bool { return d.Daily[i].Date < d.Daily[j].Date })
 
+	byAsset := map[string]*AssetActivity{}
 	for k, s := range srcs {
 		s.Decoys = len(srcDecoys[k])
 		d.TopSources = append(d.TopSources, *s)
+		if s.Asset != nil {
+			a := byAsset[s.Asset.Name]
+			if a == nil {
+				a = &AssetActivity{Name: s.Asset.Name, Criticality: s.Asset.Criticality}
+				byAsset[s.Asset.Name] = a
+			}
+			a.Sources++
+			a.Events += s.Events
+		}
 	}
+	for _, a := range byAsset {
+		d.Assets = append(d.Assets, *a)
+	}
+	sort.Slice(d.Assets, func(i, j int) bool {
+		if d.Assets[i].Events != d.Assets[j].Events {
+			return d.Assets[i].Events > d.Assets[j].Events
+		}
+		return d.Assets[i].Name < d.Assets[j].Name
+	})
 	d.SourcesTotal = len(d.TopSources)
 	sort.Slice(d.TopSources, func(i, j int) bool {
 		a, b := d.TopSources[i], d.TopSources[j]
