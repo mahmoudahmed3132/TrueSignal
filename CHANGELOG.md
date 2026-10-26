@@ -1,3 +1,14 @@
+# [Unreleased] - Attack Path (2026-10-26)
+
+* **Attack Path page** (sidebar): one source's route through the decoys.
+  * Source picker, ranked known assets first, then by decoys touched.
+  * Summary: asset, events, decoys and duration.
+  * Tactic progression: each technique that brought new tactics, so Valid Accounts is one step and not four stages.
+  * The path: decoys in order of first contact, with triggers, ATT&CK techniques and highest severity.
+  * A full timeline.
+* Every expanded event in the dashboard links to it ("Investigate in Attack Path").
+* New endpoint `GET /api/v2/path?source=`, covering active and archived events and capped at the most recent 2,000.
+
 # [Unreleased] - Asset inventory (2026-10-26)
 
 * **Assets page** (sidebar): an inventory of real hosts and ranges, with criticality, owner and tags.

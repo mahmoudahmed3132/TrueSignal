@@ -239,3 +239,32 @@ func (s *SQLiteStore) GetSourceActivity(exclude []string) ([]SourceActivity, err
 	}
 	return out, rows.Err()
 }
+
+// GetEventsBySource returns every event (active and archived) from one
+// source, oldest first, at most limit rows (the most recent ones).
+func (s *SQLiteStore) GetEventsBySource(source string, limit int) ([]models.Event, error) {
+	rows, err := s.DB.Query(`SELECT id, timestamp, sensor_id, node_id, event_trigger, severity, source, target, details, is_read, is_archived
+		FROM (SELECT * FROM events WHERE source = ? ORDER BY timestamp DESC, id DESC LIMIT ?)
+		ORDER BY timestamp ASC, id ASC`, source, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Event{}
+	for rows.Next() {
+		var e models.Event
+		var detailsStr string
+		var isReadInt, isArchivedInt int
+		if err := rows.Scan(&e.ID, &e.Timestamp, &e.SensorID, &e.NodeID, &e.EventTrigger, &e.Severity,
+			&e.Source, &e.Target, &detailsStr, &isReadInt, &isArchivedInt); err != nil {
+			return nil, err
+		}
+		e.IsRead, e.IsArchived = isReadInt == 1, isArchivedInt == 1
+		e.Details = json.RawMessage(detailsStr)
+		if detailsStr == "" {
+			e.Details = json.RawMessage("{}")
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}

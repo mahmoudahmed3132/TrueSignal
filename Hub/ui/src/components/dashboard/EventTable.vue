@@ -435,7 +435,10 @@ const formatTime = (timestamp: string) => {
                                     <div class="px-6 py-5 bg-bg-surface border border-border-default rounded-lg shadow-sm relative overflow-hidden w-fit max-w-full">
                                         <div class="absolute left-0 top-0 bottom-0 w-1" :style="{ backgroundColor: event.severity ? `var(--color-${event.severity.toLowerCase()})` : 'transparent' }"></div>
                                         
-                                        <div v-if="event.attack || bySource.get(event.source)?.asset" class="mb-5 flex flex-col gap-1.5 text-sm">
+                                        <div class="mb-5 flex flex-col gap-1.5 text-sm">
+                                            <div>
+                                                <router-link :to="{ path: '/path', query: { source: event.source } }" class="text-highlight-text underline underline-offset-2" @click.stop>Investigate {{ event.source }} in Attack Path →</router-link>
+                                            </div>
                                             <div v-if="event.attack" class="text-text-h">
                                                 <span class="text-text-m">MITRE ATT&amp;CK</span>
                                                 <a :href="techniqueUrl(event.attack.primary.id)" target="_blank" rel="noopener noreferrer" class="ml-2 font-mono underline underline-offset-2 text-highlight-text" @click.stop>{{ event.attack.primary.id }}</a>

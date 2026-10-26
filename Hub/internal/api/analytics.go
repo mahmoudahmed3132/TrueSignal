@@ -7,6 +7,7 @@ import (
 	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/projections/attackmap"
 	"github.com/truesignal/hub/internal/projections/insights"
+	"github.com/truesignal/hub/internal/projections/path"
 	"github.com/truesignal/hub/internal/projections/severity"
 	"github.com/truesignal/hub/internal/projections/sources"
 	"github.com/truesignal/hub/internal/projections/summary"
@@ -125,6 +126,30 @@ func (h *AnalyticsHandler) buildAttack(r *http.Request) (*attackmap.DTO, error) 
 		viewingArchive = 1
 	}
 	return attackmap.NewProjector(h.Store).Build(r.Context(), q.Get("timeframe"), q.Get("nodeId"), q.Get("sensorId"), viewingArchive)
+}
+
+// GetPath handles GET /api/v2/path?source=: one source's route through the
+// decoys (steps in first-contact order, tactic progression, timeline).
+func (h *AnalyticsHandler) GetPath(w http.ResponseWriter, r *http.Request) {
+	source := r.URL.Query().Get("source")
+	if source == "" || len(source) > 256 {
+		RespondError(w, "source is required (at most 256 characters)", http.StatusBadRequest)
+		return
+	}
+	events, err := h.Store.GetEventsBySource(source, path.MaxEvents+1)
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	truncated := len(events) > path.MaxEvents
+	if truncated {
+		events = events[1:] // the oldest; the query returns the newest MaxEvents+1, oldest first
+	}
+	d := path.Build(source, events, truncated)
+	inv, _ := h.Store.GetConfigValue(assets.ConfigKey)
+	list, _ := assets.Decode(inv)
+	d.Asset = assets.NewIndex(list).Lookup(source)
+	SendJSON(w, http.StatusOK, d)
 }
 
 // GetSources handles GET /api/v2/sources: one activity profile per event

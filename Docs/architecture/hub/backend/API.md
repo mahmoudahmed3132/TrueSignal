@@ -485,6 +485,21 @@ Decoy coverage for the dashboard: deployed vs touched decoys, attacker sources a
 
 `byType` lists every deployed type (zero activity included) and every type with events, busiest first. A decoy counts as touched when it has at least one event in the timeframe; `uniqueSources` per type counts a source once per type, the top-level `uniqueSources` once overall.
 
+### GET /api/v2/path
+
+One source's route through the decoys, from all its events (active and archived, Hub liveness excluded, the most recent 2,000 at most; `truncated` says when more exist). `source` is required (≤256 characters).
+
+- `steps`: one per decoy (node + sensor), in order of first contact, with first/last seen, event count, highest severity, triggers and primary ATT&CK techniques.
+- `progression`: each technique that brought new tactics into the path, in order; a technique filed under several tactics (T1078) is one step listing them.
+- `timeline`: the events, oldest first, each with its `attack` mapping.
+- `asset`: the inventory asset the source belongs to, if any.
+
+```json
+{"source":"10.20.4.101","asset":{"name":"jump-host-01","criticality":"critical"},"events":17,"truncated":false,"firstSeen":"...","lastSeen":"...",
+ "steps":[{"nodeId":"node-a1b2c3d4","sensorId":"ts-sensor-tcp-tarpit","firstSeen":"...","lastSeen":"...","events":4,"maxSeverity":"low","triggers":["tcp_connection"],"techniques":["T1046"]}],
+ "progression":[{"firstSeen":"...","technique":"T1046","name":"Network Service Discovery","tactics":[{"id":"TA0007","name":"Discovery"}]}],"timeline":[...]}
+```
+
 ### GET /api/v2/assets · PUT /api/v2/assets
 
 The asset inventory: real hosts and ranges with criticality (`low`, `medium` (default), `high`, `critical`), owner and tags. `PUT` replaces the whole list atomically (`{"assets":[...]}`, unknown fields rejected) after validation: a name is required, `address` must be an IP or CIDR range, no two entries may cover the same range, at most 5,000 entries, fields up to 256 characters. A rejected `PUT` changes nothing. Stored in the config table (no schema change), so a factory reset clears it; export it first (Assets page, CSV).
