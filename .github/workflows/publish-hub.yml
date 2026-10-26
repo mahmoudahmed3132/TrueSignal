@@ -14,15 +14,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-# Releases go to the public distribution repository; this source repository
-# is private. Must match the URLs compiled into the Hub (registry_url
-# default, update check) and install.sh. DIST_REPO_TOKEN: fine-grained PAT,
-# that repository only, Contents read/write (Docs/development/maintainer-workflow.md).
-env:
-  DIST_REPO: mahmoudahmed3132/truesignal-dist
-
 permissions:
-  contents: read
+  contents: write
   packages: write
   # Sigstore keyless signing: the job's OIDC token gets a short-lived
   # signing certificate bound to this workflow and tag.
@@ -35,16 +28,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Check distribution repository credential
-        env:
-          DIST_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
-        run: |
-          if [ -z "$DIST_TOKEN" ]; then
-            echo "::error::Secret DIST_REPO_TOKEN is not set; cannot publish to $DIST_REPO."
-            exit 1
-          fi
-
       - name: Extract Version
         id: vars
         run: |
@@ -85,7 +68,6 @@ jobs:
           esac
 
       - name: Build and Push Hub Docker Image
-        id: image
         run: |
           VERSION="${{ steps.vars.outputs.VERSION }}"
           IMAGE_TAG="ghcr.io/${{ github.repository_owner }}/truesignal-hub:v$VERSION"
@@ -99,40 +81,12 @@ jobs:
           docker push "$LATEST_TAG"
           DIGEST=$(grep -o 'sha256:[a-f0-9]\{64\}' push_out.log | tail -n 1)
           [ -n "$DIGEST" ] || { echo "::error::no digest in push output"; exit 1; }
-          echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
           # Keyless signature by digest (verify with cosign verify, see
           # Docs/operations.md section 13).
           cosign sign --yes "ghcr.io/${{ github.repository_owner }}/truesignal-hub@$DIGEST"
 
       - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
-          VERSION: ${{ steps.vars.outputs.VERSION }}
-          IMAGE: ghcr.io/${{ github.repository_owner }}/truesignal-hub
-          DIGEST: ${{ steps.image.outputs.DIGEST }}
-          IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/publish-hub.yml@${{ github.ref }}
-        run: |
-          # The Hub's update check reads hub/v* releases from DIST_REPO.
-          TAG="hub/v$VERSION"
-          if gh release view "$TAG" --repo "$DIST_REPO" >/dev/null 2>&1; then
-            echo "Release $TAG already exists in $DIST_REPO."
-            exit 0
-          fi
-          {
-            echo "TrueSignal Hub v$VERSION."
-            echo
-            echo 'Image (pin the digest in production):'
-            echo '```'
-            echo "$IMAGE:v$VERSION"
-            echo "$IMAGE@$DIGEST"
-            echo '```'
-            echo
-            echo 'Verify the Sigstore signature:'
-            echo '```'
-            echo "cosign verify $IMAGE@$DIGEST \\"
-            echo "  --certificate-identity $IDENTITY \\"
-            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com"
-            echo '```'
-          } > notes.md
-          gh release create "$TAG" --repo "$DIST_REPO" --target main \
-            --title "Hub v$VERSION" --notes-file notes.md
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          name: "Hub v${{ steps.vars.outputs.VERSION }}"
+          generate_release_notes: true

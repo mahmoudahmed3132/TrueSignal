@@ -12,7 +12,6 @@ We provide templates for the two primary supported languages:
 2. **Write your logic** in the main application file:
    * **Go Template:** Inside `main.go`. It comes pre-wired with the `sdk-go` event loop.
    * **Python Template:** Inside `sensor.py`. Add any extra Python libraries you need to `requirements.txt`.
-   * **Both templates build from the repository root** (`docker build -f Sensors/<dir>/Dockerfile .`), because they copy the SDK from `SDKs/`. After copying a template, update the `Sensors/templates/...` paths in its `Dockerfile` to the new folder.
 3. **Update `manifest.json`**: Add any custom `TS_` variables your sensor needs to the `env_vars` array so the Hub can dynamically configure them.
 
 ## Deployment

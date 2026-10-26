@@ -62,7 +62,7 @@ const syncCommand = computed(() => {
     if (!node.value) return ''
     const hubUrl = configStore.config.hubEndpoint || window.location.origin
     if (!node.value.lastHeartbeat) {
-        return `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | TS_NODE_API_KEY=${keyOrPlaceholder.value} bash -s -- --link ${hubUrl}`
+        return `curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | TS_NODE_API_KEY=${keyOrPlaceholder.value} bash -s -- --link ${hubUrl}`
     }
     return `truesignal apply`
 })

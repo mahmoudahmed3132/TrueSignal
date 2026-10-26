@@ -22,7 +22,7 @@ A **Node** is any physical or virtual machine where you want to deploy deceptive
 2. **Provisioning:** Once created, the Hub will generate a unique Node API Key and a setup command. **The key is shown only once.** The Hub stores only its SHA-256 hash, so it cannot show it again; if you lose it, rotate it (see §8).
 3. **Link the Node:** SSH into your target machine and run the provided command. This command is an all-in-one script that installs the Setup Wizard on the host and immediately links the node to the Hub, establishing trust for its first deployment and all future deployment updates:
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | TS_NODE_API_KEY=<key> bash -s -- --link <hub-url>
+   curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | TS_NODE_API_KEY=<key> bash -s -- --link <hub-url>
    ```
    The key is passed in the environment (`TS_NODE_API_KEY`) rather than as `--api-key`, so it does not show up in the process list. It still lands in your shell history; clear it if that matters.
 4. **Pin the binary (recommended):** `install.sh` verifies the download against the release's `checksums.txt`, which detects corruption but not a tampered release. Add `--sha256 <expected-hash>` to require a specific binary hash obtained out of band.
@@ -76,7 +76,7 @@ To cleanly remove TrueSignal from a host:
 The Setup Wizard itself is updated independently from the sensors. The same curl script provided by the Hub to install the wizard can also be used to safely update it in place:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/main/install.sh | bash
 ```
 
 This will download the latest binary for your architecture and replace the existing installation without affecting any running sensors or node configurations.
@@ -134,7 +134,7 @@ After a Case 2 restore:
 - If the upgrade ran several migrations, use the `.bak` with the version you are returning to (`pre-v<M>` is the schema the old Hub expects).
 
 > [!WARNING]
-> **Major Version Upgrades:** While minor and patch updates (e.g., `v2.0.1` to `v2.0.4`) are safe to pull automatically, **Major** version bumps (e.g., `v2.x` to `v3.0`) often contain breaking changes, database schema migrations, or new environment variables. Always read the [release notes](https://github.com/mahmoudahmed3132/truesignal-dist/releases) before pulling a major version to ensure you do not corrupt your Hub instance.
+> **Major Version Upgrades:** While minor and patch updates (e.g., `v2.0.1` to `v2.0.4`) are safe to pull automatically, **Major** version bumps (e.g., `v2.x` to `v3.0`) often contain breaking changes, database schema migrations, or new environment variables. Always read the [GitHub Release Notes](https://github.com/mahmoudahmed3132/TrueSignal/releases) before pulling a major version to ensure you do not corrupt your Hub instance.
 
 ## 8. Rotating a Node API Key
 
@@ -236,8 +236,6 @@ The dashboard admin can add a time-based one-time code (TOTP, RFC 6238: 6 digits
 
 Every release artifact is signed in CI with Sigstore keyless signing. A short-lived certificate is bound to this repository's publish workflow at the release tag, and every signature is recorded in the public Rekor transparency log. There is no private key to store or leak.
 
-The source repository (`mahmoudahmed3132/TrueSignal`) is private; what it publishes goes to the public distribution repository `mahmoudahmed3132/truesignal-dist` (registry on its `registry-pages` branch, Hub and Wizard releases, `install.sh`). The signer is still the source repository's workflow, so the identities below name `TrueSignal`, and its name and commit SHAs appear in the certificates in the public Rekor log.
-
 **What the Hub enforces.** Before using any registry manifest, the Hub downloads `<sensor>-v<version>.json.sigstore.json` next to it and verifies it offline against the Sigstore trusted root built into the Hub. It pins the signer to exactly:
 
 ```
@@ -268,12 +266,12 @@ cosign verify ghcr.io/mahmoudahmed3132/truesignal-tcptarpit@sha256:<digest> \
   --certificate-identity-regexp "^https://github.com/$REPO/.github/workflows/publish-sensor-registry.yml@refs/tags/sensor/" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 cosign verify ghcr.io/mahmoudahmed3132/truesignal-hub@sha256:<digest> \
-  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-hub.yml@refs/tags/hub/v2.2.1" \
+  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-hub.yml@refs/tags/hub/v2.2.0" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-# The wizard binary (truesignal-dist release assets include <file>.sigstore.json)
+# The wizard binary (release assets include <file>.sigstore.json)
 cosign verify-blob --bundle truesignal-linux-amd64.sigstore.json \
-  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-wizard.yml@refs/tags/wizard/v2.2.1" \
+  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-wizard.yml@refs/tags/wizard/v2.2.0" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com truesignal-linux-amd64
 ```
 

@@ -430,7 +430,7 @@ Returns release update states for both the Hub and the TrueSignal Wizard.
   "release_notes_url": "",
   "wizard_update_available": true,
   "latest_wizard_version": "v2.1.0",
-  "wizard_release_notes_url": "https://github.com/mahmoudahmed3132/truesignal-dist/releases/tag/wizard/v2.2.1",
+  "wizard_release_notes_url": "https://github.com/mahmoudahmed3132/TrueSignal/releases/tag/wizard/v2.1.0",
   "acknowledged_wizard_release": ""
 }
 ```

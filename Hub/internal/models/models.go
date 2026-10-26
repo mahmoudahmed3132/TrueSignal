@@ -7,7 +7,7 @@ import (
 )
 
 // HubVersion defines the backend protocol version for resolving compatible sensors and authenticating Agents.
-const HubVersion = "2.2.1"
+const HubVersion = "2.2.0"
 
 // ErrNotFound is returned by stores when the addressed row does not exist.
 var ErrNotFound = errors.New("not found")

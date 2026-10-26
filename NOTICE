@@ -36,9 +36,5 @@ Modifications (AGPLv3 section 5(a))
             reproduced. The SSH decoy uses golang.org/x/crypto/ssh
             (BSD-3-Clause).
 
-2026-10-25  Distribution endpoints moved to the public repository
-            mahmoudahmed3132/truesignal-dist (sensor registry, Hub and
-            Wizard releases, installer).
-
 Source for any network-accessible deployment of TrueSignal must be made
 available to its users as required by AGPLv3 section 13.

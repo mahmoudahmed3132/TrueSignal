@@ -42,8 +42,8 @@ Upstream's own description: a "Distributed High-Signal Security Early-Warning Sy
 | 5 | Go SDK | Go | IMPL | `SDKs/go-truesignal/sdk.go` |
 | 6 | Python SDK | Python + requests | IMPL, not used by any official sensor | `SDKs/python-truesignal/truesignal/__init__.py` |
 | 7 | Sensor templates | Go / Python | IMPL (Python template bug, see GAPS) | `Sensors/templates/` |
-| 8 | Registry (`registry-pages` branch of the public `truesignal-dist` repo) | static JSON | Published; not in this checkout | `.github/workflows/publish-sensor-registry.yml`, `scripts/build-registry-index.sh` |
-| 9 | Installer | POSIX sh | IMPL; fetches the wizard from `truesignal-dist` Releases (source repo private) | `install.sh` |
+| 8 | Registry (`registry-pages` branch) | static JSON | CFG-UNTESTED. The branch is not in this checkout | `.github/workflows/publish-sensor-registry.yml`, `scripts/build-registry-index.sh` |
+| 9 | Installer | POSIX sh | IMPL; fetches from this repo's Releases (private repo, nothing released yet) | `install.sh` |
 | 10 | Mock Hub | Python http.server | IMPL (CI contract test) | `scripts/mock_hub.py` |
 | 11 | Community sensors | none present | PLANNED | `Sensors/community/README.md` |
 
@@ -211,7 +211,7 @@ The webhook carries only title `Threat detected on <alias>`, trigger, sensorId, 
 - `webhook_events=critical,high,medium,low` (`info` excluded; ICMP Canary now defaults to `low`)
 - `auto_archive_days=0`, `auto_purge_days=0` (keep forever)
 - `siem_address=""` (SIEM off), `siem_protocol=tcp` (`udp`, `tls` also accepted); `webhook_type` also accepts `none`
-- `registry_url=https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/registry-pages` (the old `TrueSignal/registry-pages` default is rewritten on boot)
+- `registry_url=https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages`
 
 If the `is_armed` row is missing, both `main.go` and `config/service.go` fall back to `true`.
 
@@ -278,12 +278,11 @@ All `uses:` actions are pinned to commit SHAs (version in a trailing comment).
 |---|---|---|---|---|
 | GH `security.yml` | push/PR main | CodeQL go/js/python (SARIF as artifact only); Trivy fs (`exit-code: 1`, HIGH/CRITICAL) | SARIF not uploaded to code scanning | `.github/workflows/security.yml` |
 | GH `test.yml` | push/PR main | build UI, then `go vet` + `go test -race` for Hub, wizard, Go SDK and each sensor; Python byte-compile | no E2E in CI | `.github/workflows/test.yml` |
-| GH `publish-hub.yml` | tag `hub/v*` | build + push `ghcr.io/<repo_owner>/truesignal-hub:{vX,latest}`; release in `truesignal-dist` | no tests; no signing/SBOM | `.github/workflows/publish-hub.yml` |
-| GH `publish-wizard.yml` | tag `wizard/v*` | linux amd64/arm64 + sha256 checksums, released in `truesignal-dist` | no tests; no signing | `.github/workflows/publish-wizard.yml` |
-| GH `publish-sensor-registry.yml` | tag `sensor/**/v*` | build + push to the manifest's `image_repository`, inject digest, write `registry-pages` in `truesignal-dist` | pushes to `ghcr.io/mahmoudahmed3132/truesignal-*` (nothing published yet) | `.github/workflows/publish-sensor-registry.yml` |
+| GH `publish-hub.yml` | tag `hub/v*` | build + push `ghcr.io/<repo_owner>/truesignal-hub:{vX,latest}`; GH release | no tests; no signing/SBOM | `.github/workflows/publish-hub.yml` |
+| GH `publish-wizard.yml` | tag `wizard/v*` | linux amd64/arm64 + sha256 checksums | no tests; no signing | `.github/workflows/publish-wizard.yml` |
+| GH `publish-sensor-registry.yml` | tag `sensor/**/v*` | build + push to the manifest's `image_repository`, inject digest, write `registry-pages` | pushes to `ghcr.io/mahmoudahmed3132/truesignal-*` (nothing published yet) | `.github/workflows/publish-sensor-registry.yml` |
 | GH `rollback-sensor-registry.yml` | manual | mark latest manifest `deprecated`, rebuild index | none | same dir |
 | GH `cleanup-ghcr.yml` | manual | delete untagged images | uses `DELETE_PACKAGES_TOKEN` | same dir |
-| GH `publish-dist.yml` | push to `main` (installer, licence, `distribution/`), manual | sync `truesignal-dist` `main`; seed its `registry-pages` once | uses `DIST_REPO_TOKEN` | same dir |
 | Gitea `build-hub-dev.yml` | push main `Hub/**` | build UI, `go vet` + `go test`, image `:dev` | none | `.gitea/workflows/` |
 | Gitea `build-sensor-dev.yml` | manual | `go test` per sensor, build, MockHub contract test (passes only on a valid event) | none | `.gitea/workflows/`, `scripts/mock_hub.py` |
 | Gitea `publish-sensor-registry.yml` | tag | same as GH, plus `LOCAL_REGISTRY` rewrite | none | `.gitea/workflows/` |

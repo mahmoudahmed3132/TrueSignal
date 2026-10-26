@@ -8,7 +8,7 @@ Read this first, then `CLAUDE.md` (project memory, kept current) and `docs/KNOWL
 - **Style:** direct, short, technically precise, answer first. Give the rationale before the code. Flag risks plainly. Use tables and lists only when clearer. Match his language (English so far).
 - **Stack:** CrowdStrike Falcon/LogScale, Elastic SIEM, Fortinet → Palo Alto, Barracuda → F5, on Vodafone Egypt VDC.
 - **Compliance:** PCI DSS, SOC 2, CBE.
-- **Repo:** `mahmoudahmed3132/TrueSignal`. Owner decision 2026-10-25: **source goes private** (startup / accelerator PoC), distribution moves to the public `mahmoudahmed3132/truesignal-dist` (branch `claude/beautiful-ptolemy-t0uxdm`, Hub/Wizard 2.2.1; cutover checklist in §6 item 0). Default branch `main`. He merges PRs quickly, often before CI finishes, so always check CI on the merge commit.
+- **Repo:** `mahmoudahmed3132/TrueSignal`, public by owner decision until further notice. Default branch `main`. He merges PRs quickly, often before CI finishes, so always check CI on the merge commit.
 - **Working pattern:**
   - Claude develops on a session branch and opens a PR when he asks ("open the PR").
   - Codex (chatgpt-codex-connector) reviews every PR. Treat its findings as claims to verify; P2 findings so far have all been real and were fixed.
@@ -82,15 +82,6 @@ Session branch: `claude/dreamy-cray-hh19ze`. Restart it from `origin/main` for n
 - **Killing processes:** kill only by exact `awk '$2=="./binary"'` matching. `pkill -f` killed the session shell.
 
 ## 6. Open work, prioritised
-
-0. **Private-source cutover (in progress).** Code done on `claude/beautiful-ptolemy-t0uxdm`; the owner's steps, in order:
-   1. Create the empty public repo `mahmoudahmed3132/truesignal-dist` (no README). Create a fine-grained PAT (only that repo, Contents read/write) and store it as the secret `DIST_REPO_TOKEN` in `TrueSignal`.
-   2. Merge the PR. `publish-dist.yml` then syncs `main` and seeds `registry-pages` byte-for-byte. Check that the run is green.
-   3. Run `make tag-release && make push-tags` (hub/v2.2.1, wizard/v2.2.1). Both releases must appear in `truesignal-dist`.
-   4. Verify logged out: install.sh URL, `releases`, `registry-pages/index.json`, anonymous GHCR pull. A Hub 2.2.1 must load the catalog and verify a sensor.
-   5. Add the tag ruleset (`hub/*`, `wizard/*`) to `truesignal-dist`.
-   6. Flip `TrueSignal` to private, then re-check step 4. GHCR packages must still be Public.
-   - Rollback at any point: flip back to public. Nothing in this change depends on the source being private.
 
 1. **Installer end to end on a real test VM** (owner's VM; the sandbox can't pull GHCR images).
    - Setup: Hub 2.2.0 behind TLS (`docker-compose.tls.yml` or F5), `TS_REQUIRE_MFA=true`, `TS_TRUSTED_PROXIES` set.

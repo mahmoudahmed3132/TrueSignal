@@ -14,15 +14,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-# Releases go to the public distribution repository; this source repository
-# is private. Must match the URLs compiled into the Hub (registry_url
-# default, update check) and install.sh. DIST_REPO_TOKEN: fine-grained PAT,
-# that repository only, Contents read/write (Docs/development/maintainer-workflow.md).
-env:
-  DIST_REPO: mahmoudahmed3132/truesignal-dist
-
 permissions:
-  contents: read
+  contents: write
   packages: write
   # Sigstore keyless signing: the job's OIDC token gets a short-lived
   # signing certificate bound to this workflow and tag.
@@ -37,26 +30,6 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-
-      - name: Check distribution repository credential
-        env:
-          DIST_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
-        run: |
-          if [ -z "$DIST_TOKEN" ]; then
-            echo "::error::Secret DIST_REPO_TOKEN is not set; cannot publish to $DIST_REPO."
-            exit 1
-          fi
-
-      - name: Checkout distribution repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          repository: ${{ env.DIST_REPO }}
-          token: ${{ secrets.DIST_REPO_TOKEN }}
-          path: dist-repo
-          fetch-depth: 0
-          # dist-repo sits inside the docker build context: keep the token
-          # out of its .git/config until the publish step needs it.
-          persist-credentials: false
 
       - name: Extract sensor name and version from tag
         id: vars
@@ -101,22 +74,13 @@ jobs:
           # Rebuilding would move the image tag and orphan the digest the
           # published manifest pins (the GHCR cleanup deletes untagged images).
           FILE="${{ steps.vars.outputs.SENSOR_NAME }}-v${{ steps.vars.outputs.VERSION }}.json"
-          cd dist-repo
-          # Fails closed: only "no such branch" (exit 2) skips the check.
-          set +e
-          git ls-remote --exit-code --heads origin registry-pages >/dev/null
-          RC=$?
-          set -e
-          case "$RC" in
-            0)
-              git fetch -q origin registry-pages
-              if git cat-file -e "FETCH_HEAD:$FILE" 2>/dev/null; then
-                echo "::error::$FILE is already published. Bump the version instead."
-                exit 1
-              fi ;;
-            2) echo "No registry-pages branch in $DIST_REPO yet." ;;
-            *) echo "::error::Cannot reach $DIST_REPO (git exit $RC); refusing to publish."; exit 1 ;;
-          esac
+          if git ls-remote --exit-code --heads origin registry-pages >/dev/null 2>&1; then
+            git fetch -q origin registry-pages
+            if git cat-file -e "FETCH_HEAD:$FILE" 2>/dev/null; then
+              echo "::error::$FILE is already published. Bump the version instead."
+              exit 1
+            fi
+          fi
 
       - name: Build versioned manifest
         id: build
@@ -195,20 +159,13 @@ jobs:
           fi
 
       - name: Publish manifest to registry-pages
-        env:
-          DIST_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
         run: |
-          # Retries on a rejected push: sensor tags pushed together run as
-          # parallel jobs writing the same branch (see the script header).
-          # Runs in the distribution checkout: the script checks
-          # registry-pages out over that tree.
-          cp scripts/publish-registry.sh scripts/build-registry-index.sh /tmp/
-          cd dist-repo
-          AUTH=$(printf 'x-access-token:%s' "$DIST_TOKEN" | base64 -w0)
-          echo "::add-mask::$AUTH"
-          git config http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
           git config user.name "TrueSignal CI"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Retries on a rejected push: sensor tags pushed together run as
+          # parallel jobs writing the same branch (see the script header).
+          # Run from /tmp: the script checks registry-pages out over this tree.
+          cp scripts/publish-registry.sh scripts/build-registry-index.sh /tmp/
           REGISTRY_INDEX_SCRIPT=/tmp/build-registry-index.sh bash /tmp/publish-registry.sh "/tmp/${{ steps.build.outputs.OUTPUT_FILE }}" \
             "registry: publish ${{ steps.vars.outputs.SENSOR_NAME }} v${{ steps.vars.outputs.VERSION }}" \
             "/tmp/${{ steps.build.outputs.OUTPUT_FILE }}.sigstore.json"

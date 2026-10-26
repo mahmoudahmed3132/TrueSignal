@@ -3,8 +3,8 @@
 # TrueSignal Automated Installer & Provisioner
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/main/install.sh | TS_NODE_API_KEY=<key> sh -s -- --link <hub>
+#   curl -fsSL <raw>/install.sh | sh
+#   curl -fsSL <raw>/install.sh | TS_NODE_API_KEY=<key> sh -s -- --link <hub>
 #
 # Options:
 #   --version <vX.Y.Z>   Install a specific wizard release.
@@ -86,7 +86,7 @@ do_install() {
         *) fail "Unsupported architecture ($ARCH)" ;;
     esac
 
-    RELEASES_API="https://api.github.com/repos/mahmoudahmed3132/truesignal-dist/releases"
+    RELEASES_API="https://api.github.com/repos/mahmoudahmed3132/TrueSignal/releases"
 
     # Resolve the wizard release
     LATEST_TAG=""
@@ -121,7 +121,7 @@ do_install() {
         *[!A-Za-z0-9./_-]*) fail "Refusing unexpected release tag: $LATEST_TAG" ;;
     esac
 
-    BASE_URL="https://github.com/mahmoudahmed3132/truesignal-dist/releases/download/$LATEST_TAG"
+    BASE_URL="https://github.com/mahmoudahmed3132/TrueSignal/releases/download/$LATEST_TAG"
     BINARY_NAME="truesignal-linux-$BIN_ARCH"
     INSTALL_PATH="/usr/local/bin/truesignal"
 

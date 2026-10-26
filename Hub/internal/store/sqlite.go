@@ -63,15 +63,6 @@ func InitializeDefaultConfig(db *sql.DB) error {
 	return tx.Commit()
 }
 
-// DefaultRegistryURL is the public sensor registry (registry-pages branch of
-// the public distribution repository; the source repository is private).
-const DefaultRegistryURL = "https://raw.githubusercontent.com/mahmoudahmed3132/truesignal-dist/registry-pages"
-
-// legacyRegistryURL was the default before the source repository went
-// private. It stops resolving then, so a Hub still on it is moved to
-// DefaultRegistryURL; a custom registry_url is left alone.
-const legacyRegistryURL = "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages"
-
 func initializeDefaultConfigTx(tx *sql.Tx) error {
 	defaults := map[string]string{
 		"is_armed":                    "true",
@@ -84,7 +75,7 @@ func initializeDefaultConfigTx(tx *sql.Tx) error {
 		"siem_protocol":               "tcp",
 		"siem_format":                 "rfc5424",
 		"siem_token":                  "",
-		"registry_url":                DefaultRegistryURL,
+		"registry_url":                "https://raw.githubusercontent.com/mahmoudahmed3132/TrueSignal/registry-pages",
 		"acknowledged_wizard_release": "",
 	}
 
@@ -98,10 +89,6 @@ func initializeDefaultConfigTx(tx *sql.Tx) error {
 		if _, err := stmt.Exec(k, v); err != nil {
 			return err
 		}
-	}
-
-	if _, err := tx.Exec("UPDATE config SET value = ? WHERE key = 'registry_url' AND value = ?", DefaultRegistryURL, legacyRegistryURL); err != nil {
-		return err
 	}
 
 	return nil
