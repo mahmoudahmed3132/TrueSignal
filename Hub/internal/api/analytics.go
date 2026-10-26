@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/projections/attackmap"
 	"github.com/truesignal/hub/internal/projections/insights"
 	"github.com/truesignal/hub/internal/projections/severity"
@@ -137,8 +138,10 @@ func (h *AnalyticsHandler) GetSources(w http.ResponseWriter, r *http.Request) {
 	}
 	wl, _ := h.Store.GetConfigValue("whitelisted_sources")
 	sc, _ := h.Store.GetConfigValue("known_scanners")
+	inv, _ := h.Store.GetConfigValue(assets.ConfigKey)
+	list, _ := assets.Decode(inv)
 	SendJSON(w, http.StatusOK, map[string]any{
-		"sources": sources.Build(rows, sourcelist.ParseStored(wl), sourcelist.ParseStored(sc)),
+		"sources": sources.Build(rows, sourcelist.ParseStored(wl), sourcelist.ParseStored(sc), assets.NewIndex(list)),
 	})
 }
 

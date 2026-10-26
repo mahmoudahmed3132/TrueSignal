@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/attack"
 )
 
@@ -82,6 +83,10 @@ type Event struct {
 	// Attack is the trigger's MITRE ATT&CK mapping (package attack),
 	// derived on read; nil for unmapped triggers. Not persisted.
 	Attack *attack.Mapping `json:"attack,omitempty"`
+	// SourceAsset is the inventory asset the source address belongs to
+	// (package assets), resolved against the current inventory; nil when
+	// none. Not persisted.
+	SourceAsset *assets.Ref `json:"sourceAsset,omitempty"`
 }
 
 // Heartbeat represents a routine ping from a sensor

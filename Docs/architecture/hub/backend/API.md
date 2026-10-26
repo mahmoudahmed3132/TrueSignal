@@ -485,6 +485,16 @@ Decoy coverage for the dashboard: deployed vs touched decoys, attacker sources a
 
 `byType` lists every deployed type (zero activity included) and every type with events, busiest first. A decoy counts as touched when it has at least one event in the timeframe; `uniqueSources` per type counts a source once per type, the top-level `uniqueSources` once overall.
 
+### GET /api/v2/assets · PUT /api/v2/assets
+
+The asset inventory: real hosts and ranges with criticality (`low`, `medium` (default), `high`, `critical`), owner and tags. `PUT` replaces the whole list atomically (`{"assets":[...]}`, unknown fields rejected) after validation: a name is required, `address` must be an IP or CIDR range, no two entries may cover the same range, at most 5,000 entries, fields up to 256 characters. A rejected `PUT` changes nothing. Stored in the config table (no schema change), so a factory reset clears it; export it first (Assets page, CSV).
+
+Events (`sourceAsset`), source profiles (`asset`) and the SIEM (`truesignal.source_asset`) carry the asset the source address belongs to, the most specific range winning. It is resolved against the current inventory when read or forwarded. An inventoried address counts as internal even in public space.
+
+```json
+{"assets":[{"name":"jump-host-01","address":"10.20.4.101","criticality":"critical","owner":"IT Ops","tags":["pci","bastion"]}]}
+```
+
 ### GET /api/v2/attack
 
 Activity per MITRE ATT&CK technique over every technique TrueSignal can evidence (zero counts included), with the tactics in matrix order. Same query parameters as `/api/v2/insights`. `primaryEvents` counts events whose primary technique it is; `secondaryEvents` those that list it as secondary. Mapping: `Docs/siem/attack-mapping.md`. Every event returned by `/api/v2/events` (and WebSocket `NEW_EVENT`) carries its mapping as `attack` (`{"primary":{id,name,tactics},"secondary":[...]}`), absent for unmapped triggers.

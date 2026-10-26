@@ -125,6 +125,7 @@ Residual gaps (release-tag access = signed release, root + host netns sensors, s
 | Threat model | `THREATMODEL.md` (check claims against code) |
 | CI/CD | `.github/workflows/*` (actions SHA-pinned; `test.yml` runs all Go tests), `.gitea/workflows/*`, `Makefile`, `scripts/` |
 | Dashboard analytics | `Hub/internal/projections/{insights,sources,attackmap}` (`GET /api/v2/insights`, `/api/v2/sources`, `/api/v2/attack[/layer]`); UI pages `Hub/ui/src/views/{Dashboard,Honeytokens,Scans,Attack}.vue` |
+| Asset inventory | `Hub/internal/assets` (config key `assets`, JSON; `GET/PUT /api/v2/assets`; events/SIEM carry `source_asset`); UI `Hub/ui/src/views/Assets.vue` |
 | MITRE ATT&CK mapping (SIEM contract) | `Hub/internal/attack/attack.go`, published in `Docs/siem/attack-mapping.md` (a test keeps them in sync) |
 | Local testing | `scripts/mock_hub.py`, `Docs/development/setup.md`. Hub tests need `Hub/ui` built first (`npm ci && npm run build`, go:embed) |
 

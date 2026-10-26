@@ -21,6 +21,11 @@ const routes = [
     component: () => import('./views/NodeDetails.vue')
   },
   {
+    path: '/assets',
+    name: 'assets',
+    component: () => import('./views/Assets.vue')
+  },
+  {
     path: '/honeytokens',
     name: 'honeytokens',
     component: () => import('./views/Honeytokens.vue')

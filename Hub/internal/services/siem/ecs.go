@@ -123,6 +123,9 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 		},
 	}
 
+	if event.SourceAsset != nil {
+		doc["truesignal"].(map[string]any)["source_asset"] = event.SourceAsset
+	}
 	if m, ok := attack.For(event.EventTrigger); ok {
 		doc["threat"] = ecsThreat(m)
 		doc["truesignal"].(map[string]any)["attack"] = m

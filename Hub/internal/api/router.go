@@ -34,6 +34,7 @@ type RouterConfig struct {
 	Auth              *AuthHandler
 	Events            *EventHandler
 	Analytics         *AnalyticsHandler
+	Assets            *AssetsHandler
 	Config            *ConfigHandler
 	Compose           *ComposeHandler
 	Honeytokens       *HoneytokenHandler
@@ -119,6 +120,10 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Get("/api/v2/sources", cfg.Analytics.GetSources)
 		r.Get("/api/v2/attack", cfg.Analytics.GetAttack)
 		r.Get("/api/v2/attack/layer", cfg.Analytics.GetAttackLayer)
+		if cfg.Assets != nil {
+			r.Get("/api/v2/assets", cfg.Assets.ListAssets)
+			r.Put("/api/v2/assets", cfg.Assets.ReplaceAssets)
+		}
 		r.Get("/api/v2/events", cfg.Events.GetEvents)
 		r.Get("/api/v2/uptime", cfg.Analytics.GetUptime)
 		r.Get("/api/v2/system/state", cfg.Config.GetSystemState)

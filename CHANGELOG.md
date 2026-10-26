@@ -1,3 +1,19 @@
+# [Unreleased] - Asset inventory (2026-10-26)
+
+* **Assets page** (sidebar): an inventory of real hosts and ranges, with criticality, owner and tags.
+  * Add, edit and remove entries inline; CSV import (header detected, duplicates and invalid rows skipped) and export.
+  * Per-asset decoy activity: events and addresses.
+  * API: `GET/PUT /api/v2/assets`. `PUT` replaces the list atomically after validation; the inventory is stored in the config table, so there is no schema change.
+* **A decoy touched from an inventoried address names the asset.**
+  * Events carry `sourceAsset` (`{name, criticality}`, most specific range wins), resolved against the current inventory.
+  * Source profiles carry `asset`, and an inventoried address counts as internal even in public space.
+  * Event table: a "Known asset" label filter and an asset badge on the source.
+  * Expanded event details show the ATT&CK mapping and the source asset. Triage badges moved to a second line in the Source cell, so the table fits a 1440 px screen again.
+* **SIEM contract change (additive):**
+  * ECS `truesignal.source_asset`;
+  * RFC 5424 `source_asset` and `source_asset_criticality` (always present, empty when none);
+  * `"source_asset"` in the JSON body.
+
 # [Unreleased] - MITRE ATT&CK mapping and Attack Navigator (2026-10-26)
 
 * **Every mapped event carries a MITRE ATT&CK technique and its tactics** (`Hub/internal/attack`, table in `Docs/siem/attack-mapping.md`).
