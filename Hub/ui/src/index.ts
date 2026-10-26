@@ -31,6 +31,11 @@ const routes = [
     component: () => import('./views/Scans.vue')
   },
   {
+    path: '/attack',
+    name: 'attack navigator',
+    component: () => import('./views/Attack.vue')
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('./views/Settings.vue')

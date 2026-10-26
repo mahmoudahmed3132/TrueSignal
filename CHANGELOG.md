@@ -1,3 +1,20 @@
+# [Unreleased] - MITRE ATT&CK mapping and Attack Navigator (2026-10-26)
+
+* **Every mapped event carries a MITRE ATT&CK technique and its tactics** (`Hub/internal/attack`, table in `Docs/siem/attack-mapping.md`).
+  * One primary technique per trigger, plus optional secondary ones.
+  * Derived when events are read or forwarded, never stored, so past events are covered too.
+  * Unmapped on purpose: `web_page_view`, Hub liveness, community triggers.
+  * A test fails if the doc table and the code disagree.
+* **SIEM contract change (additive).**
+  * ECS: `threat.framework`, `threat.technique.*` (sub-techniques under `threat.technique.subtechnique.*`), `threat.tactic.*`, `truesignal.attack`.
+  * RFC 5424: structured data gains `mitre_technique` and `mitre_tactic`. Both are always present and empty when the trigger is unmapped, so parameter positions are stable. The JSON body gains `attack`.
+* **Attack Navigator page** (sidebar).
+  * An ATT&CK matrix of the 16 techniques TrueSignal decoys can evidence, shaded by event count.
+  * A details panel per technique: events, sources, last seen, triggers, link to attack.mitre.org.
+  * A 24H / 7D / 30D / All filter and an ATT&CK Navigator layer export (format 4.5).
+  * New endpoints `GET /api/v2/attack` and `/api/v2/attack/layer`.
+* **Dashboard and event table.** An "ATT&CK techniques" tile; a technique badge on every mapped event; an ATT&CK tactic filter; search also matches technique IDs and names.
+
 # [Unreleased] - Dashboard: decoy coverage (2026-10-26)
 
 * **Decoy coverage row on the dashboard**, with a 24H / 7D / 30D / All filter. It follows the node/sensor selection and the archive view.

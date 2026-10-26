@@ -485,6 +485,19 @@ Decoy coverage for the dashboard: deployed vs touched decoys, attacker sources a
 
 `byType` lists every deployed type (zero activity included) and every type with events, busiest first. A decoy counts as touched when it has at least one event in the timeframe; `uniqueSources` per type counts a source once per type, the top-level `uniqueSources` once overall.
 
+### GET /api/v2/attack
+
+Activity per MITRE ATT&CK technique over every technique TrueSignal can evidence (zero counts included), with the tactics in matrix order. Same query parameters as `/api/v2/insights`. `primaryEvents` counts events whose primary technique it is; `secondaryEvents` those that list it as secondary. Mapping: `Docs/siem/attack-mapping.md`. Every event returned by `/api/v2/events` (and WebSocket `NEW_EVENT`) carries its mapping as `attack` (`{"primary":{id,name,tactics},"secondary":[...]}`), absent for unmapped triggers.
+
+```json
+{"timeframe":"alltime","mappedEvents":57,"techniquesObserved":7,"techniquesCovered":16,"tactics":[{"id":"TA0043","name":"Reconnaissance"}],
+ "techniques":[{"id":"T1021.004","name":"Remote Services: SSH","tactics":["TA0008"],"primaryEvents":11,"secondaryEvents":0,"sources":4,"lastSeen":"2026-10-24T06:18:37Z","triggers":["ssh_login"]}]}
+```
+
+### GET /api/v2/attack/layer
+
+The same data as an ATT&CK Navigator layer file (format 4.5, `enterprise-attack`), served as an attachment. Score = primary events; covered techniques without events are included with score 0. Load it at the ATT&CK Navigator with "Open Existing Layer".
+
 ### GET /api/v2/sources
 
 One activity profile per event source across all events (active and archived), Hub liveness excluded, busiest first. `whitelisted` and `knownScanner` reflect the lists as they are now, not when the events arrived. `internal` covers RFC 1918, RFC 6598, loopback, link-local and IPv6 unique-local addresses; both flags are `false` for a non-IP source (`isIp: false`). The dashboard derives its triage labels (multi-decoy, repeat, single touch, internal, external, whitelisted, known scanner) from it.

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { api } from '../../api/client'
 import { useFleetStore } from '../Fleet/fleet'
 import { useAppStore } from '../System/app'
+import type { AttackMapping } from '../Attack/attack'
 
 // --- TYPES & INTERFACES ---
 
@@ -18,6 +19,7 @@ export interface EventPayload {
   isRead: boolean
   isArchived: boolean
   details?: Record<string, any>
+  attack?: AttackMapping
 }
 
 export interface SeverityProjection {

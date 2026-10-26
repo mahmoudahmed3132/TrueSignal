@@ -43,6 +43,10 @@ func TestCalculate(t *testing.T) {
 	if got.DecoysDeployed != 4 || got.DecoysTouched != 2 || got.DecoyTypesDeployed != 3 {
 		t.Fatalf("deployed/touched/types = %d/%d/%d, want 4/2/3", got.DecoysDeployed, got.DecoysTouched, got.DecoyTypesDeployed)
 	}
+	// tcp_connection T1046, ldap_login T1110 (rdp_login T1021.001), web_login_attempt T1110.
+	if got.TechniquesObserved != 3 {
+		t.Fatalf("techniques observed = %d, want 3", got.TechniquesObserved)
+	}
 	if got.HoneytokensTotal != 2 || got.HoneytokensUsed != 1 {
 		t.Fatalf("honeytokens = %d/%d, want 2/1", got.HoneytokensTotal, got.HoneytokensUsed)
 	}

@@ -26,13 +26,22 @@ watch(() => eventsStore.events[0]?.id, () => sourcesStore.scheduleRefresh())
 // "Internal" shows internal sources that touched several decoys.
 const search = ref('')
 const activeLabels = ref<Set<SourceLabel>>(new Set())
+// ATT&CK tactic filter: matches the tactics of the event's primary technique.
+const tacticFilter = ref('')
+const tacticOptions = computed(() => {
+    const seen = new Map<string, string>()
+    for (const e of displayEvents.value as any[]) {
+        for (const t of e.attack?.primary?.tactics || []) seen.set(t.id, t.name)
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+})
 const toggleLabel = (id: SourceLabel) => {
     const next = new Set(activeLabels.value)
     next.has(id) ? next.delete(id) : next.add(id)
     activeLabels.value = next
 }
-const clearFilters = () => { search.value = ''; activeLabels.value = new Set() }
-const hasFilters = computed(() => search.value.trim() !== '' || activeLabels.value.size > 0)
+const clearFilters = () => { search.value = ''; activeLabels.value = new Set(); tacticFilter.value = '' }
+const hasFilters = computed(() => search.value.trim() !== '' || activeLabels.value.size > 0 || tacticFilter.value !== '')
 
 const sortCol = ref('timestamp')
 const sortDesc = ref(true)
@@ -95,7 +104,7 @@ const isDownArrow = (col: string) => {
 
 const matchesSearch = (e: any, q: string): boolean => {
     if (!q) return true
-    const hay = [e.eventTrigger, e.source, e.target, e.sensorId, e.severity, getNodeAlias(e.nodeId), JSON.stringify(e.details || {})]
+    const hay = [e.eventTrigger, e.source, e.target, e.sensorId, e.severity, getNodeAlias(e.nodeId), e.attack?.primary?.id || '', e.attack?.primary?.name || '', JSON.stringify(e.details || {})]
         .join(' ').toLowerCase()
     return q.split(/\s+/).every(term => hay.includes(term))
 }
@@ -103,9 +112,11 @@ const matchesSearch = (e: any, q: string): boolean => {
 const filteredEvents = computed(() => {
     const q = search.value.trim().toLowerCase()
     const want = [...activeLabels.value]
-    if (!q && want.length === 0) return displayEvents.value
+    const tactic = tacticFilter.value
+    if (!q && want.length === 0 && !tactic) return displayEvents.value
     return displayEvents.value.filter((e: any) => {
         if (!matchesSearch(e, q)) return false
+        if (tactic && !(e.attack?.primary?.tactics || []).some((t: any) => t.id === tactic)) return false
         if (want.length === 0) return true
         const labels = labelsOf(bySource.value.get(e.source))
         return want.every(l => labels.has(l))
@@ -122,7 +133,7 @@ const sourceBadges = (source: string): { text: string; title: string; tone: stri
     return out
 }
 
-watch([search, activeLabels], () => { currentPage.value = 1 })
+watch([search, activeLabels, tacticFilter], () => { currentPage.value = 1 })
 
 const sortedEvents = computed(() => {
     return [...filteredEvents.value].sort((a, b) => {
@@ -282,6 +293,15 @@ const formatTime = (timestamp: string) => {
                     {{ l.text }}
                 </button>
             </div>
+            <label class="flex items-center">
+                <span class="sr-only">Filter by ATT&amp;CK tactic</span>
+                <select v-model="tacticFilter"
+                        class="px-2.5 py-1 text-xs rounded-full border bg-secondary-main text-secondary-text border-secondary-border outline-none focus:border-primary-main"
+                        :class="tacticFilter ? '!bg-primary-selected !text-primary-text !border-primary-border' : ''">
+                    <option value="">All ATT&amp;CK tactics</option>
+                    <option v-for="t in tacticOptions" :key="t.id" :value="t.id">{{ t.name }}</option>
+                </select>
+            </label>
             <div v-if="hasFilters" class="flex items-center gap-2 ml-auto">
                 <span class="text-xs text-text-m font-mono">{{ filteredEvents.length }} / {{ displayEvents.length }}</span>
                 <button type="button" @click="clearFilters" class="text-xs text-text-m hover:text-text-h underline underline-offset-2">Clear</button>
@@ -361,7 +381,11 @@ const formatTime = (timestamp: string) => {
                                 </span>
                             </td>
                             
-                            <td class="px-4 py-3 text-base font-base text-text-h capitalize max-w-[140px] md:max-w-[200px] lg:max-w-md xl:max-w-2xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="formatEventType(event.eventTrigger)">{{ formatEventType(event.eventTrigger) }}</td>
+                            <td class="px-4 py-3 text-base font-base text-text-h capitalize max-w-[140px] md:max-w-[200px] lg:max-w-md xl:max-w-2xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="formatEventType(event.eventTrigger)">
+                                {{ formatEventType(event.eventTrigger) }}
+                                <span v-if="event.attack" class="ml-1.5 px-1.5 py-px rounded text-xs font-mono normal-case border border-border-default text-text-m"
+                                      :title="`MITRE ATT&CK ${event.attack.primary.id} ${event.attack.primary.name} (${event.attack.primary.tactics.map((t: any) => t.name).join(', ')})`">{{ event.attack.primary.id }}</span>
+                            </td>
                             
                             <td class="px-4 py-3 text-base text-text-m font-mono max-w-[160px] md:max-w-[240px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.source">
                                 <!-- The address never truncates; badges clip first. -->

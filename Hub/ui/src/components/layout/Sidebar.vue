@@ -95,6 +95,18 @@ const goToDashboard = () => {
                 </div>
             </button>
 
+            <button @click="router.push('/attack')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'attack navigator' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'Attack Navigator' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h4v4H4zM10 5h4v4h-4zM16 5h4v4h-4zM4 11h4v4H4zM10 11h4v4h-4zM4 17h4v2H4z"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>Attack Navigator</span>
+                </div>
+            </button>
+
             <button @click="router.push('/honeytokens')"
                     type="button"
                     class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"

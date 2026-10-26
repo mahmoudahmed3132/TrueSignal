@@ -124,7 +124,8 @@ Residual gaps (release-tag access = signed release, root + host netns sensors, s
 | Node lifecycle | `Docs/operations.md`, `wizard/internal/commands/*.go`, `wizard/internal/deploy/*.go` |
 | Threat model | `THREATMODEL.md` (check claims against code) |
 | CI/CD | `.github/workflows/*` (actions SHA-pinned; `test.yml` runs all Go tests), `.gitea/workflows/*`, `Makefile`, `scripts/` |
-| Dashboard analytics | `Hub/internal/projections/{insights,sources}` (`GET /api/v2/insights`, `/api/v2/sources`); UI pages `Hub/ui/src/views/{Dashboard,Honeytokens,Scans}.vue` |
+| Dashboard analytics | `Hub/internal/projections/{insights,sources,attackmap}` (`GET /api/v2/insights`, `/api/v2/sources`, `/api/v2/attack[/layer]`); UI pages `Hub/ui/src/views/{Dashboard,Honeytokens,Scans,Attack}.vue` |
+| MITRE ATT&CK mapping (SIEM contract) | `Hub/internal/attack/attack.go`, published in `Docs/siem/attack-mapping.md` (a test keeps them in sync) |
 | Local testing | `scripts/mock_hub.py`, `Docs/development/setup.md`. Hub tests need `Hub/ui` built first (`npm ci && npm run build`, go:embed) |
 
 ## 8. Working rules for future sessions
@@ -132,6 +133,7 @@ Residual gaps (release-tag access = signed release, root + host netns sensors, s
 - This repo is the platform only. Never invent hostnames, IPs, subnets, node lists or SIEM rule logic. Ask, or mark [NOT IN PROJECT].
 - Secrets are never in git. At runtime they live in: the Hub DB (bcrypt admin hash, sha256 node-key hashes, webhook URLs incl. tokens, `siem_token`, the `capture_master_key`, honeytoken secrets), the node `/etc/truesignal/config.json` and `TS_HUB_KEY`/`TS_CAPTURE_HASH_KEY`/`TS_HONEYTOKEN` in the node compose file, the `TS_DASHBOARD_PASSWORD`/`TS_SETUP_TOKEN` env vars, and the GitHub secret `DELETE_PACKAGES_TOKEN`. Reference them by location only.
 - Tests: Hub, wizard, Go SDK and eight of the nine sensors have Go tests (Remote Access Decoy has none yet); `.github/workflows/test.yml` runs `go vet` + `go test -race` per module. No UI unit tests, no Python SDK tests.
+- Changing the ATT&CK mapping changes SIEM output (ECS `threat.*`, syslog `mitre_*`); update `Docs/siem/attack-mapping.md` with it.
 - Changing the event shape, the syslog format (RFC 5424, `Hub/internal/services/siem/service.go` `formatSyslog`/`formatAudit`), the ECS mapping (`siem/ecs.go`) or `eventTrigger` names breaks downstream SIEM parsing. Treat them as a contract.
 - `siem_token` (Elastic API key / LogScale ingest token) is a secret in the Hub DB; the API never returns it (`siemTokenSet` only).
 - The licence is AGPLv3 (inherited from HoneyWire). Keep `LICENSE`, `NOTICE` and the README credits intact. Modified network-served versions must offer their source.

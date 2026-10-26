@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/truesignal/hub/internal/attack"
 	"github.com/truesignal/hub/internal/models"
 )
 
@@ -515,6 +516,14 @@ func (s *Service) formatSyslog(event models.Event) string {
 
 	nodeAlias := s.nodeAlias(event.NodeID)
 
+	// ATT&CK: always present, empty when the trigger is unmapped, so the
+	// parameter positions never shift.
+	var mitreTechnique, mitreTactic string
+	var mitre any
+	if m, ok := attack.For(event.EventTrigger); ok {
+		mitreTechnique, mitreTactic, mitre = m.Primary.ID, m.Primary.TacticIDs(), m
+	}
+
 	sd := structuredData("truesignal@"+s.pen, [][2]string{
 		{"event_id", fmt.Sprint(event.ID)},
 		{"trigger", event.EventTrigger},
@@ -526,6 +535,8 @@ func (s *Service) formatSyslog(event models.Event) string {
 		{"sensor", event.SensorID},
 		{"whitelisted", fmt.Sprint(event.Whitelisted)},
 		{"known_scanner", fmt.Sprint(event.KnownScanner)},
+		{"mitre_technique", mitreTechnique},
+		{"mitre_tactic", mitreTactic},
 	})
 
 	body, _ := json.Marshal(map[string]any{
@@ -540,6 +551,7 @@ func (s *Service) formatSyslog(event models.Event) string {
 		"target":        event.Target,
 		"whitelisted":   event.Whitelisted,
 		"known_scanner": event.KnownScanner,
+		"attack":        mitre,
 		"details":       json.RawMessage(detailsJSON),
 	})
 

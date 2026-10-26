@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/truesignal/hub/internal/projections/attackmap"
 	"github.com/truesignal/hub/internal/projections/insights"
 	"github.com/truesignal/hub/internal/projections/severity"
 	"github.com/truesignal/hub/internal/projections/sources"
@@ -91,6 +92,38 @@ func (h *AnalyticsHandler) GetInsights(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SendJSON(w, http.StatusOK, projection)
+}
+
+// GetAttack handles GET /api/v2/attack: activity per MITRE ATT&CK technique
+// over every technique TrueSignal can evidence.
+func (h *AnalyticsHandler) GetAttack(w http.ResponseWriter, r *http.Request) {
+	d, err := h.buildAttack(r)
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	SendJSON(w, http.StatusOK, d)
+}
+
+// GetAttackLayer handles GET /api/v2/attack/layer: the same data as an
+// ATT&CK Navigator layer file.
+func (h *AnalyticsHandler) GetAttackLayer(w http.ResponseWriter, r *http.Request) {
+	d, err := h.buildAttack(r)
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=truesignal-attack-layer.json")
+	SendJSON(w, http.StatusOK, attackmap.Layer(d, time.Now()))
+}
+
+func (h *AnalyticsHandler) buildAttack(r *http.Request) (*attackmap.DTO, error) {
+	q := r.URL.Query()
+	viewingArchive := 0
+	if a := q.Get("archived"); a == "true" || a == "1" {
+		viewingArchive = 1
+	}
+	return attackmap.NewProjector(h.Store).Build(r.Context(), q.Get("timeframe"), q.Get("nodeId"), q.Get("sensorId"), viewingArchive)
 }
 
 // GetSources handles GET /api/v2/sources: one activity profile per event

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"github.com/truesignal/hub/internal/attack"
 )
 
 // HubVersion defines the backend protocol version for resolving compatible sensors and authenticating Agents.
@@ -77,6 +79,9 @@ type Event struct {
 	// scanners, bots): handled like whitelisted, flagged separately for the
 	// SIEM. Not persisted as a column.
 	KnownScanner bool `json:"knownScanner,omitempty"`
+	// Attack is the trigger's MITRE ATT&CK mapping (package attack),
+	// derived on read; nil for unmapped triggers. Not persisted.
+	Attack *attack.Mapping `json:"attack,omitempty"`
 }
 
 // Heartbeat represents a routine ping from a sensor
