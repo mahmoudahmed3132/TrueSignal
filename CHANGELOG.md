@@ -12,6 +12,14 @@
   * Label chips filter the table (combined with AND), next to a free-text search over trigger, source, target, sensor, node and details.
   * Rows show the source's event count and badges for multi-decoy, scanner and whitelisted sources.
   * Backed by the new `GET /api/v2/sources`.
+* **Honeytokens page** (sidebar).
+  * Every planted credential with its status, node and File Canary, creation date, use count and last use.
+  * Expanding a token lists each use: time, source, the decoy it was used against, and what matched.
+  * Search, a used/unused filter and CSV export for a SIEM lookup table.
+* **Detected Scans page** (sidebar).
+  * Port scans and ICMP probes from all stored events, with search and a type filter, and a "Most probed ports" chart.
+  * Tiles: port scans, ICMP probes, scanning sources, and sources that scanned and then touched a decoy (recon followed by access), with those sources badged in the table.
+  * Detection only: nothing scans the network.
 * New endpoint `GET /api/v2/insights` (`Hub/internal/projections/insights`). Hub liveness events are excluded from attacker counts.
 
 # [Unreleased] - Signed releases (Sigstore) (2026-10-24)

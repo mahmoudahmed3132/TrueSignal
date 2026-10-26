@@ -21,6 +21,16 @@ const routes = [
     component: () => import('./views/NodeDetails.vue')
   },
   {
+    path: '/honeytokens',
+    name: 'honeytokens',
+    component: () => import('./views/Honeytokens.vue')
+  },
+  {
+    path: '/scans',
+    name: 'scans',
+    component: () => import('./views/Scans.vue')
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('./views/Settings.vue')

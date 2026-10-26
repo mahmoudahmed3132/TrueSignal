@@ -95,6 +95,30 @@ const goToDashboard = () => {
                 </div>
             </button>
 
+            <button @click="router.push('/honeytokens')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'honeytokens' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'Honeytokens' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>Honeytokens</span>
+                </div>
+            </button>
+
+            <button @click="router.push('/scans')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'scans' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'Detected Scans' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0-4a5 5 0 100-10 5 5 0 000 10zm0-4a1 1 0 100-2 1 1 0 000 2zm0 0l6-6"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>Detected Scans</span>
+                </div>
+            </button>
+
             <button @click="router.push('/settings')" 
                     type="button"
                     class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
