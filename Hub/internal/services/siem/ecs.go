@@ -36,10 +36,11 @@ func ecsSeverity(sev string) int {
 	}
 }
 
-// ecsClassify returns event.kind and event.category for a trigger.
-func ecsClassify(trigger string, whitelisted bool) (string, []string) {
+// ecsClassify returns event.kind and event.category for a trigger. allowed
+// marks a whitelisted or known-scanner source.
+func ecsClassify(trigger string, allowed bool) (string, []string) {
 	kind := "alert"
-	if whitelisted {
+	if allowed {
 		// Archived evidence from an allow-listed source, not an alert.
 		kind = "event"
 	}
@@ -71,7 +72,7 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 		details = map[string]any{}
 	}
 
-	kind, category := ecsClassify(event.EventTrigger, event.Whitelisted)
+	kind, category := ecsClassify(event.EventTrigger, event.Whitelisted || event.KnownScanner)
 	ev := map[string]any{
 		"kind":     kind,
 		"category": category,
@@ -104,7 +105,7 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 			"hostname": nodeAlias,
 		},
 		"host": map[string]any{"name": nodeAlias, "id": event.NodeID},
-		"tags": ecsTags(event.Whitelisted),
+		"tags": ecsTags(event.Whitelisted, event.KnownScanner),
 		"truesignal": map[string]any{
 			"event_id":    event.ID,
 			"node_id":     event.NodeID,
@@ -115,7 +116,9 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 			"source":      event.Source,
 			"target":      event.Target,
 			"whitelisted": event.Whitelisted,
-			"details":     details,
+			// Added 2026-10-26; additive.
+			"known_scanner": event.KnownScanner,
+			"details":       details,
 		},
 	}
 
@@ -176,10 +179,13 @@ func asPort(v any) (int, bool) {
 	return int(f), true
 }
 
-func ecsTags(whitelisted bool) []string {
+func ecsTags(whitelisted, knownScanner bool) []string {
 	tags := []string{"truesignal", "deception"}
 	if whitelisted {
 		tags = append(tags, "whitelisted")
+	}
+	if knownScanner {
+		tags = append(tags, "known_scanner")
 	}
 	return tags
 }

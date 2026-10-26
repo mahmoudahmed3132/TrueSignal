@@ -72,7 +72,7 @@ func (s *SQLiteStore) UpdateConfigBatch(req map[string]interface{}) error {
 
 	for key, val := range req {
 		switch key {
-		case "hub_endpoint", "webhook_url", "siem_address", "siem_token", "registry_url", "whitelisted_sources", "acknowledged_wizard_release":
+		case "hub_endpoint", "webhook_url", "siem_address", "siem_token", "registry_url", "whitelisted_sources", "known_scanners", "acknowledged_wizard_release":
 			if strVal, ok := val.(string); ok {
 				if _, err := tx.Exec("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", key, strVal); err != nil {
 					return err

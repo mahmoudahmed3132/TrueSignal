@@ -469,6 +469,30 @@ Returns a list of events, newest first.
 - `nodeId` — filter by node ID
 - `sensorId` — filter by sensor ID
 
+### GET /api/v2/insights
+
+Decoy coverage for the dashboard: deployed vs touched decoys, attacker sources and per-decoy-type activity. Hub liveness events (`sensor_stopped`, `sensor_heartbeat_lost`, `sensor_recovered`) are not attacker activity and are excluded. Honeytoken counts are all-time (the Hub keeps a use counter, not per-use rows).
+
+**Query parameters:**
+- `timeframe` — `24H`, `7D`, `30D` or `alltime` (default and any other value: `alltime`)
+- `archived` — `true` or `false` (default: `false`), as for `/api/v2/events`
+- `nodeId`, `sensorId` — narrow events, deployed decoys and honeytokens
+
+```json
+{"timeframe":"alltime","events":47,"criticalEvents":26,"uniqueSources":5,"decoysDeployed":10,"decoysTouched":6,"decoyTypesDeployed":9,"honeytokensTotal":1,"honeytokensUsed":1,
+ "byType":[{"sensorId":"ts-sensor-tcp-tarpit","events":17,"uniqueSources":5,"deployed":2,"touched":2}]}
+```
+
+`byType` lists every deployed type (zero activity included) and every type with events, busiest first. A decoy counts as touched when it has at least one event in the timeframe; `uniqueSources` per type counts a source once per type, the top-level `uniqueSources` once overall.
+
+### GET /api/v2/sources
+
+One activity profile per event source across all events (active and archived), Hub liveness excluded, busiest first. `whitelisted` and `knownScanner` reflect the lists as they are now, not when the events arrived. `internal` covers RFC 1918, RFC 6598, loopback, link-local and IPv6 unique-local addresses; both flags are `false` for a non-IP source (`isIp: false`). The dashboard derives its triage labels (multi-decoy, repeat, single touch, internal, external, whitelisted, known scanner) from it.
+
+```json
+{"sources":[{"source":"10.20.4.101","events":15,"decoys":5,"firstSeen":"2026-10-06T03:18:37Z","lastSeen":"2026-10-24T06:18:37Z","isIp":true,"internal":true,"whitelisted":false,"knownScanner":false}]}
+```
+
 ### GET /api/v2/honeytokens
 
 Lists the honeytokens the Hub has planted (one per File Canary instance, created on its first compose render). The secret is never returned; it is in the lure files. `?format=csv` returns `username,honeytoken_id,planted_node_id,planted_sensor_id,created_at` for SIEM lookup files.

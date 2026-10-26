@@ -19,6 +19,7 @@ import (
 
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/siem"
+	"github.com/truesignal/hub/internal/services/sourcelist"
 	"github.com/truesignal/hub/internal/signing"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -348,6 +349,7 @@ func (s *Service) GetConfig() (models.ConfigPayload, error) {
 		SiemFormat:               kv["siem_format"],
 		SiemTokenSet:             kv["siem_token"] != "",
 		WhitelistedSources:       kv["whitelisted_sources"],
+		KnownScanners:            kv["known_scanners"],
 	}, nil
 }
 
@@ -379,7 +381,7 @@ var knownConfigKeys = map[string]struct{}{
 	"autoPurgeDays": {}, "autoPurgeHeartbeatsDays": {}, "updateCheckIntervalHours": {},
 	"webhookType": {}, "webhookUrl": {}, "webhookEvents": {},
 	"siemAddress": {}, "siemProtocol": {}, "siemFormat": {}, "siemToken": {},
-	"whitelistedSources": {},
+	"whitelistedSources": {}, "knownScanners": {},
 }
 
 func validateConfigUpdate(req map[string]interface{}) error {
@@ -424,6 +426,18 @@ func validateConfigUpdate(req map[string]interface{}) error {
 			if _, valid := models.NormalizeSeverity(sev); !isStr || !valid {
 				return &ValidationError{fmt.Sprintf("webhookEvents contains an unknown severity: %v", item)}
 			}
+		}
+	}
+	for _, f := range []string{"whitelistedSources", "knownScanners"} {
+		if v, ok := req[f]; ok {
+			str, isStr := v.(string)
+			if !isStr {
+				return &ValidationError{f + " must be a string"}
+			}
+			if _, err := sourcelist.Parse(str); err != nil {
+				return &ValidationError{f + ": " + err.Error()}
+			}
+			req[f] = sourcelist.Normalize(str)
 		}
 	}
 	for _, f := range []string{"autoArchiveDays", "autoPurgeDays", "autoPurgeHeartbeatsDays", "updateCheckIntervalHours"} {
@@ -523,6 +537,7 @@ func (s *Service) UpdateConfig(req map[string]interface{}) error {
 		"siemFormat":               "siem_format",
 		"siemToken":                "siem_token",
 		"whitelistedSources":       "whitelisted_sources",
+		"knownScanners":            "known_scanners",
 	}
 	for camelKey, snakeKey := range mapping {
 		if val, exists := req[camelKey]; exists {

@@ -12,6 +12,7 @@ type fakeStore struct {
 	inserted   []models.Event
 	registered bool
 	whitelist  string
+	scanners   string
 }
 
 func (f *fakeStore) InsertEvent(e *models.Event, _ string, details string) (int, error) {
@@ -34,8 +35,11 @@ func (f *fakeStore) ArchiveAllEvents() error           { return nil }
 func (f *fakeStore) GetEventCount() (int, error)       { return 0, nil }
 func (f *fakeStore) ClearAllEvents() error             { return nil }
 func (f *fakeStore) GetConfigValue(key string) (string, error) {
-	if key == "whitelisted_sources" {
+	switch key {
+	case "whitelisted_sources":
 		return f.whitelist, nil
+	case "known_scanners":
+		return f.scanners, nil
 	}
 	return "", nil
 }
@@ -93,6 +97,31 @@ func TestProcessEvent_WhitelistedIsStoredAndForwardedButNotNotified(t *testing.T
 	}
 	if notify.n != 0 || ws.n != 0 {
 		t.Fatalf("whitelisted event must not notify or broadcast (notify=%d ws=%d)", notify.n, ws.n)
+	}
+}
+
+func TestProcessEvent_SourceListsMatchCIDRAndFlagSeparately(t *testing.T) {
+	st := &fakeStore{registered: true, whitelist: "10.0.0.0/24", scanners: "172.16.5.0/28, nessus-01"}
+	svc, ws, siem, notify := newSvc(st)
+
+	for _, src := range []string{"10.0.0.77", "172.16.5.3:41000", "nessus-01", "10.0.1.1"} {
+		if err := svc.ProcessEvent(&models.Event{SensorID: "s1", Severity: "high", Source: src}, "n1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []struct{ whitelisted, scanner bool }{{true, false}, {false, true}, {false, true}, {false, false}}
+	for i, w := range want {
+		e := siem.events[i]
+		if e.Whitelisted != w.whitelisted || e.KnownScanner != w.scanner {
+			t.Errorf("%s: whitelisted=%v scanner=%v, want %v/%v", e.Source, e.Whitelisted, e.KnownScanner, w.whitelisted, w.scanner)
+		}
+		if archived := w.whitelisted || w.scanner; st.inserted[i].IsArchived != archived {
+			t.Errorf("%s: archived=%v, want %v", e.Source, st.inserted[i].IsArchived, archived)
+		}
+	}
+	// Only the unlisted source notifies and reaches the live view.
+	if notify.n != 1 || ws.n != 1 {
+		t.Fatalf("notify=%d ws=%d, want 1/1", notify.n, ws.n)
 	}
 }
 

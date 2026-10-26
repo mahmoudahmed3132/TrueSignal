@@ -4,6 +4,7 @@ import { useAppStore } from '../stores/System/app'
 import { useConfigStore } from '../stores/Config/config'
 import { useFleetStore } from '../stores/Fleet/fleet'
 import BaseButton from '../components/ui/forms/BaseButton.vue'
+import SourceListEditor from '../components/ui/forms/SourceListEditor.vue'
 import BaseInput from '../components/ui/forms/BaseInput.vue'
 import BaseModal from '../components/ui/feedback/BaseModal.vue'
 import PageHeader from '../components/ui/layout/PageHeader.vue'
@@ -42,8 +43,12 @@ const settings = ref({
     siemAddress: '',
     siemProtocol: 'tcp',
     siemFormat: 'rfc5424',
-    siemToken: ''
+    siemToken: '',
+    whitelistedSources: '',
+    knownScanners: ''
 })
+
+const toLines = (stored) => (stored || '').split(',').map(s => s.trim()).filter(Boolean).join('\n')
 
 const initialSettings = ref(null)
 
@@ -65,7 +70,9 @@ watch(() => configStore.config.isLoaded, (loaded) => {
             siemProtocol: configStore.config.siemProtocol || 'tcp',
             siemFormat: configStore.config.siemFormat || 'rfc5424',
             siemToken: '',
-            whitelistedSources: configStore.config.whitelistedSources || ''
+            // Stored comma-separated; edited one entry per line.
+            whitelistedSources: toLines(configStore.config.whitelistedSources),
+            knownScanners: toLines(configStore.config.knownScanners)
         }
         settings.value = JSON.parse(JSON.stringify(loadedSettings))
         initialSettings.value = JSON.parse(JSON.stringify(loadedSettings))
@@ -458,12 +465,18 @@ const submitFactoryReset = async () => {
                     </BaseCard>
 
                     <BaseCard title="Event Filtering" class="mt-6">
-                        <div class="max-w-md">
-                            <BaseInput 
-                                v-model="settings.whitelistedSources" 
-                                label="Whitelisted Event Sources" 
-                                description="Comma-separated list of IPs or source names to ignore. Events originating from these sources will be completely dropped and not logged." 
-                                placeholder="e.g. 192.168.1.1, vulnerability_scanner"
+                        <div class="grid gap-6 lg:grid-cols-2">
+                            <SourceListEditor
+                                v-model="settings.whitelistedSources"
+                                label="Whitelisted Sources"
+                                description="Trusted sources (admin jump hosts, monitoring). Their events are stored archived, sent to the SIEM with whitelisted=true, and never notify. One IP, CIDR range or exact source name per line."
+                                placeholder="10.20.0.15&#10;10.30.0.0/24&#10;Wizard Live Test"
+                            />
+                            <SourceListEditor
+                                v-model="settings.knownScanners"
+                                label="Known Scanners"
+                                description="Authorized vulnerability scanners and bots. Handled like whitelisted sources but flagged known_scanner=true in the SIEM, so they stay separate from trusted admins. Honeytoken use is never suppressed by either list."
+                                placeholder="172.16.5.0/28&#10;10.40.1.9"
                             />
                         </div>
                     </BaseCard>

@@ -4,10 +4,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/truesignal/hub/internal/projections/insights"
 	"github.com/truesignal/hub/internal/projections/severity"
+	"github.com/truesignal/hub/internal/projections/sources"
 	"github.com/truesignal/hub/internal/projections/summary"
 	"github.com/truesignal/hub/internal/projections/uptime"
 	"github.com/truesignal/hub/internal/projections/velocity"
+	"github.com/truesignal/hub/internal/services/sourcelist"
 	"github.com/truesignal/hub/internal/store"
 )
 
@@ -69,6 +72,41 @@ func (h *AnalyticsHandler) GetSummaryAnalytics(w http.ResponseWriter, r *http.Re
 	}
 
 	SendJSON(w, http.StatusOK, projection)
+}
+
+// GetInsights handles GET /api/v2/insights: decoy coverage, attacker
+// sources and per-decoy-type activity for the dashboard.
+func (h *AnalyticsHandler) GetInsights(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	viewingArchive := 0
+	if a := q.Get("archived"); a == "true" || a == "1" {
+		viewingArchive = 1
+	}
+
+	projector := insights.NewProjector(h.Store)
+	projection, err := projector.BuildInsightsProjection(r.Context(), q.Get("timeframe"), q.Get("nodeId"), q.Get("sensorId"), viewingArchive)
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	SendJSON(w, http.StatusOK, projection)
+}
+
+// GetSources handles GET /api/v2/sources: one activity profile per event
+// source (all events, Hub liveness excluded) with its current list
+// membership. The dashboard derives its triage labels from it.
+func (h *AnalyticsHandler) GetSources(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Store.GetSourceActivity(insights.LivenessTriggers())
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	wl, _ := h.Store.GetConfigValue("whitelisted_sources")
+	sc, _ := h.Store.GetConfigValue("known_scanners")
+	SendJSON(w, http.StatusOK, map[string]any{
+		"sources": sources.Build(rows, sourcelist.ParseStored(wl), sourcelist.ParseStored(sc)),
+	})
 }
 
 func (h *AnalyticsHandler) GetSeverityAnalytics(w http.ResponseWriter, r *http.Request) {

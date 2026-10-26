@@ -40,7 +40,7 @@ This is the standard telemetry payload that all sensors (official or community) 
 
 `sensorId`, `eventTrigger`, `source` and `target` are truncated to 256 characters.
 
-*(Note: When querying the Hub's API or viewing the SQLite DB, the backend automatically enriches this payload with `id`, `nodeId`, `timestamp`, `isRead`, `isArchived`, and `count`. These are always set by the Hub; values sent by a sensor are ignored. Events from whitelisted sources additionally carry `"whitelisted": true` and are stored archived and read.)*
+*(Note: When querying the Hub's API or viewing the SQLite DB, the backend automatically enriches this payload with `id`, `nodeId`, `timestamp`, `isRead`, `isArchived`, and `count`. These are always set by the Hub; values sent by a sensor are ignored. Events from whitelisted sources additionally carry `"whitelisted": true`, events from known-scanner sources `"knownScanner": true`; both are stored archived and read and never notify.)*
 
 ### Event triggers
 
@@ -182,7 +182,7 @@ Manifests are decoded strictly: unknown fields (for example the old `port_assign
 When `siemAddress` is set, the Hub forwards every stored event (including whitelisted and Hub-raised ones) and every audit record as one RFC 5424 message per line (newline-terminated over `tcp`/`tls`; one message per datagram over `udp`). Source: `Hub/internal/services/siem/service.go`.
 
 ```text
-<PRI>1 TIMESTAMP truesignal truesignalSensor - EVENT [truesignal@PEN event_id="42" trigger="tcp_connection" severity="high" source="203.0.113.7" target="Port 2222" node="db-node-01" node_id="node-1a2b3c4d" sensor="ts-sensor-tcp-tarpit" whitelisted="false"] {"event_id":42,"timestamp":"...","node_id":"...","node":"...","sensor_id":"...","trigger":"...","severity":"...","source":"...","target":"...","whitelisted":false,"details":{...}}
+<PRI>1 TIMESTAMP truesignal truesignalSensor - EVENT [truesignal@PEN event_id="42" trigger="tcp_connection" severity="high" source="203.0.113.7" target="Port 2222" node="db-node-01" node_id="node-1a2b3c4d" sensor="ts-sensor-tcp-tarpit" whitelisted="false" known_scanner="false"] {"event_id":42,"timestamp":"...","node_id":"...","node":"...","sensor_id":"...","trigger":"...","severity":"...","source":"...","target":"...","whitelisted":false,"known_scanner":false,"details":{...}}
 ```
 
 - **PRI:** facility `local0` (16). Severity `critical`→2, `high`→3, `medium`→4, `low`→5, `info`→6.

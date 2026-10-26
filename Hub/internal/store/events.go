@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/truesignal/hub/internal/models"
@@ -198,4 +199,43 @@ func (s *SQLiteStore) EnforceRetention(archiveDays, purgeDays, purgeHeartbeatsDa
 	}
 
 	return tx.Commit()
+}
+
+// SourceActivity aggregates the events of one source.
+type SourceActivity struct {
+	Source    string
+	Events    int
+	Decoys    int
+	FirstSeen string
+	LastSeen  string
+}
+
+// GetSourceActivity groups all events (active and archived) by source,
+// skipping the triggers in exclude (Hub liveness). Timestamps are RFC 3339
+// UTC strings, so MIN/MAX order them correctly.
+func (s *SQLiteStore) GetSourceActivity(exclude []string) ([]SourceActivity, error) {
+	query := `SELECT source, COUNT(*), COUNT(DISTINCT node_id || '/' || sensor_id), MIN(timestamp), MAX(timestamp)
+		FROM events`
+	args := make([]interface{}, 0, len(exclude))
+	if len(exclude) > 0 {
+		query += " WHERE event_trigger NOT IN (" + strings.TrimSuffix(strings.Repeat("?,", len(exclude)), ",") + ")"
+		for _, t := range exclude {
+			args = append(args, t)
+		}
+	}
+	query += " GROUP BY source"
+	rows, err := s.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SourceActivity{}
+	for rows.Next() {
+		var a SourceActivity
+		if err := rows.Scan(&a.Source, &a.Events, &a.Decoys, &a.FirstSeen, &a.LastSeen); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }

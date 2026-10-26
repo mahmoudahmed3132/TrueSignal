@@ -115,6 +115,8 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Get("/api/v2/events/severity", cfg.Analytics.GetSeverityAnalytics)
 		r.Get("/api/v2/events/velocity", cfg.Analytics.GetVelocityAnalytics)
 		r.Get("/api/v2/events/summary", cfg.Analytics.GetSummaryAnalytics)
+		r.Get("/api/v2/insights", cfg.Analytics.GetInsights)
+		r.Get("/api/v2/sources", cfg.Analytics.GetSources)
 		r.Get("/api/v2/events", cfg.Events.GetEvents)
 		r.Get("/api/v2/uptime", cfg.Analytics.GetUptime)
 		r.Get("/api/v2/system/state", cfg.Config.GetSystemState)

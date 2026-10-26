@@ -11,6 +11,7 @@ import (
 
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/honeytoken"
+	"github.com/truesignal/hub/internal/services/sourcelist"
 )
 
 type Store interface {
@@ -71,6 +72,8 @@ type Service struct {
 	siemService   SiemService
 	notifyService NotifyService
 	honeytokens   HoneytokenMatcher
+	whitelist     sourcelist.Cache
+	scanners      sourcelist.Cache
 }
 
 // SetHoneytokenMatcher enables honeytoken detection on incoming events.
@@ -115,24 +118,22 @@ func normalizeDetails(raw json.RawMessage) string {
 	return string(b)
 }
 
-func (s *Service) isWhitelisted(source string) bool {
-	whitelistedSources, err := s.store.GetConfigValue("whitelisted_sources")
-	if err != nil || whitelistedSources == "" {
+// matchList checks source against a source list stored under configKey
+// (IPs, CIDR ranges, plain names; see package sourcelist).
+func (s *Service) matchList(cache *sourcelist.Cache, configKey, source string) bool {
+	raw, err := s.store.GetConfigValue(configKey)
+	if err != nil || raw == "" {
 		return false
 	}
-	for _, candidate := range strings.Split(whitelistedSources, ",") {
-		if strings.TrimSpace(candidate) == source {
-			return true
-		}
-	}
-	return false
+	return cache.Get(raw).Match(source)
 }
 
 // ProcessEvent handles incoming events from sensors, pushes them to the SIEM, and triggers notifications.
 //
-// Events from whitelisted sources are still stored (archived, read) and still
-// forwarded to the SIEM flagged whitelisted=true: the whitelist suppresses
-// noise for operators, it never destroys evidence.
+// Events from whitelisted or known-scanner sources are still stored
+// (archived, read) and still forwarded to the SIEM flagged whitelisted=true
+// or known_scanner=true: the lists suppress noise for operators, they never
+// destroy evidence.
 func (s *Service) ProcessEvent(e *models.Event, nodeID string) error {
 	if strings.TrimSpace(e.EventTrigger) == honeytoken.Trigger {
 		return ErrReservedTrigger
@@ -154,6 +155,7 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 	e.IsRead = false
 	e.IsArchived = false
 	e.Whitelisted = false
+	e.KnownScanner = false
 
 	e.SensorID = clampField(e.SensorID, "")
 	e.EventTrigger = clampField(e.EventTrigger, "alert")
@@ -176,10 +178,13 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 		return ErrSensorNotRegistered
 	}
 
-	if !hubRaised && s.isWhitelisted(e.Source) {
-		e.Whitelisted = true
-		e.IsArchived = true
-		e.IsRead = true
+	if !hubRaised {
+		e.Whitelisted = s.matchList(&s.whitelist, "whitelisted_sources", e.Source)
+		e.KnownScanner = s.matchList(&s.scanners, "known_scanners", e.Source)
+		if e.Whitelisted || e.KnownScanner {
+			e.IsArchived = true
+			e.IsRead = true
+		}
 	}
 
 	lastInsertID, err := s.store.InsertEvent(e, nowStr, detailsStr)
@@ -199,7 +204,7 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 	s.siemService.QueueEvent(*e)
 	s.checkHoneytokens(*e)
 
-	if e.Whitelisted {
+	if e.Whitelisted || e.KnownScanner {
 		return nil
 	}
 

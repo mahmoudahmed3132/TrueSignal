@@ -156,3 +156,31 @@ func TestGetStatusChangesSince_IncludesBaseline(t *testing.T) {
 		t.Errorf("Expected 1 baseline record for sensor2, got %d", sensor2Count)
 	}
 }
+
+func TestGetSourceActivity(t *testing.T) {
+	st, err := NewStore(filepath.Join(t.TempDir(), "sources.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.DB.Close()
+	if _, err := st.DB.Exec(`INSERT INTO events (node_id, sensor_id, timestamp, event_trigger, source) VALUES
+		('n1','s1','2026-10-01T00:00:00Z','tcp_connection','10.0.0.5'),
+		('n1','s2','2026-10-03T00:00:00Z','ldap_login','10.0.0.5'),
+		('n2','s1','2026-10-02T00:00:00Z','tcp_connection','10.0.0.5'),
+		('n2','s1','2026-10-02T00:00:00Z','tcp_connection','10.0.0.9'),
+		('n2','s1','2026-10-04T00:00:00Z','sensor_heartbeat_lost','truesignal-hub')`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetSourceActivity([]string{"sensor_heartbeat_lost"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d sources, want 2 (liveness excluded): %+v", len(got), got)
+	}
+	for _, a := range got {
+		if a.Source == "10.0.0.5" && (a.Events != 3 || a.Decoys != 3 || a.FirstSeen != "2026-10-01T00:00:00Z" || a.LastSeen != "2026-10-03T00:00:00Z") {
+			t.Errorf("10.0.0.5 = %+v", a)
+		}
+	}
+}

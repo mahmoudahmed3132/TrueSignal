@@ -38,7 +38,7 @@ Honeytokens/lures: File Canary lure files (content by filename, `Sensors/officia
 Alert destinations (`Hub/internal/services/event/service.go` `ProcessEvent`):
 - The Hub resets server-owned fields, clamps strings (256), forces `details` to a JSON object (≤64KB) and normalises severity (unknown → `medium`).
 - A `sensorId` not registered on the calling node is rejected with 404.
-- Whitelisted `source` (exact match): stored **archived**, sent to SIEM with `whitelisted=true`; no webhook, no WebSocket.
+- Whitelisted or known-scanner `source` (config `whitelisted_sources` / `known_scanners`: IPs, CIDR ranges or exact names, `Hub/internal/services/sourcelist`): stored **archived**, sent to SIEM with `whitelisted=true` / `known_scanner=true`; no webhook, no WebSocket. Hub-raised `honeytoken_used` ignores both lists.
 - Otherwise: SQLite, then webhook if armed, severity is in `webhook_events` (default excludes `info`), and the sensor is not silenced; SIEM when `siem_address` is set; WebSocket `NEW_EVENT`.
 - Liveness events use the same path, so they reach SIEM and webhooks.
 
@@ -124,6 +124,7 @@ Residual gaps (release-tag access = signed release, root + host netns sensors, s
 | Node lifecycle | `Docs/operations.md`, `wizard/internal/commands/*.go`, `wizard/internal/deploy/*.go` |
 | Threat model | `THREATMODEL.md` (check claims against code) |
 | CI/CD | `.github/workflows/*` (actions SHA-pinned; `test.yml` runs all Go tests), `.gitea/workflows/*`, `Makefile`, `scripts/` |
+| Dashboard analytics | `Hub/internal/projections/{insights,sources}` (`GET /api/v2/insights`, `/api/v2/sources`); UI pages `Hub/ui/src/views/{Dashboard,Honeytokens,Scans}.vue` |
 | Local testing | `scripts/mock_hub.py`, `Docs/development/setup.md`. Hub tests need `Hub/ui` built first (`npm ci && npm run build`, go:embed) |
 
 ## 8. Working rules for future sessions
