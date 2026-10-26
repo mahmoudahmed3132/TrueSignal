@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import BaseButton from './BaseButton.vue'
+import { extractAddrs } from '../../../utils/ipTokens'
 
 // One entry per line: an IP, a CIDR range or an exact source name. The Hub
 // validates and normalises the list on save.
@@ -23,9 +24,6 @@ const entries = (text: string): string[] =>
 
 const count = computed(() => entries(props.modelValue).length)
 
-// Pull IPv4/IPv6 addresses and CIDR ranges out of a text or CSV export
-// (scanner inventories, threat-intel lists); other columns are ignored.
-const ADDR = /(?:\b\d{1,3}(?:\.\d{1,3}){3}(?:\/\d{1,2})?\b)|(?:\b[0-9a-fA-F]{0,4}(?::[0-9a-fA-F]{0,4}){2,7}(?:\/\d{1,3})?)/g
 
 const onFile = async (ev: Event) => {
     const input = ev.target as HTMLInputElement
@@ -38,7 +36,8 @@ const onFile = async (ev: Event) => {
         importNote.value = 'File is larger than 1 MB.'
         return
     }
-    const found = (await file.text()).match(ADDR) || []
+    // IPv4/IPv6 addresses and CIDR ranges; other columns are ignored.
+    const found = extractAddrs(await file.text())
     const existing = new Set(entries(props.modelValue))
     const added = [...new Set(found)].filter(a => !existing.has(a))
     if (found.length === 0) {
