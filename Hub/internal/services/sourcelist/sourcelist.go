@@ -135,6 +135,13 @@ func parseSourceAddr(source string) (netip.Addr, bool) {
 	return netip.Addr{}, false
 }
 
+// ParseStored parses a list read back from the config table, leniently
+// (see parse). It never fails.
+func ParseStored(raw string) *List {
+	l, _ := parse(raw, false)
+	return l
+}
+
 // Cache re-parses a list only when its stored text changes. Lists live in
 // the config table and are read on every event.
 type Cache struct {

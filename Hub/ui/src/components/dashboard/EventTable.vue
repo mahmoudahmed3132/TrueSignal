@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/System/app.ts'
 import { useEventsStore } from '../../stores/Events/events.ts'
 import { useFleetStore } from '../../stores/Fleet/fleet.ts'
 import { formatSensorId } from '../../utils/formatSensorId'
+import { useSourcesStore, labelsOf, SOURCE_LABELS } from '../../stores/Sources/sources'
+import type { SourceLabel } from '../../stores/Sources/sources'
 
 
 const appStore = useAppStore()
@@ -14,6 +16,23 @@ const fleetStore = useFleetStore()
 const { viewingArchive } = storeToRefs(appStore)
 const { filteredEvents: rawEvents, isFetching } = storeToRefs(eventsStore)
 const { nodes: fleet } = storeToRefs(fleetStore)
+
+const sourcesStore = useSourcesStore()
+const { bySource } = storeToRefs(sourcesStore)
+onMounted(() => sourcesStore.fetchSources())
+watch(() => eventsStore.events[0]?.id, () => sourcesStore.scheduleRefresh())
+
+// Search and triage-label filters. Labels combine with AND: "Multi-decoy" +
+// "Internal" shows internal sources that touched several decoys.
+const search = ref('')
+const activeLabels = ref<Set<SourceLabel>>(new Set())
+const toggleLabel = (id: SourceLabel) => {
+    const next = new Set(activeLabels.value)
+    next.has(id) ? next.delete(id) : next.add(id)
+    activeLabels.value = next
+}
+const clearFilters = () => { search.value = ''; activeLabels.value = new Set() }
+const hasFilters = computed(() => search.value.trim() !== '' || activeLabels.value.size > 0)
 
 const sortCol = ref('timestamp')
 const sortDesc = ref(true)
@@ -74,8 +93,39 @@ const isDownArrow = (col: string) => {
     return ['timestamp', 'severity'].includes(col) ? sortDesc.value : !sortDesc.value;
 }
 
+const matchesSearch = (e: any, q: string): boolean => {
+    if (!q) return true
+    const hay = [e.eventTrigger, e.source, e.target, e.sensorId, e.severity, getNodeAlias(e.nodeId), JSON.stringify(e.details || {})]
+        .join(' ').toLowerCase()
+    return q.split(/\s+/).every(term => hay.includes(term))
+}
+
+const filteredEvents = computed(() => {
+    const q = search.value.trim().toLowerCase()
+    const want = [...activeLabels.value]
+    if (!q && want.length === 0) return displayEvents.value
+    return displayEvents.value.filter((e: any) => {
+        if (!matchesSearch(e, q)) return false
+        if (want.length === 0) return true
+        const labels = labelsOf(bySource.value.get(e.source))
+        return want.every(l => labels.has(l))
+    })
+})
+
+const sourceBadges = (source: string): { text: string; title: string; tone: string }[] => {
+    const p = bySource.value.get(source)
+    if (!p) return []
+    const out: { text: string; title: string; tone: string }[] = []
+    if (p.decoys > 1) out.push({ text: `${p.decoys} decoys`, title: `Touched ${p.decoys} decoys`, tone: 'alert' })
+    if (p.knownScanner) out.push({ text: 'scanner', title: 'On the known-scanner list', tone: 'muted' })
+    if (p.whitelisted) out.push({ text: 'whitelisted', title: 'On the whitelist', tone: 'muted' })
+    return out
+}
+
+watch([search, activeLabels], () => { currentPage.value = 1 })
+
 const sortedEvents = computed(() => {
-    return [...displayEvents.value].sort((a, b) => {
+    return [...filteredEvents.value].sort((a, b) => {
         let valA: any = (a as any)[sortCol.value] || ''
         let valB: any = (b as any)[sortCol.value] || ''
         if (sortCol.value === 'severity') {
@@ -214,6 +264,30 @@ const formatTime = (timestamp: string) => {
             </div>
         </div>
 
+        <div class="px-5 py-3 border-b border-border-default flex flex-wrap items-center gap-2 bg-bg-surface shrink-0">
+            <label class="relative flex-[1_1_240px] max-w-sm">
+                <span class="sr-only">Search events</span>
+                <svg class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-l pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"></path></svg>
+                <input v-model="search" type="search" placeholder="Search trigger, source, target, sensor, node, details"
+                       class="w-full pl-8 pr-3 py-1.5 text-sm bg-input-bg border border-input-border rounded-md outline-none focus:border-primary-main focus:ring-1 focus:ring-focus-ring text-text-h" />
+            </label>
+            <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by source label">
+                <button v-for="l in SOURCE_LABELS" :key="l.id" type="button" :title="l.hint"
+                        :aria-pressed="activeLabels.has(l.id)"
+                        @click="toggleLabel(l.id)"
+                        class="px-2.5 py-1 rounded-full text-xs border transition-colors outline-none"
+                        :class="activeLabels.has(l.id)
+                            ? 'bg-primary-selected text-primary-text border-primary-border'
+                            : 'bg-secondary-main text-secondary-text border-secondary-border hover:bg-secondary-hover'">
+                    {{ l.text }}
+                </button>
+            </div>
+            <div v-if="hasFilters" class="flex items-center gap-2 ml-auto">
+                <span class="text-xs text-text-m font-mono">{{ filteredEvents.length }} / {{ displayEvents.length }}</span>
+                <button type="button" @click="clearFilters" class="text-xs text-text-m hover:text-text-h underline underline-offset-2">Clear</button>
+            </div>
+        </div>
+
         <div class="overflow-x-auto overflow-y-auto custom-scroll max-h-[600px] lg:max-h-[700px] flex-1 after:content-[''] after:block after:h-4 after:shrink-0">
             <table class="min-w-full text-left border-separate border-spacing-0">
                 <thead class="text-base text-text-m sticky top-0 bg-bg-surface z-30 shadow-[0_1px_0_0_var(--color-border-default)] select-none">
@@ -262,8 +336,10 @@ const formatTime = (timestamp: string) => {
                 </thead>
                 
                 <tbody class="relative z-0">
-                    <tr v-if="displayEvents.length === 0 && !isFetching">
-                        <td :colspan="viewingArchive ? 8 : 9" class="px-5 py-8 border-b border-border-default text-center text-text-m text-base">No events.</td>
+                    <tr v-if="filteredEvents.length === 0 && !isFetching">
+                        <td :colspan="viewingArchive ? 8 : 9" class="px-5 py-8 border-b border-border-default text-center text-text-m text-base">
+                            {{ displayEvents.length > 0 ? 'No events match the filters.' : 'No events.' }}
+                        </td>
                     </tr>
                     
                     <template v-for="event in paginatedEvents" :key="event.id">
@@ -287,7 +363,16 @@ const formatTime = (timestamp: string) => {
                             
                             <td class="px-4 py-3 text-base font-base text-text-h capitalize max-w-[140px] md:max-w-[200px] lg:max-w-md xl:max-w-2xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="formatEventType(event.eventTrigger)">{{ formatEventType(event.eventTrigger) }}</td>
                             
-                            <td class="px-4 py-3 text-base text-text-m font-mono max-w-[120px] md:max-w-[180px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.source">{{ event.source }}</td>
+                            <td class="px-4 py-3 text-base text-text-m font-mono max-w-[160px] md:max-w-[240px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.source">
+                                <!-- The address never truncates; badges clip first. -->
+                                <div class="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                    <span class="shrink-0 max-w-full truncate">{{ event.source }}</span>
+                                    <span v-if="(bySource.get(event.source)?.events || 0) > 1" class="shrink-0 text-xs text-text-l" :title="`${bySource.get(event.source)?.events} events from this source`">×{{ bySource.get(event.source)?.events }}</span>
+                                    <span v-for="b in sourceBadges(event.source)" :key="b.text" :title="b.title"
+                                          class="shrink-0 px-1.5 py-px rounded text-xs font-sans border"
+                                          :class="b.tone === 'alert' ? 'text-critical border-critical/40' : 'text-text-m border-border-default'">{{ b.text }}</span>
+                                </div>
+                            </td>
                             <td class="px-4 py-3 text-base text-text-m font-mono max-w-[120px] md:max-w-[180px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.target">{{ event.target }}</td>
                             
                             <td class="px-4 py-3 text-base text-text-h font-mono max-w-[140px] md:max-w-[200px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.sensorId">{{ formatSensorId(event.sensorId) }}</td>

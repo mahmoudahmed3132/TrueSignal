@@ -7,6 +7,11 @@
 * **Whitelist takes CIDR ranges, and a new Known Scanners list.** Both lists accept IPs, CIDR ranges (IPv4/IPv6) and exact source names, one per line, and can import IPs from a text or CSV file in Settings. A source with a port (`10.0.0.5:4431`) matches its address. Known-scanner events are handled like whitelisted ones (stored archived, sent to the SIEM, never notified) but flagged separately.
   * **SIEM contract change (additive):** RFC 5424 structured data and the JSON body gain `known_scanner`; ECS gains `truesignal.known_scanner` and the `known_scanner` tag, with `event.kind: event`. Existing parsers keep working; rules that exclude `whitelisted=true` should also exclude `known_scanner=true`.
   * Lists are validated and normalised on save (`400` on a bad CIDR, over 10,000 entries or an entry over 256 characters). A list saved earlier with a non-CIDR entry containing "/" still matches it as a name.
+* **Triage labels, filters and search in the event table.**
+  * Each event's source carries labels from its activity across all stored events: multi-decoy (touched two or more decoys), repeat source / single touch, internal / external address, whitelisted, known scanner.
+  * Label chips filter the table (combined with AND), next to a free-text search over trigger, source, target, sensor, node and details.
+  * Rows show the source's event count and badges for multi-decoy, scanner and whitelisted sources.
+  * Backed by the new `GET /api/v2/sources`.
 * New endpoint `GET /api/v2/insights` (`Hub/internal/projections/insights`). Hub liveness events are excluded from attacker counts.
 
 # [Unreleased] - Signed releases (Sigstore) (2026-10-24)

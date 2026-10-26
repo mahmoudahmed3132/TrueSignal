@@ -16,6 +16,15 @@ var livenessTriggers = map[string]bool{
 	"sensor_recovered":      true,
 }
 
+// LivenessTriggers lists the Hub's own liveness triggers.
+func LivenessTriggers() []string {
+	out := make([]string, 0, len(livenessTriggers))
+	for t := range livenessTriggers {
+		out = append(out, t)
+	}
+	return out
+}
+
 // IsAttackerEvent reports whether an event counts as decoy interaction.
 func IsAttackerEvent(e models.Event) bool {
 	return !livenessTriggers[e.EventTrigger]
