@@ -1,3 +1,59 @@
+# [Unreleased] - Evidence reports (2026-10-26)
+
+* **Reports page** (sidebar): an evidence report for the last 7, 30 or 90 days or a custom range.
+  * Executive summary with plain-language findings (known-asset sources, honeytoken use, ATT&CK techniques, archived events).
+  * Daily activity, and breakdowns by severity and by decoy type.
+  * Top sources with their assets, observed ATT&CK techniques and honeytoken uses.
+  * Decoy coverage per node.
+  * Control configuration: SIEM forwarding, notifications, armed state, admin MFA, retention, list sizes, Hub version.
+  * A scope statement (supporting evidence for PCI DSS v4.0 Requirement 11.5.1 and CBE reviews; it does not replace IDS/IPS) and a sign-off block.
+* **Output:** prints to PDF from the browser, switching to the light theme for printing, with print-safe layout and page breaks. A JSON download is the machine-readable copy.
+* New endpoint `GET /api/v2/report?from=&to=`.
+
+# [Unreleased] - Attack Path (2026-10-26)
+
+* **Attack Path page** (sidebar): one source's route through the decoys.
+  * Source picker, ranked known assets first, then by decoys touched.
+  * Summary: asset, events, decoys and duration.
+  * Tactic progression: each technique that brought new tactics, so Valid Accounts is one step and not four stages.
+  * The path: decoys in order of first contact, with triggers, ATT&CK techniques and highest severity.
+  * A full timeline.
+* Every expanded event in the dashboard links to it ("Investigate in Attack Path").
+* New endpoint `GET /api/v2/path?source=`, covering active and archived events and capped at the most recent 2,000.
+
+# [Unreleased] - Asset inventory (2026-10-26)
+
+* **Assets page** (sidebar): an inventory of real hosts and ranges, with criticality, owner and tags.
+  * Add, edit and remove entries inline; CSV import (header detected, duplicates and invalid rows skipped) and export.
+  * Per-asset decoy activity: events and addresses.
+  * API: `GET/PUT /api/v2/assets`. `PUT` replaces the list atomically after validation; the inventory is stored in the config table, so there is no schema change.
+* **A decoy touched from an inventoried address names the asset.**
+  * Events carry `sourceAsset` (`{name, criticality}`, most specific range wins), resolved against the current inventory.
+  * Source profiles carry `asset`, and an inventoried address counts as internal even in public space.
+  * Event table: a "Known asset" label filter and an asset badge on the source.
+  * Expanded event details show the ATT&CK mapping and the source asset. Triage badges moved to a second line in the Source cell, so the table fits a 1440 px screen again.
+* **SIEM contract change (additive):**
+  * ECS `truesignal.source_asset`;
+  * RFC 5424 `source_asset` and `source_asset_criticality` (always present, empty when none);
+  * `"source_asset"` in the JSON body.
+
+# [Unreleased] - MITRE ATT&CK mapping and Attack Navigator (2026-10-26)
+
+* **Every mapped event carries a MITRE ATT&CK technique and its tactics** (`Hub/internal/attack`, table in `Docs/siem/attack-mapping.md`).
+  * One primary technique per trigger, plus optional secondary ones.
+  * Derived when events are read or forwarded, never stored, so past events are covered too.
+  * Unmapped on purpose: `web_page_view`, Hub liveness, community triggers.
+  * A test fails if the doc table and the code disagree.
+* **SIEM contract change (additive).**
+  * ECS: `threat.framework`, `threat.technique.*` (sub-techniques under `threat.technique.subtechnique.*`), `threat.tactic.*`, `truesignal.attack`.
+  * RFC 5424: structured data gains `mitre_technique` and `mitre_tactic`. Both are always present and empty when the trigger is unmapped, so parameter positions are stable. The JSON body gains `attack`.
+* **Attack Navigator page** (sidebar).
+  * An ATT&CK matrix of the 16 techniques TrueSignal decoys can evidence, shaded by event count.
+  * A details panel per technique: events, sources, last seen, triggers, link to attack.mitre.org.
+  * A 24H / 7D / 30D / All filter and an ATT&CK Navigator layer export (format 4.5).
+  * New endpoints `GET /api/v2/attack` and `/api/v2/attack/layer`.
+* **Dashboard and event table.** An "ATT&CK techniques" tile; a technique badge on every mapped event; an ATT&CK tactic filter; search also matches technique IDs and names.
+
 # [Unreleased] - Dashboard: decoy coverage (2026-10-26)
 
 * **Decoy coverage row on the dashboard**, with a 24H / 7D / 30D / All filter. It follows the node/sensor selection and the archive view.

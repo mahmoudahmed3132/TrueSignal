@@ -138,6 +138,7 @@ func main() {
 		Auth:              authHandler,
 		Events:            eventsHandler,
 		Analytics:         analyticsHandler,
+		Assets:            api.NewAssetsHandler(dbStore),
 		Config:            configHandler,
 		Compose:           composeHandler,
 		Honeytokens:       api.NewHoneytokenHandler(honeytokenSvc),

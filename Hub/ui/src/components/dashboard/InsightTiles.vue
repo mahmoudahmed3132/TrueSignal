@@ -15,7 +15,9 @@ const appStore = useAppStore()
 
 const { projection, timeframe } = storeToRefs(insightsStore)
 
-const tiles = computed(() => {
+interface Tile { label: string; value: string; hint: string; alert: boolean; to?: string }
+
+const tiles = computed<Tile[]>(() => {
     const p = projection.value
     return [
         {
@@ -35,6 +37,13 @@ const tiles = computed(() => {
             value: p ? String(p.criticalEvents) : '–',
             hint: 'Logins and honeytoken use',
             alert: (p?.criticalEvents || 0) > 0
+        },
+        {
+            label: 'ATT&CK techniques',
+            value: p ? String(p.techniquesObserved) : '–',
+            hint: 'Observed; see Attack Navigator',
+            alert: (p?.techniquesObserved || 0) > 0,
+            to: '/attack'
         },
         {
             label: 'Honeytokens used',
@@ -73,14 +82,15 @@ onUnmounted(() => { if (refreshTimer) clearTimeout(refreshTimer) })
                 @update:model-value="insightsStore.setTimeframe($event as InsightsTimeframe)"
             />
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <div v-for="t in tiles" :key="t.label"
-                 class="bg-bg-surface border border-border-default rounded-lg shadow-sm p-4 sm:p-5 flex flex-col gap-1 min-w-0">
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
+            <component :is="t.to ? 'router-link' : 'div'" v-for="t in tiles" :key="t.label" :to="t.to"
+                 class="bg-bg-surface border border-border-default rounded-lg shadow-sm p-4 sm:p-5 flex flex-col gap-1 min-w-0"
+                 :class="t.to ? 'hover:border-highlight-border transition-colors' : ''">
                 <span class="text-sm text-text-m">{{ t.label }}</span>
                 <span class="text-2xl font-mono leading-tight truncate"
                       :class="t.alert ? 'text-critical' : 'text-text-h'">{{ t.value }}</span>
                 <span class="text-xs text-text-l truncate">{{ t.hint }}</span>
-            </div>
+            </component>
         </div>
     </section>
 </template>

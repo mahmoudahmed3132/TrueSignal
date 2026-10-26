@@ -83,6 +83,21 @@ Session branch: `claude/dreamy-cray-hh19ze`. Restart it from `origin/main` for n
 
 ## 6. Open work, prioritised
 
+0. **Analyst feature roadmap (owner-approved 2026-10-26, from a SARAB-style feature list).**
+   - **Phase 1** (decoy coverage dashboard, CIDR whitelist + Known Scanners, triage labels/search, Honeytokens and Detected Scans pages): merged as mahmoudahmed3132/TrueSignal#24.
+   - **Phase 2** on `claude/beautiful-ptolemy-t0uxdm`:
+     - MITRE ATT&CK mapping (`Hub/internal/attack`, `Docs/siem/attack-mapping.md`, SIEM `threat.*` / `mitre_*`) and the Attack Navigator page;
+     - Assets inventory (`source_asset` in events/SIEM);
+     - Attack Path page;
+     - Reports page (print to PDF).
+     - The owner delegated the mapping calls. `web_page_view` and liveness are unmapped, and T1078 keeps its four ATT&CK tactics.
+   - **Phase 3 (next):**
+     - callback beacons (Word/Excel, web bug, DNS, kubeconfig, AWS keys, ...) on a **separate hardened token receiver**, never the Hub;
+     - then GeoIP plus the map.
+     - **Ask the owner: MaxMind GeoLite2 (account needed) or DB-IP Lite (CC-BY).** AWS key beacons need a real IAM user and CloudTrail.
+   - **Release:** none of phases 1-2 is released. The next Hub release should be **2.3.0**: bump `HubVersion` and `WizardVersion` together if the wizard changes, otherwise the Hub alone (only the major must match).
+   - **SIEM contract (additive since 2.2.0):** `known_scanner`, `mitre_technique`, `mitre_tactic`, `source_asset`, `source_asset_criticality` in syslog SD; `threat.*` and `truesignal.{known_scanner,attack,source_asset}` in ECS. Rules excluding `whitelisted=true` should also exclude `known_scanner=true`.
+
 1. **Installer end to end on a real test VM** (owner's VM; the sandbox can't pull GHCR images).
    - Setup: Hub 2.2.0 behind TLS (`docker-compose.tls.yml` or F5), `TS_REQUIRE_MFA=true`, `TS_TRUSTED_PROXIES` set.
    - Run on the node: `install.sh … --link`, then `truesignal discover`/`apply`, then `firedrill`.

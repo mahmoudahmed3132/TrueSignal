@@ -485,6 +485,50 @@ Decoy coverage for the dashboard: deployed vs touched decoys, attacker sources a
 
 `byType` lists every deployed type (zero activity included) and every type with events, busiest first. A decoy counts as touched when it has at least one event in the timeframe; `uniqueSources` per type counts a source once per type, the top-level `uniqueSources` once overall.
 
+### GET /api/v2/report
+
+Decoy activity for the evidence report in a date range. `from` / `to` are RFC 3339 times or `YYYY-MM-DD` dates (`to` exclusive); default: the last 30 days; the range must be positive and at most 366 days (`400` otherwise). Figures use active events (Hub liveness excluded); `archivedEvents` counts in-range archived events (whitelisted, known scanners, analyst triage), which are not in the figures.
+
+Returns `summary` (the `/api/v2/insights` shape for the range), `severity`, `daily` (one entry per UTC day), `topSources` (25, known assets first, then by critical events; each with its `asset`), `sourcesTotal`, `techniques` (observed ATT&CK techniques), `honeytokenUses`. The Reports page adds fleet and configuration state from the other endpoints and prints to PDF from the browser.
+
+### GET /api/v2/path
+
+One source's route through the decoys, from all its events (active and archived, Hub liveness excluded, the most recent 2,000 at most; `truncated` says when more exist). `source` is required (≤256 characters).
+
+- `steps`: one per decoy (node + sensor), in order of first contact, with first/last seen, event count, highest severity, triggers and primary ATT&CK techniques.
+- `progression`: each technique that brought new tactics into the path, in order; a technique filed under several tactics (T1078) is one step listing them.
+- `timeline`: the events, oldest first, each with its `attack` mapping.
+- `asset`: the inventory asset the source belongs to, if any.
+
+```json
+{"source":"10.20.4.101","asset":{"name":"jump-host-01","criticality":"critical"},"events":17,"truncated":false,"firstSeen":"...","lastSeen":"...",
+ "steps":[{"nodeId":"node-a1b2c3d4","sensorId":"ts-sensor-tcp-tarpit","firstSeen":"...","lastSeen":"...","events":4,"maxSeverity":"low","triggers":["tcp_connection"],"techniques":["T1046"]}],
+ "progression":[{"firstSeen":"...","technique":"T1046","name":"Network Service Discovery","tactics":[{"id":"TA0007","name":"Discovery"}]}],"timeline":[...]}
+```
+
+### GET /api/v2/assets · PUT /api/v2/assets
+
+The asset inventory: real hosts and ranges with criticality (`low`, `medium` (default), `high`, `critical`), owner and tags. `PUT` replaces the whole list atomically (`{"assets":[...]}`, unknown fields rejected) after validation: a name is required, `address` must be an IP or CIDR range, no two entries may cover the same range, at most 5,000 entries, fields up to 256 characters. A rejected `PUT` changes nothing. Stored in the config table (no schema change), so a factory reset clears it; export it first (Assets page, CSV).
+
+Events (`sourceAsset`), source profiles (`asset`) and the SIEM (`truesignal.source_asset`) carry the asset the source address belongs to, the most specific range winning. It is resolved against the current inventory when read or forwarded. An inventoried address counts as internal even in public space.
+
+```json
+{"assets":[{"name":"jump-host-01","address":"10.20.4.101","criticality":"critical","owner":"IT Ops","tags":["pci","bastion"]}]}
+```
+
+### GET /api/v2/attack
+
+Activity per MITRE ATT&CK technique over every technique TrueSignal can evidence (zero counts included), with the tactics in matrix order. Same query parameters as `/api/v2/insights`. `primaryEvents` counts events whose primary technique it is; `secondaryEvents` those that list it as secondary. Mapping: `Docs/siem/attack-mapping.md`. Every event returned by `/api/v2/events` (and WebSocket `NEW_EVENT`) carries its mapping as `attack` (`{"primary":{id,name,tactics},"secondary":[...]}`), absent for unmapped triggers.
+
+```json
+{"timeframe":"alltime","mappedEvents":57,"techniquesObserved":7,"techniquesCovered":16,"tactics":[{"id":"TA0043","name":"Reconnaissance"}],
+ "techniques":[{"id":"T1021.004","name":"Remote Services: SSH","tactics":["TA0008"],"primaryEvents":11,"secondaryEvents":0,"sources":4,"lastSeen":"2026-10-24T06:18:37Z","triggers":["ssh_login"]}]}
+```
+
+### GET /api/v2/attack/layer
+
+The same data as an ATT&CK Navigator layer file (format 4.5, `enterprise-attack`), served as an attachment. Score = primary events; covered techniques without events are included with score 0. Load it at the ATT&CK Navigator with "Open Existing Layer".
+
 ### GET /api/v2/sources
 
 One activity profile per event source across all events (active and archived), Hub liveness excluded, busiest first. `whitelisted` and `knownScanner` reflect the lists as they are now, not when the events arrived. `internal` covers RFC 1918, RFC 6598, loopback, link-local and IPv6 unique-local addresses; both flags are `false` for a non-IP source (`isIp: false`). The dashboard derives its triage labels (multi-decoy, repeat, single touch, internal, external, whitelisted, known scanner) from it.

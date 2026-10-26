@@ -37,6 +37,8 @@ The Hub forwards every event (including whitelisted evidence and Hub-generated l
 | `host.name`, `host.id`, `observer.hostname` | Node alias, node ID |
 | `observer.type` / `vendor` / `product` | `honeypot` / `TrueSignal` / `TrueSignal` |
 | `tags` | `truesignal`, `deception` (plus `whitelisted` or `known_scanner`; audit: `audit`) |
+| `truesignal.source_asset` | `{name, criticality}` of the inventoried asset the source address belongs to (Hub **Assets** page), when any: a decoy touched from a known host names the likely compromised machine. Syslog: `source_asset` / `source_asset_criticality` (always present, empty when none) and `"source_asset"` in the JSON body |
+| `threat.*` | MITRE ATT&CK: `threat.framework`, `threat.technique.*` (with `threat.technique.subtechnique.*`), `threat.tactic.*`. Absent for unmapped triggers. Mapping: `Docs/siem/attack-mapping.md` |
 | `truesignal.*` | The complete TrueSignal record, including `truesignal.details`, `truesignal.whitelisted` and `truesignal.known_scanner` (added 2026-10-26) |
 
 Honeytoken inventory records (dataset `truesignal.honeytoken`, `event.kind: enrichment`, `event.category: threat`, `event.type: indicator`) carry `user.name`, `threat.indicator.type: user-account` and `truesignal.honeytoken.*`. They are the indicator side of the honeytoken rule in `Docs/siem/honeytoken-detection.md`.

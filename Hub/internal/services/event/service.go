@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/truesignal/hub/internal/assets"
+	"github.com/truesignal/hub/internal/attack"
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/honeytoken"
 	"github.com/truesignal/hub/internal/services/sourcelist"
@@ -74,6 +76,7 @@ type Service struct {
 	honeytokens   HoneytokenMatcher
 	whitelist     sourcelist.Cache
 	scanners      sourcelist.Cache
+	assets        assets.Cache
 }
 
 // SetHoneytokenMatcher enables honeytoken detection on incoming events.
@@ -196,6 +199,8 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 	e.ID = lastInsertID
 	e.Timestamp = nowStr
 	e.Count = 1
+	withAttack(e)
+	e.SourceAsset = s.assetIndex().Lookup(e.Source)
 
 	if e.Source != SystemSource {
 		s.store.UpdateNodeLastHeartbeat(nodeID, e.SensorID, nowStr)
@@ -282,7 +287,31 @@ func (s *Service) checkHoneytokens(e models.Event) {
 }
 
 func (s *Service) GetEvents(isArchived int, nodeID, sensorID string) ([]models.Event, error) {
-	return s.store.GetEvents(isArchived, nodeID, sensorID)
+	events, err := s.store.GetEvents(isArchived, nodeID, sensorID)
+	ix := s.assetIndex()
+	for i := range events {
+		withAttack(&events[i])
+		events[i].SourceAsset = ix.Lookup(events[i].Source)
+	}
+	return events, err
+}
+
+// assetIndex is the current asset inventory. Like the ATT&CK mapping, the
+// asset is resolved on read, so inventory edits apply to past events.
+func (s *Service) assetIndex() *assets.Index {
+	raw, _ := s.store.GetConfigValue(assets.ConfigKey)
+	return s.assets.Get(raw)
+}
+
+// withAttack attaches the trigger's ATT&CK mapping for API and WebSocket
+// consumers. It is derived, never stored, so a mapping change applies to
+// past events too.
+func withAttack(e *models.Event) {
+	if m, ok := attack.For(e.EventTrigger); ok {
+		e.Attack = &m
+	} else {
+		e.Attack = nil
+	}
 }
 
 func (s *Service) GetUnreadCount() (int, error) {

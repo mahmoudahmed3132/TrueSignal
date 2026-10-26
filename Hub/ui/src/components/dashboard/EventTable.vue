@@ -7,6 +7,7 @@ import { useFleetStore } from '../../stores/Fleet/fleet.ts'
 import { formatSensorId } from '../../utils/formatSensorId'
 import { useSourcesStore, labelsOf, SOURCE_LABELS } from '../../stores/Sources/sources'
 import type { SourceLabel } from '../../stores/Sources/sources'
+import { techniqueUrl } from '../../stores/Attack/attack'
 
 
 const appStore = useAppStore()
@@ -26,13 +27,22 @@ watch(() => eventsStore.events[0]?.id, () => sourcesStore.scheduleRefresh())
 // "Internal" shows internal sources that touched several decoys.
 const search = ref('')
 const activeLabels = ref<Set<SourceLabel>>(new Set())
+// ATT&CK tactic filter: matches the tactics of the event's primary technique.
+const tacticFilter = ref('')
+const tacticOptions = computed(() => {
+    const seen = new Map<string, string>()
+    for (const e of displayEvents.value as any[]) {
+        for (const t of e.attack?.primary?.tactics || []) seen.set(t.id, t.name)
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+})
 const toggleLabel = (id: SourceLabel) => {
     const next = new Set(activeLabels.value)
     next.has(id) ? next.delete(id) : next.add(id)
     activeLabels.value = next
 }
-const clearFilters = () => { search.value = ''; activeLabels.value = new Set() }
-const hasFilters = computed(() => search.value.trim() !== '' || activeLabels.value.size > 0)
+const clearFilters = () => { search.value = ''; activeLabels.value = new Set(); tacticFilter.value = '' }
+const hasFilters = computed(() => search.value.trim() !== '' || activeLabels.value.size > 0 || tacticFilter.value !== '')
 
 const sortCol = ref('timestamp')
 const sortDesc = ref(true)
@@ -95,7 +105,7 @@ const isDownArrow = (col: string) => {
 
 const matchesSearch = (e: any, q: string): boolean => {
     if (!q) return true
-    const hay = [e.eventTrigger, e.source, e.target, e.sensorId, e.severity, getNodeAlias(e.nodeId), JSON.stringify(e.details || {})]
+    const hay = [e.eventTrigger, e.source, e.target, e.sensorId, e.severity, getNodeAlias(e.nodeId), e.attack?.primary?.id || '', e.attack?.primary?.name || '', JSON.stringify(e.details || {})]
         .join(' ').toLowerCase()
     return q.split(/\s+/).every(term => hay.includes(term))
 }
@@ -103,9 +113,11 @@ const matchesSearch = (e: any, q: string): boolean => {
 const filteredEvents = computed(() => {
     const q = search.value.trim().toLowerCase()
     const want = [...activeLabels.value]
-    if (!q && want.length === 0) return displayEvents.value
+    const tactic = tacticFilter.value
+    if (!q && want.length === 0 && !tactic) return displayEvents.value
     return displayEvents.value.filter((e: any) => {
         if (!matchesSearch(e, q)) return false
+        if (tactic && !(e.attack?.primary?.tactics || []).some((t: any) => t.id === tactic)) return false
         if (want.length === 0) return true
         const labels = labelsOf(bySource.value.get(e.source))
         return want.every(l => labels.has(l))
@@ -116,13 +128,18 @@ const sourceBadges = (source: string): { text: string; title: string; tone: stri
     const p = bySource.value.get(source)
     if (!p) return []
     const out: { text: string; title: string; tone: string }[] = []
+    if (p.asset) out.push({
+        text: p.asset.name,
+        title: `Known asset ${p.asset.name} (${p.asset.criticality} criticality): a likely compromised internal host`,
+        tone: ['critical', 'high'].includes(p.asset.criticality) ? 'alert' : 'muted'
+    })
     if (p.decoys > 1) out.push({ text: `${p.decoys} decoys`, title: `Touched ${p.decoys} decoys`, tone: 'alert' })
     if (p.knownScanner) out.push({ text: 'scanner', title: 'On the known-scanner list', tone: 'muted' })
     if (p.whitelisted) out.push({ text: 'whitelisted', title: 'On the whitelist', tone: 'muted' })
     return out
 }
 
-watch([search, activeLabels], () => { currentPage.value = 1 })
+watch([search, activeLabels, tacticFilter], () => { currentPage.value = 1 })
 
 const sortedEvents = computed(() => {
     return [...filteredEvents.value].sort((a, b) => {
@@ -282,6 +299,15 @@ const formatTime = (timestamp: string) => {
                     {{ l.text }}
                 </button>
             </div>
+            <label class="flex items-center">
+                <span class="sr-only">Filter by ATT&amp;CK tactic</span>
+                <select v-model="tacticFilter"
+                        class="px-2.5 py-1 text-xs rounded-full border bg-secondary-main text-secondary-text border-secondary-border outline-none focus:border-primary-main"
+                        :class="tacticFilter ? '!bg-primary-selected !text-primary-text !border-primary-border' : ''">
+                    <option value="">All ATT&amp;CK tactics</option>
+                    <option v-for="t in tacticOptions" :key="t.id" :value="t.id">{{ t.name }}</option>
+                </select>
+            </label>
             <div v-if="hasFilters" class="flex items-center gap-2 ml-auto">
                 <span class="text-xs text-text-m font-mono">{{ filteredEvents.length }} / {{ displayEvents.length }}</span>
                 <button type="button" @click="clearFilters" class="text-xs text-text-m hover:text-text-h underline underline-offset-2">Clear</button>
@@ -361,23 +387,31 @@ const formatTime = (timestamp: string) => {
                                 </span>
                             </td>
                             
-                            <td class="px-4 py-3 text-base font-base text-text-h capitalize max-w-[140px] md:max-w-[200px] lg:max-w-md xl:max-w-2xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="formatEventType(event.eventTrigger)">{{ formatEventType(event.eventTrigger) }}</td>
+                            <td class="px-4 py-3 text-base font-base text-text-h capitalize max-w-[140px] md:max-w-[200px] lg:max-w-md xl:max-w-2xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="formatEventType(event.eventTrigger)">
+                                {{ formatEventType(event.eventTrigger) }}
+                                <span v-if="event.attack" class="hidden 2xl:inline ml-1.5 px-1.5 py-px rounded text-xs font-mono normal-case border border-border-default text-text-m"
+                                      :title="`MITRE ATT&CK ${event.attack.primary.id} ${event.attack.primary.name} (${event.attack.primary.tactics.map((t: any) => t.name).join(', ')})`">{{ event.attack.primary.id }}</span>
+                            </td>
                             
                             <td class="px-4 py-3 text-base text-text-m font-mono max-w-[160px] md:max-w-[240px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.source">
-                                <!-- The address never truncates; badges clip first. -->
-                                <div class="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                <!-- Address (never truncated) and its event count; triage badges on a second line. -->
+                                <div class="flex items-center gap-1.5 min-w-0">
                                     <span class="shrink-0 max-w-full truncate">{{ event.source }}</span>
                                     <span v-if="(bySource.get(event.source)?.events || 0) > 1" class="shrink-0 text-xs text-text-l" :title="`${bySource.get(event.source)?.events} events from this source`">×{{ bySource.get(event.source)?.events }}</span>
-                                    <span v-for="b in sourceBadges(event.source)" :key="b.text" :title="b.title"
-                                          class="shrink-0 px-1.5 py-px rounded text-xs font-sans border"
+                                </div>
+                                <div v-if="sourceBadges(event.source).length" class="flex items-center gap-1 mt-1 min-w-0 overflow-hidden">
+                                    <span v-for="b in sourceBadges(event.source).slice(0, 1)" :key="b.text" :title="b.title"
+                                          class="shrink-0 max-w-[130px] truncate px-1.5 py-px rounded text-xs font-sans border"
                                           :class="b.tone === 'alert' ? 'text-critical border-critical/40' : 'text-text-m border-border-default'">{{ b.text }}</span>
+                                    <span v-if="sourceBadges(event.source).length > 1" class="shrink-0 text-xs font-sans text-text-l"
+                                          :title="sourceBadges(event.source).slice(1).map(b => b.title).join('\n')">+{{ sourceBadges(event.source).length - 1 }}</span>
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-base text-text-m font-mono max-w-[120px] md:max-w-[180px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.target">{{ event.target }}</td>
                             
                             <td class="px-4 py-3 text-base text-text-h font-mono max-w-[140px] md:max-w-[200px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.sensorId">{{ formatSensorId(event.sensorId) }}</td>
                             
-                            <td class="px-4 py-3 text-base font-medium text-right text-text-h font-mono w-[160px] min-w-[160px] max-w-[160px] truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.nodeId || 'Unassigned'">{{ getNodeAlias(event.nodeId) }}</td>
+                            <td class="px-4 py-3 text-base font-medium text-right text-text-h font-mono w-[130px] min-w-[130px] max-w-[130px] truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.nodeId || 'Unassigned'">{{ getNodeAlias(event.nodeId) }}</td>
                             
                             <td class="px-5 py-3 text-base text-right text-text-m font-mono whitespace-nowrap" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.timestamp">{{ formatTime(event.timestamp) }}</td>
                             
@@ -401,6 +435,23 @@ const formatTime = (timestamp: string) => {
                                     <div class="px-6 py-5 bg-bg-surface border border-border-default rounded-lg shadow-sm relative overflow-hidden w-fit max-w-full">
                                         <div class="absolute left-0 top-0 bottom-0 w-1" :style="{ backgroundColor: event.severity ? `var(--color-${event.severity.toLowerCase()})` : 'transparent' }"></div>
                                         
+                                        <div class="mb-5 flex flex-col gap-1.5 text-sm">
+                                            <div>
+                                                <router-link :to="{ path: '/path', query: { source: event.source } }" class="text-highlight-text underline underline-offset-2" @click.stop>Investigate {{ event.source }} in Attack Path →</router-link>
+                                            </div>
+                                            <div v-if="event.attack" class="text-text-h">
+                                                <span class="text-text-m">MITRE ATT&amp;CK</span>
+                                                <a :href="techniqueUrl(event.attack.primary.id)" target="_blank" rel="noopener noreferrer" class="ml-2 font-mono underline underline-offset-2 text-highlight-text" @click.stop>{{ event.attack.primary.id }}</a>
+                                                {{ event.attack.primary.name }}
+                                                <span class="text-text-m">({{ event.attack.primary.tactics.map((t: any) => t.name).join(', ') }})</span>
+                                                <span v-if="event.attack.secondary?.length" class="text-text-m"> · also {{ event.attack.secondary.map((t: any) => `${t.id} ${t.name}`).join(', ') }}</span>
+                                            </div>
+                                            <div v-if="bySource.get(event.source)?.asset" class="text-text-h">
+                                                <span class="text-text-m">Source asset</span>
+                                                <span class="ml-2 font-medium">{{ bySource.get(event.source)!.asset!.name }}</span>
+                                                <span class="text-text-m"> ({{ bySource.get(event.source)!.asset!.criticality }} criticality): likely compromised internal host</span>
+                                            </div>
+                                        </div>
                                         <div class="flex flex-wrap gap-x-6 gap-y-6">
                                             
                                             <div v-for="(val, key) in event.details" :key="key" class="flex flex-col group w-fit min-w-[120px] max-w-full">

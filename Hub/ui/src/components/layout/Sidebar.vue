@@ -50,7 +50,7 @@ const goToDashboard = () => {
 </script>
 
 <template>
-    <aside class="flex flex-col bg-bg-base border-r border-border-default --z-modal transition-all duration-fast ease-in-out shrink-0"
+    <aside class="print:hidden flex flex-col bg-bg-base border-r border-border-default --z-modal transition-all duration-fast ease-in-out shrink-0"
            :class="sidebarOpen ? 'w-[240px]' : 'w-[68px]'">
         
         <div class="h-14 flex items-center px-[18px] shrink-0 mb-2">
@@ -95,6 +95,30 @@ const goToDashboard = () => {
                 </div>
             </button>
 
+            <button @click="router.push('/attack')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'attack navigator' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'Attack Navigator' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h4v4H4zM10 5h4v4h-4zM16 5h4v4h-4zM4 11h4v4H4zM10 11h4v4h-4zM4 17h4v2H4z"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>Attack Navigator</span>
+                </div>
+            </button>
+
+            <button @click="router.push('/path')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'attack path' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'Attack Path' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 100-4 2 2 0 000 4zm14-10a2 2 0 100-4 2 2 0 000 4zM7 17l3-3m0 0h4a3 3 0 003-3V9m-7 5V9"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>Attack Path</span>
+                </div>
+            </button>
+
             <button @click="router.push('/honeytokens')"
                     type="button"
                     class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
@@ -116,6 +140,30 @@ const goToDashboard = () => {
                 <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
                      :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
                     <span>Detected Scans</span>
+                </div>
+            </button>
+
+            <button @click="router.push('/assets')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'assets' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'Assets' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10M18 16v4m-2-2h4"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>Assets</span>
+                </div>
+            </button>
+
+            <button @click="router.push('/report')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'reports' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'Reports' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6m3 6V7m3 10v-3M6 21h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>Reports</span>
                 </div>
             </button>
 

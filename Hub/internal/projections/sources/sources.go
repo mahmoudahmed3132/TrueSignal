@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"sort"
 
+	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/services/sourcelist"
 	"github.com/truesignal/hub/internal/store"
 )
@@ -22,6 +23,8 @@ type Profile struct {
 	Internal     bool   `json:"internal"`
 	Whitelisted  bool   `json:"whitelisted"`
 	KnownScanner bool   `json:"knownScanner"`
+	// Asset is the inventory asset the source belongs to, if any.
+	Asset *assets.Ref `json:"asset"`
 }
 
 var internalRanges = func() []netip.Prefix {
@@ -61,10 +64,15 @@ func Classify(source string) (isIP, internal bool) {
 }
 
 // Build profiles every source, busiest first.
-func Build(rows []store.SourceActivity, whitelist, scanners *sourcelist.List) []Profile {
+func Build(rows []store.SourceActivity, whitelist, scanners *sourcelist.List, inventory *assets.Index) []Profile {
 	out := make([]Profile, 0, len(rows))
 	for _, r := range rows {
 		isIP, internal := Classify(r.Source)
+		asset := inventory.Lookup(r.Source)
+		if asset != nil {
+			// An inventoried address is internal even in public space.
+			internal = true
+		}
 		out = append(out, Profile{
 			Source:       r.Source,
 			Events:       r.Events,
@@ -75,6 +83,7 @@ func Build(rows []store.SourceActivity, whitelist, scanners *sourcelist.List) []
 			Internal:     internal,
 			Whitelisted:  whitelist.Match(r.Source),
 			KnownScanner: scanners.Match(r.Source),
+			Asset:        asset,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {

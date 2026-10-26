@@ -4,6 +4,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/truesignal/hub/internal/attack"
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/store"
 )
@@ -57,6 +58,7 @@ func Calculate(events []models.Event, decoys []store.DeployedSensor, tokens []mo
 	dto.DecoysDeployed = len(deployed)
 
 	sources := map[string]bool{}
+	techniques := map[string]bool{}
 	typeSources := map[string]map[string]bool{}
 	touched := map[store.DeployedSensor]bool{}
 
@@ -75,6 +77,9 @@ func Calculate(events []models.Event, decoys []store.DeployedSensor, tokens []mo
 			dto.CriticalEvents++
 		}
 		sources[e.Source] = true
+		if m, ok := attack.For(e.EventTrigger); ok {
+			techniques[m.Primary.ID] = true
+		}
 
 		t := typeOf(e.SensorID)
 		t.Events++
@@ -90,6 +95,7 @@ func Calculate(events []models.Event, decoys []store.DeployedSensor, tokens []mo
 		}
 	}
 	dto.UniqueSources = len(sources)
+	dto.TechniquesObserved = len(techniques)
 	dto.DecoysTouched = len(touched)
 
 	for id, t := range types {

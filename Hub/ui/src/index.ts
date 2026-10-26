@@ -21,6 +21,16 @@ const routes = [
     component: () => import('./views/NodeDetails.vue')
   },
   {
+    path: '/path',
+    name: 'attack path',
+    component: () => import('./views/AttackPath.vue')
+  },
+  {
+    path: '/assets',
+    name: 'assets',
+    component: () => import('./views/Assets.vue')
+  },
+  {
     path: '/honeytokens',
     name: 'honeytokens',
     component: () => import('./views/Honeytokens.vue')
@@ -29,6 +39,16 @@ const routes = [
     path: '/scans',
     name: 'scans',
     component: () => import('./views/Scans.vue')
+  },
+  {
+    path: '/attack',
+    name: 'attack navigator',
+    component: () => import('./views/Attack.vue')
+  },
+  {
+    path: '/report',
+    name: 'reports',
+    component: () => import('./views/Report.vue')
   },
   {
     path: '/settings',

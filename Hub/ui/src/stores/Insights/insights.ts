@@ -22,6 +22,7 @@ export interface InsightsProjection {
   decoyTypesDeployed: number
   honeytokensTotal: number
   honeytokensUsed: number
+  techniquesObserved: number
   byType: DecoyTypeStat[]
 }
 

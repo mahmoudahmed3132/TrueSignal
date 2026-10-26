@@ -125,6 +125,32 @@ func TestECSKnownScanner(t *testing.T) {
 	}
 }
 
+func TestECSThreat(t *testing.T) {
+	svc := NewService(nil)
+	ev := ldapLoginEvent()
+	ev.EventTrigger = "ssh_login"
+	doc := roundTrip(t, svc.ecsEvent(ev))
+	if get(doc, "threat.framework") != "MITRE ATT&CK" {
+		t.Fatalf("threat = %v", doc["threat"])
+	}
+	ids, _ := json.Marshal(get(doc, "threat.technique.id"))
+	subs, _ := json.Marshal(get(doc, "threat.technique.subtechnique.id"))
+	tactics, _ := json.Marshal(get(doc, "threat.tactic.id"))
+	// Parent in technique, sub-technique under subtechnique, primary first.
+	if string(ids) != `["T1021","T1110"]` || string(subs) != `["T1021.004"]` || string(tactics) != `["TA0008"]` {
+		t.Errorf("technique=%s subtechnique=%s tactic=%s", ids, subs, tactics)
+	}
+	names, _ := json.Marshal(get(doc, "threat.technique.subtechnique.name"))
+	if string(names) != `["SSH"]` {
+		t.Errorf("subtechnique names = %s", names)
+	}
+
+	live := roundTrip(t, svc.ecsEvent(models.Event{EventTrigger: "sensor_heartbeat_lost", Severity: "high", Source: "truesignal-hub"}))
+	if _, ok := live["threat"]; ok {
+		t.Errorf("liveness must carry no threat.*: %v", live["threat"])
+	}
+}
+
 func TestECSLivenessAndFileMapping(t *testing.T) {
 	svc := NewService(nil)
 	live := roundTrip(t, svc.ecsEvent(models.Event{EventTrigger: "sensor_heartbeat_lost", Severity: "high", Source: "truesignal-hub"}))

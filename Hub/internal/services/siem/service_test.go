@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/models"
 )
 
@@ -132,10 +133,48 @@ func TestFormatSyslog_KnownScannerFlag(t *testing.T) {
 	svc := NewService(nil, Options{PEN: "99999"})
 	msg := svc.formatSyslog(models.Event{ID: 1, NodeID: "n", Timestamp: "2026-01-01T00:00:00Z", Severity: "low",
 		EventTrigger: "tcp_connection", Source: "172.16.5.3", SensorID: "s", Details: json.RawMessage("{}"), KnownScanner: true})
-	if !strings.Contains(msg, `whitelisted="false" known_scanner="true"]`) {
+	if !strings.Contains(msg, `whitelisted="false" known_scanner="true" `) {
 		t.Fatalf("structured data lacks known_scanner: %s", msg)
 	}
 	if !strings.Contains(msg, `"known_scanner":true`) {
 		t.Fatalf("JSON body lacks known_scanner: %s", msg)
+	}
+}
+
+func TestFormatSyslog_AttackFields(t *testing.T) {
+	svc := NewService(nil, Options{PEN: "99999"})
+	ev := models.Event{ID: 2, NodeID: "n", Timestamp: "2026-01-01T00:00:00Z", Severity: "critical",
+		EventTrigger: "ssh_login", Source: "10.0.0.9", SensorID: "s", Details: json.RawMessage("{}")}
+	msg := svc.formatSyslog(ev)
+	if !strings.Contains(msg, `mitre_technique="T1021.004" mitre_tactic="TA0008" `) {
+		t.Fatalf("structured data lacks ATT&CK: %s", msg)
+	}
+	if !strings.Contains(msg, `"attack":{"primary":{"id":"T1021.004"`) {
+		t.Fatalf("JSON body lacks ATT&CK: %s", msg)
+	}
+	// Unmapped triggers keep the parameters, empty, so positions never shift.
+	ev.EventTrigger = "sensor_heartbeat_lost"
+	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `mitre_technique="" mitre_tactic="" `) || !strings.Contains(msg, `"attack":null`) {
+		t.Fatalf("unmapped event: %s", msg)
+	}
+}
+
+func TestFormatSyslog_SourceAsset(t *testing.T) {
+	svc := NewService(nil, Options{PEN: "99999"})
+	ev := models.Event{ID: 3, NodeID: "n", Timestamp: "2026-01-01T00:00:00Z", Severity: "critical",
+		EventTrigger: "ssh_login", Source: "10.20.4.17", SensorID: "s", Details: json.RawMessage("{}"),
+		SourceAsset: &assets.Ref{Name: "pg-primary", Criticality: "critical"}}
+	msg := svc.formatSyslog(ev)
+	if !strings.Contains(msg, `source_asset="pg-primary" source_asset_criticality="critical"]`) ||
+		!strings.Contains(msg, `"source_asset":{"name":"pg-primary","criticality":"critical"}`) {
+		t.Fatalf("asset missing: %s", msg)
+	}
+	ev.SourceAsset = nil
+	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `source_asset="" source_asset_criticality=""]`) || !strings.Contains(msg, `"source_asset":null`) {
+		t.Fatalf("no-asset event: %s", msg)
+	}
+	doc := svc.ecsEvent(models.Event{EventTrigger: "ssh_login", Source: "10.20.4.17", SourceAsset: &assets.Ref{Name: "pg-primary", Criticality: "critical"}})
+	if r, _ := doc["truesignal"].(map[string]any)["source_asset"].(*assets.Ref); r == nil || r.Name != "pg-primary" {
+		t.Fatalf("ECS truesignal.source_asset = %v", doc["truesignal"])
 	}
 }

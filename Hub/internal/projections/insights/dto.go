@@ -4,15 +4,17 @@ package insights
 // widgets: what is deployed, what attackers touched, and from how many
 // sources. Hub liveness events are not attacker activity and are excluded.
 type InsightsDTO struct {
-	Timeframe          string     `json:"timeframe"`
-	Events             int        `json:"events"`
-	CriticalEvents     int        `json:"criticalEvents"`
-	UniqueSources      int        `json:"uniqueSources"`
-	DecoysDeployed     int        `json:"decoysDeployed"`
-	DecoysTouched      int        `json:"decoysTouched"`
-	DecoyTypesDeployed int        `json:"decoyTypesDeployed"`
-	HoneytokensTotal   int        `json:"honeytokensTotal"`
-	HoneytokensUsed    int        `json:"honeytokensUsed"`
+	Timeframe          string `json:"timeframe"`
+	Events             int    `json:"events"`
+	CriticalEvents     int    `json:"criticalEvents"`
+	UniqueSources      int    `json:"uniqueSources"`
+	DecoysDeployed     int    `json:"decoysDeployed"`
+	DecoysTouched      int    `json:"decoysTouched"`
+	DecoyTypesDeployed int    `json:"decoyTypesDeployed"`
+	HoneytokensTotal   int    `json:"honeytokensTotal"`
+	HoneytokensUsed    int    `json:"honeytokensUsed"`
+	// TechniquesObserved counts distinct primary ATT&CK techniques.
+	TechniquesObserved int        `json:"techniquesObserved"`
 	ByType             []TypeStat `json:"byType"`
 }
 

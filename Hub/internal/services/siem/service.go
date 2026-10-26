@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/truesignal/hub/internal/attack"
 	"github.com/truesignal/hub/internal/models"
 )
 
@@ -515,6 +516,19 @@ func (s *Service) formatSyslog(event models.Event) string {
 
 	nodeAlias := s.nodeAlias(event.NodeID)
 
+	// ATT&CK: always present, empty when the trigger is unmapped, so the
+	// parameter positions never shift.
+	var mitreTechnique, mitreTactic string
+	var mitre any
+	var assetName, assetCriticality string
+	var sourceAsset any
+	if event.SourceAsset != nil {
+		assetName, assetCriticality, sourceAsset = event.SourceAsset.Name, event.SourceAsset.Criticality, event.SourceAsset
+	}
+	if m, ok := attack.For(event.EventTrigger); ok {
+		mitreTechnique, mitreTactic, mitre = m.Primary.ID, m.Primary.TacticIDs(), m
+	}
+
 	sd := structuredData("truesignal@"+s.pen, [][2]string{
 		{"event_id", fmt.Sprint(event.ID)},
 		{"trigger", event.EventTrigger},
@@ -526,6 +540,10 @@ func (s *Service) formatSyslog(event models.Event) string {
 		{"sensor", event.SensorID},
 		{"whitelisted", fmt.Sprint(event.Whitelisted)},
 		{"known_scanner", fmt.Sprint(event.KnownScanner)},
+		{"mitre_technique", mitreTechnique},
+		{"mitre_tactic", mitreTactic},
+		{"source_asset", assetName},
+		{"source_asset_criticality", assetCriticality},
 	})
 
 	body, _ := json.Marshal(map[string]any{
@@ -540,6 +558,8 @@ func (s *Service) formatSyslog(event models.Event) string {
 		"target":        event.Target,
 		"whitelisted":   event.Whitelisted,
 		"known_scanner": event.KnownScanner,
+		"attack":        mitre,
+		"source_asset":  sourceAsset,
 		"details":       json.RawMessage(detailsJSON),
 	})
 

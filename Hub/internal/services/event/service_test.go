@@ -13,6 +13,7 @@ type fakeStore struct {
 	registered bool
 	whitelist  string
 	scanners   string
+	assets     string
 }
 
 func (f *fakeStore) InsertEvent(e *models.Event, _ string, details string) (int, error) {
@@ -40,6 +41,8 @@ func (f *fakeStore) GetConfigValue(key string) (string, error) {
 		return f.whitelist, nil
 	case "known_scanners":
 		return f.scanners, nil
+	case "assets":
+		return f.assets, nil
 	}
 	return "", nil
 }
@@ -122,6 +125,21 @@ func TestProcessEvent_SourceListsMatchCIDRAndFlagSeparately(t *testing.T) {
 	// Only the unlisted source notifies and reaches the live view.
 	if notify.n != 1 || ws.n != 1 {
 		t.Fatalf("notify=%d ws=%d, want 1/1", notify.n, ws.n)
+	}
+}
+
+func TestProcessEvent_TagsSourceAssetAndAttack(t *testing.T) {
+	st := &fakeStore{registered: true, assets: `[{"name":"pg-primary","address":"10.20.4.17","criticality":"critical"}]`}
+	svc, _, siem, _ := newSvc(st)
+	if err := svc.ProcessEvent(&models.Event{SensorID: "s1", EventTrigger: "ssh_login", Severity: "critical", Source: "10.20.4.17"}, "n1"); err != nil {
+		t.Fatal(err)
+	}
+	e := siem.events[0]
+	if e.SourceAsset == nil || e.SourceAsset.Name != "pg-primary" || e.SourceAsset.Criticality != "critical" {
+		t.Fatalf("SourceAsset = %+v", e.SourceAsset)
+	}
+	if e.Attack == nil || e.Attack.Primary.ID != "T1021.004" {
+		t.Fatalf("Attack = %+v", e.Attack)
 	}
 }
 

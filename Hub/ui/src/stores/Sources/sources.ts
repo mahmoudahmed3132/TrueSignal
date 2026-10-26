@@ -13,14 +13,16 @@ export interface SourceProfile {
   internal: boolean
   whitelisted: boolean
   knownScanner: boolean
+  asset: { name: string; criticality: string } | null
 }
 
 // Triage labels an analyst filters on. Derived from the profile, so they
 // reflect all stored events and the current source lists.
-export type SourceLabel = 'repeat' | 'single' | 'multiDecoy' | 'internal' | 'external' | 'whitelisted' | 'scanner'
+export type SourceLabel = 'repeat' | 'single' | 'multiDecoy' | 'asset' | 'internal' | 'external' | 'whitelisted' | 'scanner'
 
 export const SOURCE_LABELS: { id: SourceLabel; text: string; hint: string }[] = [
   { id: 'multiDecoy', text: 'Multi-decoy', hint: 'Touched two or more decoys' },
+  { id: 'asset', text: 'Known asset', hint: 'Source is an inventoried asset (likely compromised host)' },
   { id: 'repeat', text: 'Repeat source', hint: 'Two or more events' },
   { id: 'single', text: 'Single touch', hint: 'Exactly one event' },
   { id: 'internal', text: 'Internal', hint: 'Private, loopback or link-local address' },
@@ -34,6 +36,7 @@ export const labelsOf = (p: SourceProfile | undefined): Set<SourceLabel> => {
   if (!p) return out
   out.add(p.events > 1 ? 'repeat' : 'single')
   if (p.decoys > 1) out.add('multiDecoy')
+  if (p.asset) out.add('asset')
   if (p.isIp) out.add(p.internal ? 'internal' : 'external')
   if (p.whitelisted) out.add('whitelisted')
   if (p.knownScanner) out.add('scanner')

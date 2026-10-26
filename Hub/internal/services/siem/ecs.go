@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/truesignal/hub/internal/attack"
 	"github.com/truesignal/hub/internal/models"
 )
 
@@ -122,6 +123,14 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 		},
 	}
 
+	if event.SourceAsset != nil {
+		doc["truesignal"].(map[string]any)["source_asset"] = event.SourceAsset
+	}
+	if m, ok := attack.For(event.EventTrigger); ok {
+		doc["threat"] = ecsThreat(m)
+		doc["truesignal"].(map[string]any)["attack"] = m
+	}
+
 	// source.ip is an ip-typed field: only set it from a parseable address,
 	// or Elastic rejects the whole document.
 	if ip := net.ParseIP(event.Source); ip != nil {
@@ -177,6 +186,48 @@ func asPort(v any) (int, bool) {
 		return 0, false
 	}
 	return int(f), true
+}
+
+// ecsThreat renders an ATT&CK mapping as ECS threat.* fields. Sub-techniques
+// go under threat.technique.subtechnique with their parent in
+// threat.technique, as ECS specifies. The primary technique comes first;
+// tactics are the primary technique's.
+func ecsThreat(m attack.Mapping) map[string]any {
+	var techIDs, techNames, techRefs, subIDs, subNames, subRefs []string
+	seen := map[string]bool{}
+	for _, t := range append([]attack.Technique{m.Primary}, m.Secondary...) {
+		parentID, parentName, subName := t.ID, t.Name, ""
+		if i := strings.IndexByte(t.ID, '.'); i > 0 {
+			parentID = t.ID[:i]
+			if j := strings.Index(t.Name, ": "); j > 0 {
+				parentName, subName = t.Name[:j], t.Name[j+2:]
+			}
+			subIDs = append(subIDs, t.ID)
+			subNames = append(subNames, subName)
+			subRefs = append(subRefs, t.Reference())
+		}
+		if !seen[parentID] {
+			seen[parentID] = true
+			techIDs = append(techIDs, parentID)
+			techNames = append(techNames, parentName)
+			techRefs = append(techRefs, "https://attack.mitre.org/techniques/"+parentID+"/")
+		}
+	}
+	technique := map[string]any{"id": techIDs, "name": techNames, "reference": techRefs}
+	if len(subIDs) > 0 {
+		technique["subtechnique"] = map[string]any{"id": subIDs, "name": subNames, "reference": subRefs}
+	}
+	var tacIDs, tacNames, tacRefs []string
+	for _, tc := range m.Primary.Tactics {
+		tacIDs = append(tacIDs, tc.ID)
+		tacNames = append(tacNames, tc.Name)
+		tacRefs = append(tacRefs, "https://attack.mitre.org/tactics/"+tc.ID+"/")
+	}
+	return map[string]any{
+		"framework": attack.Framework,
+		"technique": technique,
+		"tactic":    map[string]any{"id": tacIDs, "name": tacNames, "reference": tacRefs},
+	}
 }
 
 func ecsTags(whitelisted, knownScanner bool) []string {

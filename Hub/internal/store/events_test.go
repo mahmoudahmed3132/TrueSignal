@@ -184,3 +184,26 @@ func TestGetSourceActivity(t *testing.T) {
 		}
 	}
 }
+
+func TestGetEventsBySource(t *testing.T) {
+	st, err := NewStore(filepath.Join(t.TempDir(), "bysource.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.DB.Close()
+	if _, err := st.DB.Exec(`INSERT INTO events (node_id, sensor_id, timestamp, event_trigger, source, is_archived) VALUES
+		('n1','s1','2026-10-03T00:00:00Z','a','10.0.0.5',1),
+		('n1','s1','2026-10-01T00:00:00Z','b','10.0.0.5',0),
+		('n1','s1','2026-10-02T00:00:00Z','c','10.0.0.5',0),
+		('n1','s1','2026-10-02T00:00:00Z','d','10.0.0.9',0)`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.GetEventsBySource("10.0.0.5", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The newest two, oldest first, archived included.
+	if len(got) != 2 || got[0].EventTrigger != "c" || got[1].EventTrigger != "a" || !got[1].IsArchived {
+		t.Fatalf("got %+v", got)
+	}
+}
