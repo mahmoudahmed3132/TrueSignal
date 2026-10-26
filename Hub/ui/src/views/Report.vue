@@ -22,6 +22,7 @@ interface Report {
     daily: { date: string; events: number; critical: number }[]
     topSources: { source: string; events: number; critical: number; decoys: number; firstSeen: string; lastSeen: string; asset: { name: string; criticality: string } | null }[]
     sourcesTotal: number
+    assets: { name: string; criticality: string; sources: number; events: number }[]
     techniques: { id: string; name: string; tactics: string[]; primaryEvents: number; secondaryEvents: number; sources: number }[]
     honeytokenUses: { timestamp: string; username: string; source: string; nodeId: string; sensorId: string }[]
     archivedEvents: number
@@ -79,7 +80,9 @@ watch(preset, p => { if (p !== 'custom') generate() })
 
 const sev = computed(() => report.value?.severity)
 const sevRows = computed(() => sev.value ? (['critical', 'high', 'medium', 'low', 'info'] as const).map(k => ({ k, n: sev.value![k] })) : [])
-const assetSources = computed(() => (report.value?.topSources || []).filter(s => s.asset))
+// Per-asset totals over all sources in range (one CIDR asset may cover
+// several attacking addresses), not the 25-row top-sources table.
+const assetActivity = computed(() => report.value?.assets || [])
 
 interface Kpi { l: string; v: number | string; a?: boolean }
 const kpis = computed<Kpi[]>(() => {
@@ -92,7 +95,7 @@ const kpis = computed<Kpi[]>(() => {
         { l: 'Decoys touched', v: `${r.summary.decoysTouched} / ${r.summary.decoysDeployed}` },
         { l: 'ATT&CK techniques', v: r.summary.techniquesObserved },
         { l: 'Honeytoken uses', v: r.honeytokenUses.length, a: true },
-        { l: 'Known-asset sources', v: assetSources.value.length, a: true },
+        { l: 'Assets involved', v: assetActivity.value.length, a: true },
         { l: 'Archived (not counted)', v: r.archivedEvents }
     ]
 })
@@ -107,7 +110,8 @@ const findings = computed(() => {
     } else {
         out.push(`${s.events} interactions from ${s.uniqueSources} source${s.uniqueSources === 1 ? '' : 's'} touched ${s.decoysTouched} of ${s.decoysDeployed} deployed decoys; ${s.criticalEvents} were critical (logins or honeytoken use).`)
     }
-    if (assetSources.value.length) out.push(`${assetSources.value.length} inventoried asset${assetSources.value.length === 1 ? ' was' : 's were'} the source of decoy activity: ${assetSources.value.map(a => `${a.asset!.name} (${a.asset!.criticality})`).join(', ')}. Treat these hosts as likely compromised.`)
+    const assets = assetActivity.value
+    if (assets.length) out.push(`${assets.length} inventoried asset${assets.length === 1 ? ' was' : 's were'} the source of decoy activity: ${assets.map(a => `${a.name} (${a.criticality}; ${a.events} event${a.events === 1 ? '' : 's'} from ${a.sources} address${a.sources === 1 ? '' : 'es'})`).join(', ')}. Treat these hosts as likely compromised.`)
     if (r.honeytokenUses.length) out.push(`Planted credentials were used ${r.honeytokenUses.length} time${r.honeytokenUses.length === 1 ? '' : 's'}: an attacker read a lure and tried its credential.`)
     if (s.techniquesObserved) out.push(`${s.techniquesObserved} MITRE ATT&CK technique${s.techniquesObserved === 1 ? ' was' : 's were'} observed.`)
     if (r.archivedEvents) out.push(`${r.archivedEvents} further events were archived (whitelisted sources, known scanners or analyst triage) and are not counted above.`)
