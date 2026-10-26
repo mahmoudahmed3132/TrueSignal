@@ -61,3 +61,31 @@ func TestGetSensorsForUptime_FirstSeenPreservedAfterPurge(t *testing.T) {
 		t.Errorf("Expected FirstSeen to be %s (sensor creation date), got %s", createdAt, sensors[0].FirstSeen)
 	}
 }
+
+func TestListDeployedSensors(t *testing.T) {
+	st, err := NewStore(filepath.Join(t.TempDir(), "deployed.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.DB.Close()
+	now := "2026-10-26T00:00:00Z"
+	if _, err := st.DB.Exec(`
+		INSERT INTO nodes (id, alias, api_key, created_at, updated_at) VALUES ('n1','a','k1',?,?), ('n2','b','k2',?,?);
+		INSERT INTO node_sensors (node_id, sensor_id, custom_name, created_at, updated_at)
+		VALUES ('n1','s1','x',?,?), ('n1','s2','x',?,?), ('n2','s1','x',?,?);`,
+		now, now, now, now, now, now, now, now, now, now); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		node, sensor string
+		want         int
+	}{{"", "", 3}, {"n1", "", 2}, {"", "s1", 2}, {"n2", "s2", 0}} {
+		got, err := st.ListDeployedSensors(c.node, c.sensor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != c.want {
+			t.Errorf("ListDeployedSensors(%q,%q) = %d rows, want %d", c.node, c.sensor, len(got), c.want)
+		}
+	}
+}

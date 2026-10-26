@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/truesignal/hub/internal/projections/insights"
 	"github.com/truesignal/hub/internal/projections/severity"
 	"github.com/truesignal/hub/internal/projections/summary"
 	"github.com/truesignal/hub/internal/projections/uptime"
@@ -64,6 +65,25 @@ func (h *AnalyticsHandler) GetSummaryAnalytics(w http.ResponseWriter, r *http.Re
 			RespondError(w, "Node not found", http.StatusNotFound)
 			return
 		}
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	SendJSON(w, http.StatusOK, projection)
+}
+
+// GetInsights handles GET /api/v2/insights: decoy coverage, attacker
+// sources and per-decoy-type activity for the dashboard.
+func (h *AnalyticsHandler) GetInsights(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	viewingArchive := 0
+	if a := q.Get("archived"); a == "true" || a == "1" {
+		viewingArchive = 1
+	}
+
+	projector := insights.NewProjector(h.Store)
+	projection, err := projector.BuildInsightsProjection(r.Context(), q.Get("timeframe"), q.Get("nodeId"), q.Get("sensorId"), viewingArchive)
+	if err != nil {
 		RespondError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

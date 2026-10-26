@@ -253,3 +253,38 @@ func (s *SQLiteStore) GetSensorLatestStatus(nodeID, sensorID string) (string, er
 	}
 	return status.String, nil
 }
+
+// DeployedSensor identifies one sensor instance installed on a node.
+type DeployedSensor struct {
+	NodeID   string
+	SensorID string
+}
+
+// ListDeployedSensors returns the installed sensors, optionally narrowed to
+// one node and/or sensor ID.
+func (s *SQLiteStore) ListDeployedSensors(nodeID, sensorID string) ([]DeployedSensor, error) {
+	query := "SELECT node_id, sensor_id FROM node_sensors WHERE 1=1"
+	args := []interface{}{}
+	if nodeID != "" {
+		query += " AND node_id = ?"
+		args = append(args, nodeID)
+	}
+	if sensorID != "" {
+		query += " AND sensor_id = ?"
+		args = append(args, sensorID)
+	}
+	rows, err := s.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DeployedSensor{}
+	for rows.Next() {
+		var d DeployedSensor
+		if err := rows.Scan(&d.NodeID, &d.SensorID); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}

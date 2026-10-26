@@ -1,3 +1,11 @@
+# [Unreleased] - Dashboard: decoy coverage (2026-10-26)
+
+* **Decoy coverage row on the dashboard**, with a 24H / 7D / 30D / All filter. It follows the node/sensor selection and the archive view.
+  * Tiles: decoys touched out of deployed, unique attacker sources, critical interactions, honeytokens used.
+  * Bar charts: interactions per decoy type, and unique attacker sources per decoy type.
+  * Donut: deployed decoys touched vs untouched.
+* New endpoint `GET /api/v2/insights` (`Hub/internal/projections/insights`). Hub liveness events are excluded from attacker counts.
+
 # [Unreleased] - Signed releases (Sigstore) (2026-10-24)
 
 * **The Hub accepts only signed sensor manifests.**
