@@ -1,4 +1,17 @@
-# [Unreleased] - Evidence reports (2026-10-26)
+# [2.3.0] - Hub 2.3.0: analyst features (2026-10-29)
+
+Hub only. Wizard stays 2.2.0 and sensors are unchanged; only the major version must match, so existing nodes and sensors keep working. Tag: `hub/v2.3.0`.
+
+**Upgrade.** No schema migration (the asset inventory and the Known Scanners list live in the config table). Roll back by pinning `TS_HUB_VERSION=v2.2.0`; 2.2.0 ignores the `assets` and `known_scanners` keys, so a later return to 2.3.0 finds them intact. 2.2.0 matches whitelist entries exactly, so CIDR entries added under 2.3.0 stop applying after a rollback and those sources alert again.
+
+**SIEM contract (additive, tell the SOC first).** The full notice, with field lists, samples and rule actions, is `Docs/siem/soc-notice-2.3.0.md`. In short:
+* RFC 5424 structured data appends `known_scanner`, `mitre_technique`, `mitre_tactic`, `source_asset`, `source_asset_criticality` after `whitelisted`. All are always present (empty when n/a). The JSON body gains `known_scanner`, `attack` and `source_asset` (`null` when n/a).
+* ECS gains `threat.*`, `truesignal.known_scanner`, `truesignal.attack`, `truesignal.source_asset` and the `known_scanner` tag; known-scanner sources are `event.kind: event`.
+* **Rule action:** any rule or dashboard that excludes `whitelisted=true` must also exclude `known_scanner=true`, or scanner noise reaches it.
+
+**Also in this release:** `make tag-release` skips a Hub or Wizard tag whose version is already released, so a Hub-only release no longer fails on the existing wizard tag.
+
+## Evidence reports
 
 * **Reports page** (sidebar): an evidence report for the last 7, 30 or 90 days or a custom range.
   * Executive summary with plain-language findings (known-asset sources, honeytoken use, ATT&CK techniques, archived events).
@@ -11,7 +24,7 @@
 * New endpoint `GET /api/v2/report?from=&to=`.
 * Fix (Codex review of #25): "Assets involved" and its finding come from a new `assets` aggregate over **all** sources in the range (one row per inventory asset, with addresses and events). Previously they were derived from the 25-row top-sources table, counting one CIDR asset once per attacking address and missing assets beyond the cap.
 
-# [Unreleased] - Attack Path (2026-10-26)
+## Attack Path
 
 * **Attack Path page** (sidebar): one source's route through the decoys.
   * Source picker, ranked known assets first, then by decoys touched.
@@ -22,7 +35,7 @@
 * Every expanded event in the dashboard links to it ("Investigate in Attack Path").
 * New endpoint `GET /api/v2/path?source=`, covering active and archived events and capped at the most recent 2,000.
 
-# [Unreleased] - Asset inventory (2026-10-26)
+## Asset inventory
 
 * **Assets page** (sidebar): an inventory of real hosts and ranges, with criticality, owner and tags.
   * Add, edit and remove entries inline; CSV import (header detected, duplicates and invalid rows skipped) and export.
@@ -38,7 +51,7 @@
   * RFC 5424 `source_asset` and `source_asset_criticality` (always present, empty when none);
   * `"source_asset"` in the JSON body.
 
-# [Unreleased] - MITRE ATT&CK mapping and Attack Navigator (2026-10-26)
+## MITRE ATT&CK mapping and Attack Navigator
 
 * **Every mapped event carries a MITRE ATT&CK technique and its tactics** (`Hub/internal/attack`, table in `Docs/siem/attack-mapping.md`).
   * One primary technique per trigger, plus optional secondary ones.
@@ -55,7 +68,7 @@
   * New endpoints `GET /api/v2/attack` and `/api/v2/attack/layer`.
 * **Dashboard and event table.** An "ATT&CK techniques" tile; a technique badge on every mapped event; an ATT&CK tactic filter; search also matches technique IDs and names.
 
-# [Unreleased] - Dashboard: decoy coverage (2026-10-26)
+## Dashboard: decoy coverage
 
 * **Decoy coverage row on the dashboard**, with a 24H / 7D / 30D / All filter. It follows the node/sensor selection and the archive view.
   * Tiles: decoys touched out of deployed, unique attacker sources, critical interactions, honeytokens used.

@@ -2,6 +2,8 @@
 
 The Hub forwards every event (including whitelisted evidence and Hub-generated liveness) and every audited admin action to one SIEM destination. Configure it under **Settings → SIEM Forwarding** or with `PATCH /api/v2/config`.
 
+Field additions per release are announced in a SOC notice (Hub 2.3.0: `Docs/siem/soc-notice-2.3.0.md`).
+
 ## Outputs
 
 | `siemProtocol` | `siemAddress` | Payload | Auth |

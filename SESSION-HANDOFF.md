@@ -123,7 +123,7 @@ Session branch for this work: `claude/beautiful-ptolemy-t0uxdm`. A new session g
 
 ## 6. Open work, prioritised
 
-1. **Release Hub 2.3.0** (phases 1-2 are on `main`, unreleased).
+1. **Release Hub 2.3.0** (phases 1-2 are on `main`, unreleased). **2026-10-29:** `HubVersion` is 2.3.0, CHANGELOG has the 2.3.0 notes, the SOC notice is `Docs/siem/soc-notice-2.3.0.md`, and `make tag-release` skips already-released tags. Remaining: the owner sends the SOC notice, then pushes `hub/v2.3.0`.
    - **Claude:** bump `HubVersion` to `2.3.0` in `Hub/internal/models/models.go`. The wizard is unchanged, so keep `WizardVersion` 2.2.0 (only the major must match). The CHANGELOG `[Unreleased]` entries become the 2.3.0 notes.
    - **The owner:** `make tag-release` tags both constants and would fail on the existing `wizard/v2.2.0`, so either push `hub/v2.3.0` alone or adjust the Makefile. Pin `TS_HUB_VERSION=v2.3.0`.
    - **Before release:** tell the SOC about the SIEM additions (§3).
