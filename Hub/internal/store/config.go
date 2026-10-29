@@ -125,6 +125,11 @@ func (s *SQLiteStore) UpdateConfigBatch(req map[string]interface{}) error {
 // honeytokens unless the caller purges them.
 const captureMasterKey = "capture_master_key"
 
+// beaconMasterKey derives the Token Receivers' key; like the capture key it
+// survives a factory reset unless honeytokens are purged, because planted
+// beacons stay out in the world.
+const beaconMasterKey = "beacon_master_key"
+
 // FactoryReset wipes the database back to a blank slate. Honeytokens and the
 // capture master key survive unless purgeHoneytokens is set: lures carrying
 // them stay on disk after nodes are wiped (uninstall never deletes lures), and
@@ -136,10 +141,16 @@ func (s *SQLiteStore) FactoryReset(purgeHoneytokens bool) error {
 	}
 	defer tx.Rollback() // Rollback on any error.
 
-	var masterKey string
+	kept := map[string]string{}
 	if !purgeHoneytokens {
-		if err := tx.QueryRow("SELECT value FROM config WHERE key = ?", captureMasterKey).Scan(&masterKey); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
+		for _, k := range []string{captureMasterKey, beaconMasterKey} {
+			var v string
+			if err := tx.QueryRow("SELECT value FROM config WHERE key = ?", k).Scan(&v); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if v != "" {
+				kept[k] = v
+			}
 		}
 	}
 
@@ -155,7 +166,7 @@ func (s *SQLiteStore) FactoryReset(purgeHoneytokens bool) error {
 		"DELETE FROM sqlite_sequence WHERE name = 'events'",
 	}
 	if purgeHoneytokens {
-		queries = append(queries, "DELETE FROM honeytokens")
+		queries = append(queries, "DELETE FROM honeytokens", "DELETE FROM beacons")
 	}
 
 	for _, q := range queries {
@@ -168,8 +179,8 @@ func (s *SQLiteStore) FactoryReset(purgeHoneytokens bool) error {
 	if err := initializeDefaultConfigTx(tx); err != nil {
 		return err
 	}
-	if masterKey != "" {
-		if _, err := tx.Exec("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", captureMasterKey, masterKey); err != nil {
+	for k, v := range kept {
+		if _, err := tx.Exec("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", k, v); err != nil {
 			return err
 		}
 	}
@@ -189,6 +200,7 @@ func (s *SQLiteStore) FactoryResetDryRun(purgeHoneytokens bool) (map[string]int,
 	}
 	if purgeHoneytokens {
 		queries["honeytokens"] = "SELECT COUNT(*) FROM honeytokens"
+		queries["beacons"] = "SELECT COUNT(*) FROM beacons"
 	}
 
 	for key, query := range queries {

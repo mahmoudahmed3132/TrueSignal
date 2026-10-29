@@ -12,6 +12,7 @@ import (
 	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/attack"
 	"github.com/truesignal/hub/internal/models"
+	"github.com/truesignal/hub/internal/services/beacon"
 	"github.com/truesignal/hub/internal/services/honeytoken"
 	"github.com/truesignal/hub/internal/services/sourcelist"
 )
@@ -51,6 +52,13 @@ type HoneytokenMatcher interface {
 	RecordUse(id string) error
 }
 
+// BeaconResolver maps a token a Token Receiver reports to the beacon the Hub
+// created.
+type BeaconResolver interface {
+	Resolve(token string) (*models.Beacon, error)
+	RecordUse(id string) error
+}
+
 // ErrSensorNotRegistered is returned when an event names a sensor that is not
 // installed on the authenticated node.
 var ErrSensorNotRegistered = errors.New("sensor_not_registered")
@@ -74,6 +82,7 @@ type Service struct {
 	siemService   SiemService
 	notifyService NotifyService
 	honeytokens   HoneytokenMatcher
+	beacons       BeaconResolver
 	whitelist     sourcelist.Cache
 	scanners      sourcelist.Cache
 	assets        assets.Cache
@@ -81,6 +90,9 @@ type Service struct {
 
 // SetHoneytokenMatcher enables honeytoken detection on incoming events.
 func (s *Service) SetHoneytokenMatcher(m HoneytokenMatcher) { s.honeytokens = m }
+
+// SetBeaconResolver enables beacon resolution on beacon_triggered events.
+func (s *Service) SetBeaconResolver(r BeaconResolver) { s.beacons = r }
 
 func NewService(store Store, broadcaster Broadcaster, siemService SiemService, notifyService NotifyService) *Service {
 	return &Service{
@@ -181,7 +193,16 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 		return ErrSensorNotRegistered
 	}
 
-	if !hubRaised {
+	// A beacon the Hub created is used only by an intruder, so like a
+	// honeytoken it bypasses the source lists (the reporting source is often
+	// a shared resolver an operator may have whitelisted).
+	var beaconID string
+	if !hubRaised && e.EventTrigger == beacon.Trigger {
+		detailsStr, beaconID = s.resolveBeacon(e, detailsStr)
+		e.Details = json.RawMessage(detailsStr)
+	}
+
+	if !hubRaised && beaconID == "" {
 		e.Whitelisted = s.matchList(&s.whitelist, "whitelisted_sources", e.Source)
 		e.KnownScanner = s.matchList(&s.scanners, "known_scanners", e.Source)
 		if e.Whitelisted || e.KnownScanner {
@@ -194,6 +215,12 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 	if err != nil {
 		log.Printf("[ERROR] Failed to insert event for node %s/sensor %s: %v", nodeID, e.SensorID, err)
 		return err
+	}
+
+	if beaconID != "" {
+		if err := s.beacons.RecordUse(beaconID); err != nil {
+			log.Printf("[WARNING] Failed to record beacon use %s: %v", beaconID, err)
+		}
 	}
 
 	e.ID = lastInsertID
@@ -223,6 +250,41 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 
 	s.broadcaster.Broadcast("NEW_EVENT", *e)
 	return nil
+}
+
+// resolveBeacon looks up the reported token. A known beacon is attached as
+// details.beacon (replacing anything the sensor put there) and the event is
+// critical; an unknown token (deleted beacon, or forged by the node, which
+// holds the receiver key) is kept as evidence at medium with
+// beacon_known=false. It returns the new details and the beacon ID, if any.
+func (s *Service) resolveBeacon(e *models.Event, detailsStr string) (string, string) {
+	var details map[string]any
+	if err := json.Unmarshal([]byte(detailsStr), &details); err != nil || details == nil {
+		details = map[string]any{}
+	}
+	delete(details, "beacon")
+	var b *models.Beacon
+	if tok, ok := details["token"].(string); ok && s.beacons != nil {
+		var err error
+		if b, err = s.beacons.Resolve(tok); err != nil {
+			log.Printf("[WARNING] Beacon lookup failed: %v", err)
+		}
+	}
+	id := ""
+	if b != nil {
+		id = b.ID
+		e.Severity = "critical"
+		details["beacon"] = map[string]any{"id": b.ID, "name": b.Name, "type": b.Type, "domain": b.Domain}
+		delete(details, "beacon_known")
+	} else {
+		e.Severity = "medium"
+		details["beacon_known"] = false
+	}
+	out, err := json.Marshal(details)
+	if err != nil || len(out) > maxDetailsBytes {
+		return detailsStr, id
+	}
+	return string(out), id
 }
 
 // EmitSystemEvent records an event raised by the Hub itself (e.g. a sensor

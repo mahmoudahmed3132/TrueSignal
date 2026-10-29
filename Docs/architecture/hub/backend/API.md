@@ -409,7 +409,7 @@ Changes the dashboard admin password. When `TS_DASHBOARD_PASSWORD` is set, this 
 #### POST /api/v2/system/reset
 
 Performs a full factory reset of the runtime database, clearing events, sensors, heartbeats, and config.
-Requires the current admin password. Honeytokens and the capture master key are **kept** by default, because their lures are still on disk. `purgeHoneytokens: true` deletes them and rotates the key; delete the lure files first, or they become credentials the Hub no longer recognises. `?dryrun=true` with the same body returns row counts (it includes `honeytokens` only when purging).
+Requires the current admin password. Honeytokens, beacons and their master keys are **kept** by default, because their lures are still on disk. `purgeHoneytokens: true` deletes them and rotates both keys (planted beacons then go silent); delete the lure files first, or they become credentials the Hub no longer recognises. `?dryrun=true` with the same body returns row counts (it includes `honeytokens` and `beacons` only when purging).
 
 **Request:**
 ```json
@@ -544,6 +544,18 @@ Lists the honeytokens the Hub has planted (one per File Canary instance, created
 ```json
 [{"id":"ht_956c6041","username":"svc_reports97ef","nodeId":"node-d41340e4","sensorId":"ts-sensor-file-canary","createdAt":"2026-10-24T02:19:11Z","lastUsedAt":"2026-10-24T02:19:40Z","useCount":2}]
 ```
+
+### GET /api/v2/beacons · POST /api/v2/beacons · DELETE /api/v2/beacons/{id} · GET /api/v2/beacons/{id}/download
+
+Callback beacons (`Docs/operations.md` §14). `GET` returns every beacon with its rendered artifact, plus `domains`: the zones deployed Token Receivers serve (`TS_BEACON_DOMAIN`).
+
+```json
+{"beacons":[{"id":"bc_03d9b960","token":"cx7iy6ni6nvrfbg4uzj7qcf2","type":"kubeconfig","name":"jump-01 ~/.kube/config","memo":"","domain":"t.example.com","createdAt":"2026-10-29T22:20:14Z","lastUsedAt":"","useCount":0,
+  "artifact":{"filename":"kubeconfig-jump-01-kube-config.yaml","contentType":"application/yaml","value":"cx7iy6ni6nvrfbg4uzj7qcf2.t.example.com","content":"apiVersion: v1\n..."}}],
+ "domains":["t.example.com"]}
+```
+
+`POST` body: `{"type":"dns|web_bug|kubeconfig","name":"where it is planted (≤128)","memo":"optional (≤512)","domain":"optional"}`. `domain` defaults to the receivers' zone when exactly one is deployed. Returns `201` with the beacon, `400` on validation errors. `DELETE` returns `204`; past events are kept and a later use is reported as an unknown token. `download` returns the artifact as a file.
 
 ### GET /api/v2/events/export
 

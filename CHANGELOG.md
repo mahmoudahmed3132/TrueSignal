@@ -1,3 +1,24 @@
+# [Unreleased] - Beacons and the Token Receiver (phase 3, part 1) (2026-10-29)
+
+* **Beacons page** (sidebar): create callback tokens to plant where only an intruder would use them. There are three types:
+  * a DNS name;
+  * a web bug (remote 1x1 image);
+  * a kubeconfig whose API server name is the token.
+
+  Each beacon carries a name (where it is planted) and a memo. You can copy the value or download the file. Use counts, last use and every trigger are shown per beacon.
+  * API: `GET/POST /api/v2/beacons`, `DELETE /api/v2/beacons/{id}`, `GET /api/v2/beacons/{id}/download`. Schema migration v5 adds the `beacons` table (no foreign keys).
+* **New sensor: Token Receiver** (`ts-sensor-token-receiver` 2.0.0, `Sensors/official/TokenReceiver`). It is the internet-facing callback end, deployed on its own DMZ node, and the Hub stays internal. It has two parts:
+  * **DNS:** authoritative-only DNS for one delegated zone over UDP and TCP. Out-of-zone queries are REFUSED. Replies are rate-limited per source. It records the EDNS Client Subnet when present.
+  * **HTTP:** fixed-response HTTP (the same 1x1 GIF for every request). `X-Forwarded-For` is believed only from `TS_TRUSTED_PROXIES`.
+
+  It raises one `beacon_triggered` (critical) per token and channel per `TS_ALERT_COOLDOWN`.
+* **Tokens are HMAC-tagged:** 24 base32 characters, a 40-bit tag under `TS_BEACON_KEY`. Receivers drop names a scanner invents without asking the Hub.
+  * `TS_BEACON_KEY` is a new reserved env var, derived from the Hub's `beacon_master_key` (which never leaves the Hub) and the same for all receivers.
+  * Beacons and the key survive a factory reset unless `purgeHoneytokens`.
+* **The Hub resolves the token** and attaches `details.beacon` (`id`, `name`, `type`, `domain`). A known beacon ignores the whitelist and the known-scanner list, because the reporting resolver may be an allow-listed one. An unknown token is stored at `medium` with `beacon_known: false`.
+* **SIEM contract (additive):** new trigger `beacon_triggered` (ECS category `network`). It is not ATT&CK-mapped.
+* Not built yet: Office documents, AWS keys, shell/batch beacons, MySQL dumps, cloned-site beacons, GeoIP enrichment (DB-IP Lite, decided) and the map.
+
 # [2.3.0] - Hub 2.3.0: analyst features (2026-10-29)
 
 Hub only. Wizard stays 2.2.0 and sensors are unchanged; only the major version must match, so existing nodes and sensors keep working. Tag: `hub/v2.3.0`.

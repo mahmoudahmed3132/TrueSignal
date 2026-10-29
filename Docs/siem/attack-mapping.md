@@ -24,7 +24,7 @@ The mapping is derived when events are read or forwarded, never stored, so a cha
 | any other `<service>_login` (`mysql`, `postgres`, `mssql`, `telnet`, `ftp`) | T1110 Brute Force | T1078 | Credential Access |
 | any other `<service>_connection` | T1046 Network Service Discovery | | Discovery |
 
-**Not mapped** (no ATT&CK data rather than a guess): `web_page_view` (opening a decoy page is not a technique by itself), Hub liveness (`sensor_stopped`, `sensor_heartbeat_lost`, `sensor_recovered`: usually an outage, not an attacker), and community-sensor triggers.
+**Not mapped** (no ATT&CK data rather than a guess): `web_page_view` (opening a decoy page is not a technique by itself), Hub liveness (`sensor_stopped`, `sensor_heartbeat_lost`, `sensor_recovered`: usually an outage, not an attacker), `beacon_triggered` (what a beacon evidences depends on where it was planted, which only `details.beacon` and the operator know), and community-sensor triggers.
 
 **Judgement calls.** `web_path_probe` uses T1595.003 although ATT&CK files Reconnaissance as pre-compromise: it is the closest technique for path brute-forcing. `decoy_file_tampered` cannot tell manipulation from encryption, so T1486 is secondary. T1078 keeps every tactic ATT&CK files it under; it is never a Credential Access technique.
 

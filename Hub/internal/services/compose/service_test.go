@@ -425,10 +425,15 @@ func (f *fakeHoneytokens) TokenFor(nodeID, sensorID string) (models.Honeytoken, 
 	return models.Honeytoken{Username: "svc_backup7f3a", Secret: "Qx7pLm2Rv9TzKw!"}, nil
 }
 
+type fakeBeacons struct{}
+
+func (fakeBeacons) ReceiverKey() (string, error) { return "beaconkey", nil }
+
 func TestComposeInjectsFleetKeyAndHoneytoken(t *testing.T) {
 	envs := []map[string]interface{}{
 		{"name": "TS_CAPTURE_HASH_KEY", "default": "", "type": "string"},
 		{"name": "TS_HONEYTOKEN", "default": "", "type": "string"},
+		{"name": "TS_BEACON_KEY", "default": "user-set", "type": "string"},
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -455,13 +460,17 @@ func TestComposeInjectsFleetKeyAndHoneytoken(t *testing.T) {
 	svc := composesvc.NewService(store, catSvc)
 	ht := &fakeHoneytokens{}
 	svc.SetHoneytokens(ht)
+	svc.SetBeacons(fakeBeacons{})
 	catSvc.RefreshIndex()
 
 	yamlData, err := svc.GetNodeCompose("node-1", "http://fallback.com", "v1.0.0")
 	if err != nil {
 		t.Fatalf("GetNodeCompose failed: %v", err)
 	}
-	for _, want := range []string{"TS_CAPTURE_HASH_KEY=nodekey-node-1", "TS_HONEYTOKEN=svc_backup7f3a:Qx7pLm2Rv9TzKw!"} {
+	if contains(yamlData, "user-set") {
+		t.Errorf("manifest/user value of TS_BEACON_KEY must be replaced:\n%s", yamlData)
+	}
+	for _, want := range []string{"TS_CAPTURE_HASH_KEY=nodekey-node-1", "TS_HONEYTOKEN=svc_backup7f3a:Qx7pLm2Rv9TzKw!", "TS_BEACON_KEY=beaconkey"} {
 		if !contains(yamlData, want) {
 			t.Errorf("compose missing %q:\n%s", want, yamlData)
 		}
