@@ -9,7 +9,9 @@ Hub only. Wizard stays 2.2.0 and sensors are unchanged; only the major version m
 * ECS gains `threat.*`, `truesignal.known_scanner`, `truesignal.attack`, `truesignal.source_asset` and the `known_scanner` tag; known-scanner sources are `event.kind: event`.
 * **Rule action:** any rule or dashboard that excludes `whitelisted=true` must also exclude `known_scanner=true`, or scanner noise reaches it.
 
-**Also in this release:** `make tag-release` skips a Hub or Wizard tag whose version is already released, so a Hub-only release no longer fails on the existing wizard tag.
+**Also in this release:**
+* `make tag-release` skips a Hub or Wizard tag that is already on origin, so a Hub-only release no longer fails on the existing wizard tag. A local-only tag pointing elsewhere than `HEAD` is an error rather than "released".
+* `github.com/go-jose/go-jose/v4` 4.1.4 → 4.1.6 (CVE-2026-116587, DoS via crafted RSA JWK parameters; an indirect dependency of the Sigstore verifier).
 
 ## Evidence reports
 

@@ -26,8 +26,13 @@ tag-release:
 	fi; \
 	remote=$$(git ls-remote --tags origin | awk '{print $$2}'); \
 	for t in "hub/v$$hub" "wizard/v$$wiz"; do \
-		if git rev-parse -q --verify "refs/tags/$$t" >/dev/null || printf '%s\n' "$$remote" | grep -qx "refs/tags/$$t"; then \
-			echo "   = $$t already released (version unchanged), skipped"; \
+		local=$$(git rev-parse -q --verify "refs/tags/$$t^{commit}" || true); \
+		if printf '%s\n' "$$remote" | grep -qx "refs/tags/$$t"; then \
+			echo "   = $$t already on origin (version unchanged), skipped"; \
+		elif [ -n "$$local" ] && [ "$$local" = "$$(git rev-parse HEAD)" ]; then \
+			echo "   = $$t already on HEAD, not yet pushed"; \
+		elif [ -n "$$local" ]; then \
+			echo "ERROR: local tag $$t points at $$local, not HEAD, and is not on origin. Delete it (git tag -d $$t) or bump the version." >&2; exit 1; \
 		else \
 			git tag "$$t" && echo "   + $$t" || exit 1; \
 		fi; \
