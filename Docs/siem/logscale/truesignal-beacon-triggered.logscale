@@ -1,0 +1,13 @@
+// truesignal-beacon-triggered: known beacon fired from an external source (critical).
+// Elastic twin: Docs/siem/elastic/truesignal-beacon-triggered.json. Docs: Docs/siem/detection-rules.md
+// Schedule: every 5m over the last 6m. Known beacons are never whitelisted by the Hub.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action="beacon_triggered" truesignal.details.beacon.id=*
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| case {
+    cidr(source.ip, subnet=["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "fc00::/7"]) | internal := "true";
+    truesignal.source_asset.name=* | internal := "true";
+    * | internal := "false";
+  }
+| internal="false"
+| table([@timestamp, host.name, source.ip, truesignal.details.channel, truesignal.details.beacon.name, truesignal.details.beacon.type, truesignal.details.client_subnet, truesignal.source_geo.countryCode, truesignal.source_geo.basis])

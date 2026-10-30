@@ -1,0 +1,16 @@
+// truesignal-hub-defense-change: successful Hub admin change that can blind detection (low; high for clear events / factory reset).
+// Elastic twin: Docs/siem/elastic/truesignal-hub-defense-change.json
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.audit" event.outcome="success"
+| in(field="event.action", values=[
+    "PATCH /api/v2/config", "PATCH /api/v2/system/state", "PATCH /api/v2/system/password",
+    "POST /api/v2/system/reset", "PATCH /api/v2/nodes/{nodeId}/sensors/{sensorId}/silence",
+    "DELETE /api/v2/nodes/{nodeId}", "DELETE /api/v2/nodes/{nodeId}/sensors/{sensorId}",
+    "DELETE /api/v2/events", "PATCH /api/v2/events/archive-all", "DELETE /api/v2/beacons/{beaconId}",
+    "PUT /api/v2/assets", "POST /api/v2/auth/mfa/recovery-codes"])
+| case {
+    in(field="event.action", values=["DELETE /api/v2/events", "POST /api/v2/system/reset"]) | rule_severity := "high";
+    in(field="event.action", values=["PUT /api/v2/assets", "PATCH /api/v2/system/password", "DELETE /api/v2/beacons/{beaconId}", "POST /api/v2/auth/mfa/recovery-codes"]) | rule_severity := "low";
+    * | rule_severity := "medium";
+  }
+| table([@timestamp, rule_severity, event.action, url.path, source.ip])

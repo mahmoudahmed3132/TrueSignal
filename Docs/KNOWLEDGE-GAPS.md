@@ -9,7 +9,7 @@ Status values: **Fixed** (code changed and tested), **Docs** (documentation corr
    - Since 2026-10-24 manifests, images and wizard binaries are Sigstore keyless-signed, and the Hub refuses any manifest not signed by this repo's publish workflow at that sensor's tag (`Hub/internal/signing`, `Docs/operations.md` §13). Writing `registry-pages` alone is no longer enough.
    - Anyone who can push a `sensor/*` tag still gets a signed release that every node runs as root in the host netns at its next `truesignal apply`. **Open**: owner to add a tag ruleset and Rekor monitoring.
 2. **Distribution isn't operational.** Nothing is published (no `registry-pages`, ghcr images or wizard release), so nodes can't install yet. The repo is public (owner decision 2026-10-24); token auth for a private repo exists in commit `4013e0d` (reverted) if that changes.
-3. **No detection content.** The SIEM feed is now RFC 5424-valid, escaped, optionally TLS, and carries liveness and audit records. But the repo still has no Elastic/LogScale parser or rules **[NOT IN PROJECT]**.
+3. **Detection content untested on a real SIEM.** Since 2026-10-30, 16 Elastic rules and matching LogScale queries ship (`Docs/siem/detection-rules.md`). The Elastic rules run in CI through a real Kibana detection engine against the Hub's emitted samples. **Partial**: the LogScale queries have not been executed, and no rule has run against production data. A dead Hub is invisible to the SIEM: there is no Hub heartbeat record.
 4. **Single admin, no RBAC; Hub serves plain HTTP.** Admin MFA (TOTP + recovery codes, optional enforcement with `TS_REQUIRE_MFA`) exists since 2026-10-24 (`Docs/operations.md` §12). Other mitigations in place: 12-character minimum password, 12h absolute + 15m idle sessions, setup token, and audit records to the SIEM. A TLS reverse proxy is still mandatory; a hardened nginx overlay and F5 guidance exist since 2026-10-24 (`Hub/docker-compose.tls.yml`, `Docs/operations.md` §11).
 5. **Decoy hosts hold a node key and may hold the dashboard password.**
    - The node key is plaintext on the node (`/etc/truesignal/config.json`, compose env). It is needed to authenticate and is scoped to that node.
@@ -55,7 +55,7 @@ Status values: **Fixed** (code changed and tested), **Docs** (documentation corr
 ## 2. Coverage mismatches
 
 ### 2.1 Decoys/lures without a downstream detection rule
-None of the five sensors has a SIEM rule, dashboard, or response action in the repo **[NOT IN PROJECT]**. Specific holes:
+Every sensor trigger now has a SIEM rule (`Docs/siem/detection-rules.md`, 2026-10-30): a dedicated rule, or the baseline `truesignal-decoy-interaction`. No dashboard or response action is in the repo **[NOT IN PROJECT]**. Specific holes:
 - ~~Sensor liveness~~ **Fixed**: `sensor_stopped`, `sensor_heartbeat_lost`, `sensor_recovered` reach SIEM and webhooks.
 - ~~File Canary read access off by default~~ **Fixed**: `TS_ALERT_ON_OPEN=true` default, with dedupe.
 - ~~Web Router GET `/` not alerted~~ **Fixed**: `web_page_view` and `web_path_probe` (rate-limited per source).
@@ -88,7 +88,7 @@ None of the five sensors has a SIEM rule, dashboard, or response action in the r
 | Environment | No node inventory, hostnames, subnets/VLANs, placement plan, firewall rules (Fortinet/Palo Alto), or naming convention for nodes **[NOT IN PROJECT]** |
 | Decoy coverage | Database (MySQL/PostgreSQL/MSSQL), Remote Access (SSH/Telnet/FTP) and Network Service (SNMP/log-only DNS) decoys added 2026-10-24. Web Router Decoy skin engine added 2026-10-24. Not built: VNC, rsync, MSSQL over TLS (clients that require encryption disconnect before LOGIN7). Remote Access Decoy has no unit tests |
 | Honeytokens | Credential honeytokens exist (2026-10-24): one per File Canary instance, planted in created lures, matched by username/per-node-key HMAC, `honeytoken_used`, published to the SIEM with an Elastic rule and LogScale query for real-system logins (`Docs/operations.md` §10, `Docs/siem/honeytoken-detection.md`). Still none for cloud keys, real AD objects, DNS or documents |
-| SIEM | ECS output, the Elastic index template / API key and LogScale HEC setup are in `Docs/siem-integration.md` (2026-10-24). Still missing: detection rules, Kashier index/repository naming, collector config |
+| SIEM | ECS output, the Elastic index template / API key and LogScale HEC setup are in `Docs/siem-integration.md` (2026-10-24). Detection rules (Elastic + LogScale) since 2026-10-30: `Docs/siem/detection-rules.md`. Still missing: LogScale execution test, Kashier index/repository naming, collector config, alert routing |
 | Alert routing / ownership | No on-call, escalation, or SOAR integration. Destinations are only ntfy/gotify/discord/slack (consumer SaaS) and syslog |
 | Runbooks | No IR runbook per eventTrigger; no Hub DR/restore runbook; no lure rotation. Node key rotation now exists (UI / `POST /api/v2/nodes/{id}/rotate-key`); uninstall now lists the lure files it leaves |
 | Hub HA/backup | Single SQLite file; only pre-migration snapshots |

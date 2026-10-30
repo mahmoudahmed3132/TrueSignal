@@ -1,0 +1,7 @@
+// truesignal-critical-asset-source: decoy touched from an Assets-page asset marked high or critical.
+// Elastic twin: Docs/siem/elastic/truesignal-critical-asset-source.json
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.kind="alert" truesignal.source_asset.criticality=/^(high|critical)$/
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| table([@timestamp, truesignal.source_asset.criticality, truesignal.source_asset.name, source.ip, host.name, event.action])

@@ -1,0 +1,9 @@
+// truesignal-hub-mfa-reset: Hub admin MFA removed (break-glass mfa-reset, or a successful MFA disable) (high).
+// Elastic twin: Docs/siem/elastic/truesignal-hub-mfa-reset.json
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.audit"
+| case {
+    url.path="cli:mfa-reset";
+    event.action="POST /api/v2/auth/mfa/disable" event.outcome="success";
+  }
+| table([@timestamp, event.action, url.path, http.response.status_code, source.ip])

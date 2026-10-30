@@ -1,0 +1,59 @@
+{
+  "rule_id": "truesignal-hub-login-bruteforce",
+  "name": "TrueSignal Hub admin login failures",
+  "description": "Five or more failed Hub dashboard logins (POST /login, HTTP 401 or 429) from one source in 10 minutes. The Hub locks out per IP and account-wide, but repeated failures mean someone is trying the admin password of the deception platform.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "medium",
+  "risk_score": 47,
+  "interval": "5m",
+  "from": "now-11m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Audit",
+    "Hub"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-hub-login-bruteforce"
+  ],
+  "false_positives": [
+    "An admin with a wrong saved password or a script with a stale `TS_DASHBOARD_PASSWORD`.",
+    "MFA logins (one 401 before the code is entered)."
+  ],
+  "note": "## Triage\n1. `source.ip` is the client as the Hub saw it. Behind a proxy it is only correct if `TS_TRUSTED_PROXIES` is set; otherwise it may be the proxy.\n2. Check for a successful `POST /login` from the same source afterwards.\n3. With MFA, each normal login first returns 401 `mfa_required`; a few failures per admin login are expected.",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0006",
+        "name": "Credential Access",
+        "reference": "https://attack.mitre.org/tactics/TA0006/"
+      },
+      "technique": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "reference": "https://attack.mitre.org/techniques/T1110/"
+        }
+      ]
+    }
+  ],
+  "query": "event.dataset:\"truesignal.audit\" and event.action:\"POST /login\" and event.outcome:\"failure\"",
+  "type": "threshold",
+  "language": "kuery",
+  "threshold": {
+    "field": [
+      "source.ip"
+    ],
+    "value": 5
+  }
+}

@@ -1,0 +1,6 @@
+// truesignal-hub-login-bruteforce: 5+ failed Hub dashboard logins from one source in 10 minutes (medium).
+// Elastic twin: Docs/siem/elastic/truesignal-hub-login-bruteforce.json
+// Schedule: every 5m over the last 11m.
+event.module="truesignal" event.dataset="truesignal.audit" event.action="POST /login" event.outcome="failure"
+| groupBy([source.ip], function=count(as=failures))
+| failures >= 5

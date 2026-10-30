@@ -1,0 +1,58 @@
+{
+  "rule_id": "truesignal-sensor-heartbeat-lost",
+  "name": "TrueSignal sensor stopped reporting",
+  "description": "The Hub raised sensor_heartbeat_lost: a sensor stopped heartbeating (reason heartbeat_timeout), or was stopped and not restarted within 5 minutes (reason not_restarted_after_stop). Either is an outage or an intruder disabling a decoy.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "high",
+  "risk_score": 73,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Liveness"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-sensor-heartbeat-lost"
+  ],
+  "false_positives": [
+    "Planned maintenance, `truesignal apply` that replaces a container, node reboots."
+  ],
+  "note": "## Triage\n1. `truesignal.sensor_id` on `host.name`; `truesignal.details.reason` and `last_heartbeat`.\n2. Check for a `sensor_stopped` on the same sensor shortly before (graceful stop) and for an operator change (`truesignal apply`, maintenance window).\n3. Several sensors on one node at once: the node or Docker is down, or someone with root on the decoy host stopped it. Check the host.\n4. truesignal-sensor-dark fires if it is still down after 30 minutes.",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0005",
+        "name": "Defense Evasion",
+        "reference": "https://attack.mitre.org/tactics/TA0005/"
+      },
+      "technique": [
+        {
+          "id": "T1562",
+          "name": "Impair Defenses",
+          "reference": "https://attack.mitre.org/techniques/T1562/",
+          "subtechnique": [
+            {
+              "id": "T1562.001",
+              "name": "Disable or Modify Tools",
+              "reference": "https://attack.mitre.org/techniques/T1562/001/"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "query": "event.dataset:\"truesignal.alert\" and event.action:\"sensor_heartbeat_lost\" and not truesignal.whitelisted:true and not truesignal.known_scanner:true",
+  "type": "query",
+  "language": "kuery"
+}

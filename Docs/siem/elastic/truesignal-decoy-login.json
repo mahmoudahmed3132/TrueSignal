@@ -1,0 +1,85 @@
+{
+  "rule_id": "truesignal-decoy-login",
+  "name": "TrueSignal login attempt against a decoy",
+  "description": "Someone tried to authenticate to a TrueSignal decoy service (LDAP/LDAPS, database, FTP/Telnet, web login). Decoys have no legitimate users, so any attempt is credential testing or use. SSH/RDP attempts are left to truesignal-lateral-movement and planted-credential use to truesignal-honeytoken-used.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "high",
+  "risk_score": 73,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Credential Access"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-decoy-login"
+  ],
+  "false_positives": [
+    "Vulnerability scanners and asset-discovery tools with credential checks: add them to the Hub's known scanners.",
+    "Administrators testing a decoy. Use `truesignal firedrill` instead (source `Wizard Firedrill`)."
+  ],
+  "note": "## Triage\n1. `user.name` / `user.domain` is the account tried. Search your directory and real authentication logs for it from `source.ip`: the same credential is likely being tried on real systems.\n2. `truesignal.source_asset` names the source host when it is inventoried; otherwise identify it via DHCP/EDR.\n3. Passwords are HMAC'd (`truesignal.details.password_hmac`); compare with other decoy events to see whether the same password is sprayed.\n4. Pivot on `source.ip` for other TrueSignal alerts (scan-then-touch, other decoys).",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0006",
+        "name": "Credential Access",
+        "reference": "https://attack.mitre.org/tactics/TA0006/"
+      },
+      "technique": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "reference": "https://attack.mitre.org/techniques/T1110/"
+        }
+      ]
+    }
+  ],
+  "query": "event.dataset:\"truesignal.alert\" and event.category:\"authentication\" and not event.action:\"honeytoken_used\" and not threat.tactic.id:\"TA0008\" and not truesignal.whitelisted:true and not truesignal.known_scanner:true",
+  "type": "query",
+  "language": "kuery",
+  "severity_mapping": [
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "low",
+      "severity": "low"
+    },
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "medium",
+      "severity": "medium"
+    },
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "high",
+      "severity": "high"
+    },
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "critical",
+      "severity": "critical"
+    }
+  ],
+  "risk_score_mapping": [
+    {
+      "field": "event.severity",
+      "operator": "equals",
+      "value": ""
+    }
+  ]
+}

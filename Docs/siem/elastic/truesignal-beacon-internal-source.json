@@ -1,0 +1,36 @@
+{
+  "rule_id": "truesignal-beacon-internal-source",
+  "name": "TrueSignal beacon triggered from inside the network",
+  "description": "A known beacon fired and the reporting source is internal: a private, CGNAT or ULA address, or an address on the Hub's Assets page (for example the public egress of the corporate resolvers). The planted object is being used from inside the network, so the reading host is compromised or an insider is involved.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "critical",
+  "risk_score": 99,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Beacon"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-beacon-internal-source"
+  ],
+  "false_positives": [
+    "Internal security tooling that resolves or fetches embedded URLs (sandbox, DLP, mail gateway) through the corporate resolvers or proxy.",
+    "Assets entries that cover shared NAT ranges make every beacon resolved through them look internal; keep the asset ranges tight."
+  ],
+  "note": "## Triage\n1. DNS channel with an internal `source.ip`: it is one of your resolvers. Pull its query log for `truesignal.details.query_name` at `@timestamp` to get the real client.\n2. `truesignal.source_asset.name` names the inventoried host or egress range; for an egress range, map it back through firewall/NAT logs (Palo Alto, FortiGate).\n3. HTTP channel: `source.ip` (or `truesignal.details.proxy`) is the client or your proxy; use proxy logs for the user.\n4. Contain the client host, then review what else it touched (other TrueSignal alerts from the same `source.ip`, EDR timeline).",
+  "threat": [],
+  "query": "event.dataset:\"truesignal.alert\" and event.action:\"beacon_triggered\" and truesignal.details.beacon.id:* and (source.ip:(\"10.0.0.0/8\" or \"172.16.0.0/12\" or \"192.168.0.0/16\" or \"100.64.0.0/10\" or \"fc00::/7\") or truesignal.source_asset.name:*)",
+  "type": "query",
+  "language": "kuery"
+}

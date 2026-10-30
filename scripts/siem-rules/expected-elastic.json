@@ -1,0 +1,123 @@
+{
+  "_comment": "Expected alerts per rule for Docs/siem/testdata/detection-samples.ndjson. cases: the sample cases (source documents) the rule's alerts must reference, exactly. groups: threshold/ES|QL alerts, matched on the listed fields. Used by run-elastic.py.",
+  "truesignal-beacon-triggered": {
+    "cases": [
+      "beacon_dns_client_subnet_eg",
+      "beacon_dns_resolver_only_gb",
+      "beacon_http_us"
+    ]
+  },
+  "truesignal-beacon-internal-source": {
+    "cases": [
+      "beacon_dns_private_resolver",
+      "beacon_dns_asset_resolver",
+      "beacon_known_from_whitelisted"
+    ]
+  },
+  "truesignal-beacon-unknown-token": {
+    "cases": [
+      "beacon_unknown_token"
+    ]
+  },
+  "truesignal-beacon-unexpected-country": {
+    "cases": [
+      "beacon_http_us"
+    ]
+  },
+  "truesignal-receiver-saturated-sustained": {
+    "groups": [
+      {
+        "host.id": "node-0dd0beac",
+        "truesignal.details.listener": "dns",
+        "count": 3
+      }
+    ]
+  },
+  "truesignal-decoy-login": {
+    "cases": [
+      "mysql_login",
+      "web_login_attempt",
+      "ldap_login_honeytoken"
+    ]
+  },
+  "truesignal-lateral-movement": {
+    "cases": [
+      "ssh_login",
+      "rdp_login",
+      "ssh_login_publickey"
+    ]
+  },
+  "truesignal-honeytoken-used": {
+    "cases": [
+      "ldap_login_honeytoken#2",
+      "postgres_login_honeytoken_whitelisted#2"
+    ]
+  },
+  "truesignal-scan-then-touch": {
+    "cases": [
+      "stt_scan",
+      "stt_touch"
+    ]
+  },
+  "truesignal-critical-asset-source": {
+    "cases": [
+      "asset_critical_dns_query"
+    ],
+    "severity": {
+      "asset_critical_dns_query": "critical"
+    }
+  },
+  "truesignal-decoy-interaction": {
+    "cases": [
+      "scan_recent",
+      "asset_critical_dns_query",
+      "asset_medium_snmp_query",
+      "file_tampered"
+    ],
+    "severity": {
+      "file_tampered": "critical",
+      "asset_medium_snmp_query": "medium",
+      "scan_recent": "high"
+    }
+  },
+  "truesignal-sensor-heartbeat-lost": {
+    "cases": [
+      "hb_lost_recent",
+      "hb_lost_after_stop"
+    ]
+  },
+  "truesignal-sensor-dark": {
+    "groups": [
+      {
+        "host.id": "node-a1b2c3d4",
+        "truesignal.sensor_id": "ts-sensor-tcp-tarpit"
+      }
+    ]
+  },
+  "truesignal-hub-mfa-reset": {
+    "cases": [
+      "audit_mfa_reset",
+      "audit_mfa_disable"
+    ]
+  },
+  "truesignal-hub-defense-change": {
+    "cases": [
+      "audit_config_change",
+      "audit_clear_events",
+      "audit_silence_sensor"
+    ],
+    "severity": {
+      "audit_clear_events": "high",
+      "audit_config_change": "medium",
+      "audit_silence_sensor": "medium"
+    }
+  },
+  "truesignal-hub-login-bruteforce": {
+    "groups": [
+      {
+        "source.ip": "198.51.100.23",
+        "count": 6
+      }
+    ]
+  }
+}

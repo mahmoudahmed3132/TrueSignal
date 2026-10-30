@@ -1,0 +1,16 @@
+// truesignal-sensor-dark: latest liveness event is sensor_heartbeat_lost, at least 30 minutes old, no sensor_recovered since (high).
+// Elastic twin (ES|QL): Docs/siem/elastic/truesignal-sensor-dark.json
+// Schedule: every 1h over the last 24h. Repeats every run while the sensor stays down.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action=/^(sensor_heartbeat_lost|sensor_recovered)$/
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| case {
+    event.action="sensor_heartbeat_lost" | lost := @timestamp;
+    event.action="sensor_recovered" | recovered := @timestamp;
+  }
+| groupBy([host.id, host.name, truesignal.sensor_id], function=[max(lost, as=last_lost), max(recovered, as=last_recovered)])
+| last_lost=*
+| default(field=last_recovered, value=0)
+| test(last_recovered < last_lost)
+| now(as=_now)
+| test(last_lost <= _now - 1800000)
