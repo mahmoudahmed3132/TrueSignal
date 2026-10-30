@@ -89,32 +89,3 @@ func TestListDeployedSensors(t *testing.T) {
 		}
 	}
 }
-
-func TestHasSensorBeenOnline(t *testing.T) {
-	st, err := NewStore(filepath.Join(t.TempDir(), "online.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.DB.Close()
-	if _, err := st.DB.Exec(`INSERT INTO nodes (id, alias, api_key, created_at, updated_at) VALUES ('n','n','k','t','t')`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := st.DB.Exec(`INSERT INTO node_sensors (node_id, sensor_id, custom_name, created_at, updated_at) VALUES ('n','s','s','t','t')`); err != nil {
-		t.Fatal(err)
-	}
-	insert := func(status string) {
-		if err := st.InsertStatusChange("n", "s", status, "2026-10-30T00:00:00Z"); err != nil {
-			t.Fatal(err)
-		}
-	}
-	insert("offline") // pending: never seen
-	insert("online")  // the heartbeat being processed
-	if ok, _ := st.HasSensorBeenOnline("n", "s"); ok {
-		t.Fatal("first heartbeat counted as a return")
-	}
-	insert("offline")
-	insert("online")
-	if ok, _ := st.HasSensorBeenOnline("n", "s"); !ok {
-		t.Fatal("real return not recognised")
-	}
-}

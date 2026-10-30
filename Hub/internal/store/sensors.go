@@ -288,12 +288,3 @@ func (s *SQLiteStore) ListDeployedSensors(nodeID, sensorID string) ([]DeployedSe
 	}
 	return out, rows.Err()
 }
-
-// HasSensorBeenOnline reports whether the sensor has more than one "online"
-// status change, i.e. was online before the heartbeat being processed.
-func (s *SQLiteStore) HasSensorBeenOnline(nodeID, sensorID string) (bool, error) {
-	var n int
-	err := s.DB.QueryRow(`SELECT COUNT(*) FROM sensor_status_changes WHERE node_id = ? AND sensor_id = ? AND status = 'online'`,
-		nodeID, sensorID).Scan(&n)
-	return n > 1, err
-}
