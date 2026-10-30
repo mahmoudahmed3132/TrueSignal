@@ -38,6 +38,7 @@ type RouterConfig struct {
 	Config            *ConfigHandler
 	Compose           *ComposeHandler
 	Honeytokens       *HoneytokenHandler
+	Beacons           *BeaconHandler
 	MFA               *MFAHandler
 	WSService         *websocket.Service
 	SessionValidator  SessionValidator
@@ -141,6 +142,12 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Get("/api/v2/events/export", cfg.Events.ExportEvents)
 		if cfg.Honeytokens != nil {
 			r.Get("/api/v2/honeytokens", cfg.Honeytokens.ListHoneytokens)
+		}
+		if cfg.Beacons != nil {
+			r.Get("/api/v2/beacons", cfg.Beacons.ListBeacons)
+			r.Post("/api/v2/beacons", cfg.Beacons.CreateBeacon)
+			r.Get("/api/v2/beacons/{beaconId}/download", cfg.Beacons.DownloadBeacon)
+			r.Delete("/api/v2/beacons/{beaconId}", cfg.Beacons.DeleteBeacon)
 		}
 		r.Delete("/api/v2/events", cfg.Events.ClearEvents)
 		r.Patch("/api/v2/events/{eventId}/archive", cfg.Events.ArchiveEvent)

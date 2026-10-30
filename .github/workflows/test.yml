@@ -29,6 +29,7 @@ jobs:
           - Sensors/official/NetworkServiceDecoy
           - Sensors/official/RemoteAccessDecoy
           - Sensors/official/TcpTarpit
+          - Sensors/official/TokenReceiver
           - Sensors/official/WebRouterDecoy
     steps:
       - name: Checkout repository
@@ -84,6 +85,7 @@ jobs:
           - NetworkServiceDecoy
           - RemoteAccessDecoy
           - TcpTarpit
+          - TokenReceiver
           - WebRouterDecoy
     steps:
       - name: Checkout repository

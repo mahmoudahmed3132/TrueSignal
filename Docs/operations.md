@@ -277,3 +277,34 @@ cosign verify-blob --bundle truesignal-linux-amd64.sigstore.json \
 
 **What it does not cover.** Anyone who can push a `sensor/*` tag to this repository can still get a release signed, because the publish workflow runs on any such tag. Close that gap in GitHub: add a tag ruleset restricting who may create `sensor/*`, `hub/*` and `wizard/*` tags, and require reviews on `main` and on `.github/workflows/`. Alert on unexpected signatures under this identity in the Rekor log; the Sigstore `rekor-monitor` can do this.
 
+
+## 14. Beacons (callback tokens)
+
+Beacons are artifacts the Hub generates for you to plant where only an intruder would use them. Using one makes a DNS lookup or HTTP request to a **Token Receiver**, which raises a critical `beacon_triggered` event. Unlike the decoys, a beacon fires wherever the artifact is opened, including outside the network, so the receiver faces the internet. The Hub never does.
+
+| Type | What you plant | What fires it |
+|---|---|---|
+| DNS name | `<token>.<zone>` in SSH configs, `.env` files, inventories, scripts | any resolution of the name, through any resolver |
+| Web bug | `<img src="http://<zone>/static/<token>.gif">` in an HTML page, e-mail or document | loading the image (clients that block remote images don't fire) |
+| Kubeconfig | a kubeconfig whose API server is `https://<token>.<zone>:6443` | `kubectl` resolving the server name (it then fails to connect) |
+
+**Deploy the receiver** (once):
+1. Create a node in a DMZ for the receiver alone. Link it as usual. It needs outbound HTTPS to the Hub's sensor API (`/api/v2/event`, `/api/v2/heartbeat`) and nothing else outbound. **[NOT IN PROJECT]**: the DMZ, the address and the Palo Alto/Fortinet rule.
+2. Choose a zone that does not name TrueSignal or the company's security tooling, e.g. `cdn-assets.example.com`. In the parent zone, delegate it to the receiver: `cdn-assets  NS  ns1.cdn-assets.example.com.` plus a glue A record `ns1.cdn-assets.example.com  A  <receiver public IP>`.
+3. Allow udp/53, tcp/53 and tcp/80 inbound from the internet to that node only.
+4. In the Hub, add the **Token Receiver** sensor to the node with `TS_BEACON_DOMAIN=cdn-assets.example.com` and `TS_ANSWER_IPV4=<receiver public IP>` (needed for web bugs), then `truesignal apply`. The Hub injects `TS_BEACON_KEY`.
+5. Check the delegation from outside: `dig +trace anything.cdn-assets.example.com` ends at the receiver with an authoritative answer.
+6. For HTTPS web bugs, terminate TLS on a front end (F5) with a certificate for the zone, forward to tcp/80, and set `TS_TRUSTED_PROXIES` to the front end so the client address comes from `X-Forwarded-For`.
+
+**Create and plant:** Hub → **Beacons** → type, a name saying where it will be planted (that name is what the alert shows), optional memo → **Create**, then copy the value or download the file. Plant it, and record the location in your change process.
+
+**What an alert means:**
+- DNS: `source` is the **resolver**, often a public or ISP resolver, not the attacker. `details.client_subnet` is the client's network when the resolver sends EDNS Client Subnet. Expect it rarely: Cloudflare never sends it, and Google sends it only to name servers that echo ECS back, which the receiver does not do yet. An internal resolver as the source means the lookup came from inside.
+- HTTP: `source` is the client, `details.user_agent` names the application (Office, Outlook, a browser).
+- Mail and security gateways, link scanners and sandboxes also resolve names and fetch images. A web bug in an e-mail can fire on delivery, not only on opening. Plant web bugs in documents at rest rather than in mail that crosses a gateway, and expect `user_agent` to tell scanners from people.
+- One event per token and channel per `TS_ALERT_COOLDOWN` (60 s); repeats are counted in `repeats_since_last`.
+- `beacon_known: false` (severity `medium`) is a valid token the Hub no longer has: a deleted beacon that was not removed from where it was planted, or an event forged by someone holding the receiver's keys.
+
+**Lifecycle:** beacons and their master key (`beacon_master_key`) survive receiver redeploys, node deletion and a factory reset. Every receiver gets the same derived key, so a second receiver (a second NS for redundancy) needs no change to existing beacons. `purgeHoneytokens: true` on a factory reset deletes beacons and rotates the key, so every planted beacon goes silent. Remove the artifacts first.
+
+**Not built yet:** Word/Excel documents, AWS keys, `.bashrc`/batch beacons, MySQL dumps, cloned-site beacons, GeoIP enrichment and the map (DB-IP Lite, next).

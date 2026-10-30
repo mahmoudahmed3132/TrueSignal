@@ -40,6 +40,7 @@ type Service struct {
 	mu            sync.RWMutex
 	allowUnpinned bool
 	honeytokens   HoneytokenProvider
+	beacons       BeaconKeyProvider
 	verifier      signing.ManifestVerifier
 }
 
@@ -56,6 +57,14 @@ type HoneytokenProvider interface {
 
 // SetHoneytokens enables injection of TS_CAPTURE_HASH_KEY and TS_HONEYTOKEN.
 func (s *Service) SetHoneytokens(p HoneytokenProvider) { s.honeytokens = p }
+
+// BeaconKeyProvider supplies the Token Receivers' verification key.
+type BeaconKeyProvider interface {
+	ReceiverKey() (string, error)
+}
+
+// SetBeacons enables injection of TS_BEACON_KEY.
+func (s *Service) SetBeacons(p BeaconKeyProvider) { s.beacons = p }
 
 func declaresEnv(m models.SensorManifest, name string) bool {
 	for _, v := range m.Deployment.EnvVars {
@@ -393,6 +402,14 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 				}
 				sysVars["TS_HONEYTOKEN"] = tok.Username + ":" + tok.Secret
 			}
+		}
+
+		if s.beacons != nil && declaresEnv(manifest, "TS_BEACON_KEY") {
+			key, err := s.beacons.ReceiverKey()
+			if err != nil {
+				return nil, fmt.Errorf("beacon_key: %w", err)
+			}
+			sysVars["TS_BEACON_KEY"] = key
 		}
 
 		envMap := composeEngine.BuildEnv(manifest, userVars, sysVars)

@@ -36,6 +36,11 @@ const routes = [
     component: () => import('./views/Honeytokens.vue')
   },
   {
+    path: '/beacons',
+    name: 'beacons',
+    component: () => import('./views/Beacons.vue')
+  },
+  {
     path: '/scans',
     name: 'scans',
     component: () => import('./views/Scans.vue')

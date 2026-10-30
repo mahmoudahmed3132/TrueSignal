@@ -333,6 +333,28 @@ var migrations = []Migration{
 			return err
 		},
 	},
+	{
+		Version:     5,
+		Description: "Beacons (callback tokens)",
+		Up: func(tx *sql.Tx) error {
+			// No foreign keys, like honeytokens: a planted beacon outlives
+			// any receiver node, and its events must stay attributable.
+			_, err := tx.Exec(`
+				CREATE TABLE IF NOT EXISTS beacons (
+					id           TEXT PRIMARY KEY,
+					token        TEXT NOT NULL UNIQUE,
+					type         TEXT NOT NULL,
+					name         TEXT NOT NULL,
+					memo         TEXT NOT NULL DEFAULT '',
+					domain       TEXT NOT NULL,
+					created_at   TEXT NOT NULL,
+					last_used_at TEXT NOT NULL DEFAULT '',
+					use_count    INTEGER NOT NULL DEFAULT 0
+				);
+			`)
+			return err
+		},
+	},
 }
 
 // RunMigrations applies all pending schema changes transactionally.

@@ -241,3 +241,20 @@ type Honeytoken struct {
 	LastUsedAt string `json:"lastUsedAt"`
 	UseCount   int    `json:"useCount"`
 }
+
+// Beacon is a callback token the Hub generates for an operator to plant (a
+// DNS name, a web bug, a kubeconfig file). When it is used, the lookup or
+// request reaches a Token Receiver, which reports beacon_triggered with the
+// token; the Hub resolves it to this record. Token is not secret from the
+// operator (it is in the artifact) but is never put in events by the Hub.
+type Beacon struct {
+	ID         string `json:"id"`
+	Token      string `json:"token"`
+	Type       string `json:"type"`
+	Name       string `json:"name"`
+	Memo       string `json:"memo"`
+	Domain     string `json:"domain"`
+	CreatedAt  string `json:"createdAt"`
+	LastUsedAt string `json:"lastUsedAt"`
+	UseCount   int    `json:"useCount"`
+}

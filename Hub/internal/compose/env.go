@@ -11,6 +11,8 @@ var forbiddenUserVars = map[string]bool{
 	// Set by the Hub: the node's capture key and the planted honeytoken.
 	"TS_CAPTURE_HASH_KEY": true,
 	"TS_HONEYTOKEN":       true,
+	// Set by the Hub: the Token Receivers' beacon verification key.
+	"TS_BEACON_KEY": true,
 }
 
 // BuildEnv securely merges manifest defaults, user overrides, and reserved system variables.

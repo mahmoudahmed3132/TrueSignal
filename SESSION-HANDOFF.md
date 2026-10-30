@@ -127,7 +127,7 @@ Session branch for this work: `claude/beautiful-ptolemy-t0uxdm`. A new session g
    - **Claude:** bump `HubVersion` to `2.3.0` in `Hub/internal/models/models.go`. The wizard is unchanged, so keep `WizardVersion` 2.2.0 (only the major must match). The CHANGELOG `[Unreleased]` entries become the 2.3.0 notes.
    - **The owner:** `make tag-release` tags both constants and would fail on the existing `wizard/v2.2.0`, so either push `hub/v2.3.0` alone or adjust the Makefile. Pin `TS_HUB_VERSION=v2.3.0`.
    - **Before release:** tell the SOC about the SIEM additions (§3).
-2. **Phase 3: callback beacons and the GeoIP map.** These are the SaaS/document honeytokens named in the purpose.
+2. **Phase 3: callback beacons and the GeoIP map.** **2026-10-29, part 1 built:** Token Receiver sensor + Beacons page (DNS, web bug, kubeconfig), `Docs/operations.md` §14. Owner decisions: GeoIP = **DB-IP Lite**; first beacons = DNS + web bug + kubeconfig. Next: release token-receiver 2.0.0 (`sensor/token-receiver/v2.0.0`, then set the GHCR package Public), DB-IP Lite enrichment + map, then Office docs and AWS keys. These are the SaaS/document honeytokens named in the purpose.
    - **Design (agreed in principle):**
      - A **separate hardened token receiver** (HTTP + DNS), never the Hub; the Hub must stay off the internet.
      - The receiver forwards to the Hub like a sensor does.
