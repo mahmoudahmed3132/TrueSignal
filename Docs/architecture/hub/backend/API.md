@@ -552,11 +552,11 @@ Located decoy activity for the GeoIP map (`Docs/operations.md` §15). Query: `ti
 ```json
 {"timeframe":"alltime","geoip":{"enabled":true,"path":"/data/geoip/dbip-city-lite.mmdb","databaseType":"DBIP-City-Lite","buildDate":"2026-10-01","autoUpdate":true,"attribution":"IP Geolocation by DB-IP","attributionUrl":"https://db-ip.com"},
  "events":6,"locatedEvents":4,"internalEvents":1,"unlocatedEvents":1,
- "points":[{"lat":30.04,"lon":31.24,"city":"Cairo","region":"Cairo Governorate","country":"Egypt","countryCode":"EG","events":1,"beaconEvents":1,"sourceCount":1,"sources":["198.51.100.0"],"triggers":["beacon_triggered"],"maxSeverity":"critical","lastSeen":"2026-10-30T00:36:16Z"}],
+ "points":[{"lat":30.04,"lon":31.24,"city":"Cairo","region":"Cairo Governorate","country":"Egypt","countryCode":"EG","events":1,"beaconEvents":1,"sourceCount":1,"sources":["8.8.8.8"],"clientSubnets":["198.51.100.0"],"triggers":["beacon_triggered"],"maxSeverity":"critical","lastSeen":"2026-10-30T00:36:16Z"}],
  "countries":[{"countryCode":"EG","country":"Egypt","events":1,"sources":1}]}
 ```
 
-`points` are per place (coordinates rounded to 0.01°; at most 20 `sources` listed, `sourceCount` exact); a country-only location counts in `countries` but has no point. Events from `GET /api/v2/events` carry the same lookup as `sourceGeo` (`{countryCode, country, region, city, lat, lon, basis, address}`).
+`points` are per place (coordinates rounded to 0.01°; `sources` are event sources as stored, so they work with `GET /api/v2/path`, at most 20 listed with `sourceCount` exact; `clientSubnets` are DNS beacon client subnets that placed events there); a country-only location counts in `countries` but has no point. Events from `GET /api/v2/events` carry the same lookup as `sourceGeo` (`{countryCode, country, region, city, lat, lon, basis, address}`).
 
 ### GET /api/v2/beacons · POST /api/v2/beacons · DELETE /api/v2/beacons/{id} · GET /api/v2/beacons/{id}/download
 

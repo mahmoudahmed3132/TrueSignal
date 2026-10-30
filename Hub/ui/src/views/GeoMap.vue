@@ -19,6 +19,7 @@ interface GeoPoint {
     beaconEvents: number
     sourceCount: number
     sources: string[]
+    clientSubnets: string[]
     triggers: string[]
     maxSeverity: string
     lastSeen: string
@@ -198,7 +199,11 @@ const investigate = (source: string) => router.push({ path: '/path', query: { so
                             <button type="button" class="text-xs underline text-text-m hover:text-text-h" @click="investigate(s)">Attack Path</button>
                         </li>
                     </ul>
-                    <p class="text-xs text-text-m mt-3">For a DNS beacon located by its client subnet, the source listed is the subnet's network address, not the resolver that reported it.</p>
+                    <template v-if="selected.clientSubnets.length">
+                        <h3 class="text-sm font-medium text-text-h mt-4">Beacon client subnets</h3>
+                        <p class="text-sm font-mono text-text-h">{{ selected.clientSubnets.join(', ') }}</p>
+                        <p class="text-xs text-text-m mt-1">DNS beacons placed here by their EDNS Client Subnet. The sources above are the resolvers that reported them, as stored on the events.</p>
+                    </template>
                 </template>
                 <p v-else class="text-sm text-text-m">{{ loading ? 'Loading…' : 'Select a circle on the map for the activity at that place.' }}</p>
             </aside>

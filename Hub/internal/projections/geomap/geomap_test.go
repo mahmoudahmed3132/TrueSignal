@@ -54,12 +54,18 @@ func TestCalculate(t *testing.T) {
 		t.Fatalf("points (country-only has no point): %+v", d.Points)
 	}
 	london := d.Points[0]
+	if len(london.ClientSubnets) != 0 {
+		t.Fatalf("london subnets = %v", london.ClientSubnets)
+	}
 	if london.City != "London" || london.Events != 2 || london.SourceCount != 2 || london.MaxSeverity != "critical" ||
 		london.LastSeen != "2026-10-30T11:00:00Z" || london.Lat != 51.51 || len(london.Triggers) != 2 {
 		t.Fatalf("london = %+v", london)
 	}
 	cairo := d.Points[1]
-	if cairo.City != "Cairo" || cairo.BeaconEvents != 1 || cairo.Sources[0] != "198.51.100.0" {
+	// The link target is the stored source (the resolver); the subnet that
+	// placed it is listed separately.
+	if cairo.City != "Cairo" || cairo.BeaconEvents != 1 || cairo.Sources[0] != "8.8.8.8" ||
+		len(cairo.ClientSubnets) != 1 || cairo.ClientSubnets[0] != "198.51.100.0" {
 		t.Fatalf("cairo = %+v", cairo)
 	}
 	if len(d.Countries) != 3 || d.Countries[0].CountryCode != "GB" || d.Countries[0].Events != 2 || d.Countries[0].Sources != 2 {

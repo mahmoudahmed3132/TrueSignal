@@ -21,19 +21,23 @@ const maxPointSources = 20
 
 // Point is the activity located at one place.
 type Point struct {
-	Lat          float64  `json:"lat"`
-	Lon          float64  `json:"lon"`
-	City         string   `json:"city"`
-	Region       string   `json:"region"`
-	Country      string   `json:"country"`
-	CountryCode  string   `json:"countryCode"`
-	Events       int      `json:"events"`
-	BeaconEvents int      `json:"beaconEvents"`
-	SourceCount  int      `json:"sourceCount"`
-	Sources      []string `json:"sources"`
-	Triggers     []string `json:"triggers"`
-	MaxSeverity  string   `json:"maxSeverity"`
-	LastSeen     string   `json:"lastSeen"`
+	Lat          float64 `json:"lat"`
+	Lon          float64 `json:"lon"`
+	City         string  `json:"city"`
+	Region       string  `json:"region"`
+	Country      string  `json:"country"`
+	CountryCode  string  `json:"countryCode"`
+	Events       int     `json:"events"`
+	BeaconEvents int     `json:"beaconEvents"`
+	// Sources are event sources as stored (what Attack Path matches on);
+	// for a DNS beacon that is the resolver. ClientSubnets are the beacon
+	// client subnets (network addresses) that placed events here.
+	SourceCount   int      `json:"sourceCount"`
+	Sources       []string `json:"sources"`
+	ClientSubnets []string `json:"clientSubnets"`
+	Triggers      []string `json:"triggers"`
+	MaxSeverity   string   `json:"maxSeverity"`
+	LastSeen      string   `json:"lastSeen"`
 }
 
 // Country is the activity located in one country.
@@ -93,6 +97,7 @@ func Calculate(events []models.Event, loc Locator, timeframe string, since time.
 	type pointAgg struct {
 		p        *Point
 		sources  map[string]bool
+		subnets  map[string]bool
 		triggers map[string]bool
 	}
 	points := map[string]*pointAgg{}
@@ -120,7 +125,6 @@ func Calculate(events []models.Event, loc Locator, timeframe string, since time.
 			continue
 		}
 		dto.LocatedEvents++
-		who := l.Address // the located address: the source, or the beacon's client subnet
 
 		if l.Lat != 0 || l.Lon != 0 {
 			key := fmt.Sprintf("%.2f,%.2f", round2(l.Lat), round2(l.Lon))
@@ -129,6 +133,7 @@ func Calculate(events []models.Event, loc Locator, timeframe string, since time.
 				a = &pointAgg{
 					p:        &Point{Lat: round2(l.Lat), Lon: round2(l.Lon), City: l.City, Region: l.Region, Country: l.Country, CountryCode: l.CountryCode, MaxSeverity: e.Severity},
 					sources:  map[string]bool{},
+					subnets:  map[string]bool{},
 					triggers: map[string]bool{},
 				}
 				points[key] = a
@@ -137,7 +142,10 @@ func Calculate(events []models.Event, loc Locator, timeframe string, since time.
 			if e.EventTrigger == "beacon_triggered" {
 				a.p.BeaconEvents++
 			}
-			a.sources[who] = true
+			a.sources[e.Source] = true
+			if l.Basis == "client_subnet" {
+				a.subnets[l.Address] = true
+			}
 			a.triggers[e.EventTrigger] = true
 			if severityRank[e.Severity] > severityRank[a.p.MaxSeverity] {
 				a.p.MaxSeverity = e.Severity
@@ -158,12 +166,13 @@ func Calculate(events []models.Event, loc Locator, timeframe string, since time.
 			countrySources[cc] = map[string]bool{}
 		}
 		c.Events++
-		countrySources[cc][who] = true
+		countrySources[cc][e.Source] = true
 	}
 
 	for _, a := range points {
 		a.p.SourceCount = len(a.sources)
 		a.p.Sources = sortedKeys(a.sources, maxPointSources)
+		a.p.ClientSubnets = sortedKeys(a.subnets, maxPointSources)
 		a.p.Triggers = sortedKeys(a.triggers, 0)
 		dto.Points = append(dto.Points, *a.p)
 	}
