@@ -183,7 +183,7 @@ Run `truesignal firedrill` to make the TrueSignal sensors send a mock event to t
 <a id="roadmap-development"></a>
 ## Roadmap & Development
 
-Planned work and known gaps are tracked in [`docs/KNOWLEDGE-GAPS.md`](./docs/KNOWLEDGE-GAPS.md). Development guides live in [`Docs/development/`](./Docs/development/README.md).
+Planned work and known gaps are tracked in [`Docs/KNOWLEDGE-GAPS.md`](./Docs/KNOWLEDGE-GAPS.md). Development guides live in [`Docs/development/`](./Docs/development/README.md).
 
 
 ## Versioning and API Reference

@@ -32,7 +32,7 @@ git clone https://github.com/mahmoudahmed3132/TrueSignal.git
 cd TrueSignal && git log --oneline -8 && git rev-parse HEAD
 ```
 
-Read these before testing anything else: `SESSION-HANDOFF.md`, `CLAUDE.md`, `docs/KNOWLEDGE-GAPS.md`, `CHANGELOG.md` (top entries), `Docs/operations.md`, `Docs/siem-integration.md`, `Docs/siem/soc-notice-2.3.0.md`, `Docs/architecture/hub/backend/API.md`, `THREATMODEL.md`.
+Read these before testing anything else: `SESSION-HANDOFF.md`, `CLAUDE.md`, `Docs/KNOWLEDGE-GAPS.md`, `CHANGELOG.md` (top entries), `Docs/operations.md`, `Docs/siem-integration.md`, `Docs/siem/soc-notice-2.3.0.md`, `Docs/architecture/hub/backend/API.md`, `THREATMODEL.md`.
 
 Record:
 - the HEAD commit;

@@ -26,6 +26,7 @@ A **Node** is any physical or virtual machine where you want to deploy deceptive
    ```
    The key is passed in the environment (`TS_NODE_API_KEY`) rather than as `--api-key`, so it does not show up in the process list. It still lands in your shell history; clear it if that matters.
 4. **Pin the binary (recommended):** `install.sh` verifies the download against the release's `checksums.txt`, which detects corruption but not a tampered release. Add `--sha256 <expected-hash>` to require a specific binary hash obtained out of band.
+5. **Architecture:** nodes must be **x86_64**. Sensor images are published for `linux/amd64` only, so `install.sh` refuses arm64 hosts. On an arm64 host with amd64 emulation (binfmt/QEMU), `TS_ALLOW_ARM64=1` lets the install proceed. Sensors then need `DOCKER_DEFAULT_PLATFORM=linux/amd64`, and they run under emulation.
 
 ## 2. Sensor Deployment
 
@@ -307,7 +308,9 @@ Beacons are artifacts the Hub generates for you to plant where only an intruder 
 
 **Lifecycle:** beacons and their master key (`beacon_master_key`) survive receiver redeploys, node deletion and a factory reset. Every receiver gets the same derived key, so a second receiver (a second NS for redundancy) needs no change to existing beacons. `purgeHoneytokens: true` on a factory reset deletes beacons and rotates the key, so every planted beacon goes silent. Remove the artifacts first.
 
-**Not built yet:** Word/Excel documents, AWS keys, `.bashrc`/batch beacons, MySQL dumps, cloned-site beacons, GeoIP enrichment and the map (DB-IP Lite, next).
+**Receiver under attack:** each source may hold at most 4 DNS/TCP and 8 HTTP connections (a TLS front end listed in `TS_TRUSTED_PROXIES` is exempt), within totals of 128 and 256. Refusals raise `receiver_saturated` (medium, at most once per 5 minutes per listener, the busiest refused address as `source`). Sustained events mean someone is trying to blind the beacons; block the source upstream.
+
+**Not built yet:** Word/Excel documents, AWS keys, `.bashrc`/batch beacons, MySQL dumps, cloned-site beacons. GeoIP and the map: §15.
 
 ## 15. GeoIP enrichment and the map
 
