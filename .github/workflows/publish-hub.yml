@@ -71,21 +71,12 @@ jobs:
         run: |
           VERSION="${{ steps.vars.outputs.VERSION }}"
           IMAGE_TAG="ghcr.io/${{ github.repository_owner }}/truesignal-hub:v$VERSION"
-          LATEST_TAG="ghcr.io/${{ github.repository_owner }}/truesignal-hub:latest"
           
-          docker build -t "$IMAGE_TAG" -t "$LATEST_TAG" \
+          docker build -t "$IMAGE_TAG" \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
             --label "org.opencontainers.image.version=$VERSION" \
             -f Hub/Dockerfile Hub/
           docker push "$IMAGE_TAG" | tee push_out.log
-          # Releases run in parallel (e.g. an older version tagged after a
-          # newer one), so only the highest hub/v* tag may move :latest.
-          HIGHEST=$(git ls-remote --tags origin 'refs/tags/hub/v*' | sed 's#.*refs/tags/##' | grep -v '\^{}$' | sort -V | tail -n 1)
-          if [ "$HIGHEST" = "hub/v$VERSION" ]; then
-            docker push "$LATEST_TAG"
-          else
-            echo "hub/v$VERSION is not the highest Hub tag ($HIGHEST); leaving :latest alone."
-          fi
           DIGEST=$(grep -o 'sha256:[a-f0-9]\{64\}' push_out.log | tail -n 1)
           [ -n "$DIGEST" ] || { echo "::error::no digest in push output"; exit 1; }
           # Keyless signature by digest (verify with cosign verify, see
@@ -108,3 +99,42 @@ jobs:
         with:
           name: "Hub v${{ steps.vars.outputs.VERSION }}"
           body_path: release-notes.md
+
+  promote-latest:
+    name: Point :latest at the highest published Hub
+    needs: publish
+    runs-on: ubuntu-latest
+    # One promotion at a time across all Hub tags. A queued run can be
+    # replaced by a newer one, so each run promotes the highest published
+    # hub/v* tag, not its own: whichever runs last leaves :latest right.
+    concurrency:
+      group: publish-hub-latest
+      cancel-in-progress: false
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.1.4'
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Promote
+        run: |
+          REPO="ghcr.io/${{ github.repository_owner }}/truesignal-hub"
+          # Highest hub/v* tag whose image is published. A higher tag still
+          # building is skipped here; its own promote run comes after.
+          for TAG in $(git ls-remote --tags "https://github.com/${{ github.repository }}" 'refs/tags/hub/v*' \
+              | sed 's#.*refs/tags/hub/##' | grep -v '\^{}$' | sort -rV); do
+            if DIGEST=$(docker buildx imagetools inspect "$REPO:$TAG" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"') && [ -n "$DIGEST" ]; then
+              break
+            fi
+            DIGEST=""
+          done
+          [ -n "$DIGEST" ] || { echo "::error::no published hub/v* image found"; exit 1; }
+          # Only a signed release may become :latest.
+          cosign verify "$REPO@$DIGEST" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/publish-hub.yml@refs/tags/hub/$TAG" >/dev/null
+          docker buildx imagetools create --tag "$REPO:latest" "$REPO@$DIGEST"
+          echo ":latest -> $TAG ($DIGEST)"

@@ -5,6 +5,9 @@
   * **Now:** a failed pull fails `up`.
   * **Local builds** are opt-in: `docker-compose.build.yml`, tagged `truesignal-hub:local-build`.
   * **CI** fails if the production compose or the TLS overlay gains a `build` section.
+* **CI: release notes per component, and `:latest` follows the highest Hub release** (#32 and this change).
+  * Hub and Wizard release notes are generated against the previous tag of the same component. Before this, Hub 2.4.0 and Wizard 2.2.1 repeated #21-#27, and the Wizard compared against `hub/v2.2.0`.
+  * `:latest` is moved in its own `promote-latest` job, serialized across all Hub tags. Each run points `:latest` at the highest **published and signed** `hub/v*` image, never simply at its own. Before this, two parallel Hub releases raced on `:latest`: on 2026-10-30, 2.3.0 and 2.4.0 ran together and 2.4.0 happened to push last. A stale check could have regressed `:latest`, and a 2.4.0 Hub would then refuse to start on the older image.
 * `Docs/operations.md` §7 covers the amd64-only Hub image (`DOCKER_DEFAULT_PLATFORM=linux/amd64` on arm64), the version check after an upgrade, and older compose files.
 
 # [2.4.0] - Hub 2.4.0: beacons, GeoIP, verification fixes (2026-10-30)

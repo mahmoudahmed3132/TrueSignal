@@ -1,4 +1,4 @@
-# Session handoff (2026-10-26)
+# Session handoff (2026-10-30)
 
 Read this first, then `CLAUDE.md` (project memory, kept current) and `Docs/KNOWLEDGE-GAPS.md`. Where docs and code disagree, trust the code.
 
@@ -6,168 +6,132 @@ Read this first, then `CLAUDE.md` (project memory, kept current) and `Docs/KNOWL
 
 - **Owner:** Mahmoud, Senior Security Engineer and Detection Engineering Lead at Kashier (Cairo fintech). Expert security audience: skip basics.
 - **Style:** direct, short, technically precise, answer first. Give the rationale before the code. Flag risks plainly. Use tables and lists only when clearer. Match his language (English so far).
-- **Stack:** CrowdStrike Falcon/LogScale, Elastic SIEM, Fortinet → Palo Alto, Barracuda → F5, on Vodafone Egypt VDC.
-- **Compliance:** PCI DSS, SOC 2, CBE.
+- **Stack:** CrowdStrike Falcon/LogScale, Elastic SIEM, Fortinet → Palo Alto, Barracuda → F5, on Vodafone Egypt VDC. **Compliance:** PCI DSS, SOC 2, CBE.
 - **Repo:** `mahmoudahmed3132/TrueSignal`, **public** (owner decision, reconfirmed 2026-10-26). Default branch `main`.
   - TrueSignal will become a startup / accelerator PoC.
-  - A private-source plan (public `truesignal-dist` repo) was built and dropped: PR #23 closed, code in commit `370e69c`. Reviving it first needs the org/plan decision, because GitHub Team requires an organisation, which changes image paths and the signer identity.
+  - The private-source plan (PR #23, commit `370e69c`) is dropped. Reviving it first needs an org/plan decision (it changes image paths and the signer identity).
   - Flagged to the owner, unresolved: the AGPL licence (upstream HoneyWire) for a commercial product is a legal question.
 - **Working pattern:**
-  - Claude develops on the session branch and opens a PR when the owner asks or has delegated ("do what you think is best", 2026-10-26: he trusts Claude's calls on design details; still ask on product or business decisions).
-  - **He merges fast, often before CI or Codex finish.** After a merge:
-    - check CI on the merge commit;
-    - read the PR's Codex comments: they can arrive after the merge, and you are no longer subscribed.
-  - Codex (chatgpt-codex-connector) reviews every PR. Every P2 so far has been real; verify, fix, reply on the thread, resolve.
-  - Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` + `Claude-Session: <session URL>`.
+  - Claude develops on the session branch and opens a PR when a piece is ready. The owner delegates design details ("do what you think is best") but decides product and business questions.
+  - **He merges fast, often before CI or Codex finish.** After a merge, check CI on the merge commit and read the PR's Codex comments. They can arrive after the merge, and you are no longer subscribed. (#32's P2 arrived exactly like this.)
+  - Codex (`chatgpt-codex-connector`) reviews every PR. Every P2 so far has been real: verify, fix, reply on the thread, resolve.
+  - **GitHub writes outside the session branch** (tags, release edits, package visibility) are done by the owner, usually by pasting a prompt Claude writes into **Claude Code on his Mac**. That terminal session returns an md report. Verify its claims (e.g. `git ls-remote --tags origin`): on 2026-10-30 "tags pushed" was first reported when none were on origin.
+  - Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` + `Claude-Session: <session URL>`. No model IDs in any artifact.
 - **What a cloud session cannot do:**
-  - **Pushing:** git push is allowed only to the session branch, so no tags, and no GitHub MCP tool creates them. **Force-push is blocked by the auto-mode classifier.** To restart a branch, fast-forward to `origin/main` or revert; don't reset.
-  - **Network:** the GHCR blob host, the vuln DB and the Sigstore TUF CDN are blocked; Docker Hub is rate-limited. `dockerd &` works when needed. pip inside `docker build` needs the proxy CA (`/root/.ccr/ca-bundle.crt`, BuildKit secret).
-  - **Releases:** tags are pushed by the owner (`make tag-release && make push-tags`, `make tag-sensors && make push-tags`). Claude can dispatch publish workflows on an existing tag ref.
+  - **Pushing:** only to the session branch: no tags. **Force-push is blocked** by the auto-mode classifier. To restart a branch, fast-forward to `origin/main` or revert; don't reset.
+  - **Network:** the GHCR blob host, the vuln DB and the Sigstore TUF CDN are blocked; Docker Hub is rate-limited (read base-image digests via `mirror.gcr.io`). `dockerd &` works when needed. pip inside `docker build` needs the proxy CA (`/root/.ccr/ca-bundle.crt`, BuildKit secret).
+  - **Releases:** the owner pushes tags (`make tag-release && make push-tags`, `make tag-sensors && make push-tags`). Claude can dispatch publish workflows on an existing tag ref.
 
 ## 2. What TrueSignal is
 
-A fork of HoneyWire v2.1.0 (AGPLv3), fully rebranded.
-- A Go Hub (API, SQLite, embedded Vue UI) and 9 containerised decoy sensors.
-- Go/Python SDKs.
-- A root CLI wizard (`truesignal`) on each node.
+A fork of HoneyWire v2.1.0 (AGPLv3), fully rebranded: a Go Hub (API, SQLite, embedded Vue UI), 10 containerised decoy sensors (incl. the internet-facing Token Receiver), Go/Python SDKs, and a root CLI wizard (`truesignal`) per node.
 
-**Purpose:** early, high-fidelity detection of attackers inside production. Decoys mirror production naming in an isolated subnet, and honeytokens cover the SaaS side. Any interaction is a SIEM alert (LogScale or Elastic). Secondary goals:
-- PCI DSS / CBE evidence (a supporting control);
-- detection-coverage validation.
+**Purpose:** early, high-fidelity detection of attackers inside production. Decoys mirror production naming in an isolated subnet; honeytokens and beacons cover the SaaS/document side. Any interaction is a SIEM alert (LogScale or Elastic). Secondary: PCI DSS / CBE evidence (supporting control) and detection-coverage validation.
 
-Component map, env vars, conventions and hard rules are in `CLAUDE.md` §2-§8.
+Component map, env vars, conventions and hard rules: `CLAUDE.md` §2-§8.
 
 ## 3. State
 
-### Released (unchanged since 2026-10-25)
+### Released (2026-10-30, all Sigstore-signed and verified)
 
-| Artifact | Version | Notes |
+| Artifact | Version | Commit / digest |
 |---|---|---|
-| Hub | `ghcr.io/mahmoudahmed3132/truesignal-hub:v2.2.0` (`sha256:fc36ddc5…fd88`) | Sigstore-signed |
-| Wizard | `wizard/v2.2.0` | static amd64/arm64, signed, verified |
-| Sensors | database-decoy 2.0.1, file-canary 2.0.2, icmp-canary 2.1.3, identity-decoy 2.0.1, network-scan-detector 2.1.3, network-service-decoy 2.0.1, remote-access-decoy 2.0.1, tcp-tarpit 2.0.3, web-router-decoy 2.1.1 | all signed; older unsigned versions are refused by a 2.2.0 Hub |
-| Tag ruleset | `sensor/*/*`, `hub/*`, `wizard/*` | owner + repo admins only |
+| Hub | `v2.3.0` | tag at `4471d82` (#27 merge), `sha256:4fea016c…d7d8` |
+| Hub | **`v2.4.0`** (schema v5) = `:latest` | tag at `31b3643` (#31 merge), `sha256:3ceb58a1…e3de` |
+| Wizard | `v2.2.1` | `31b3643`; 6 assets, cosign + sha256 verified |
+| Sensors (new versions) | token-receiver **2.0.0** (new), web-router-decoy 2.1.2, file-canary 2.0.3 | `31b3643` |
+| Sensors (unchanged) | database-decoy 2.0.1, icmp-canary 2.1.3, identity-decoy 2.0.1, network-scan-detector 2.1.3, network-service-decoy 2.0.1, remote-access-decoy 2.0.1, tcp-tarpit 2.0.3 | |
 
-Not yet done in the real world:
-- No node has run the installer end to end.
-- MFA is not enabled on any real Hub.
-- Wizard 2.2.0 is not on any node.
+- All 11 GHCR packages are public (anonymous pulls verified). The `release-tags` ruleset is active. GitHub "Latest" release = Hub v2.4.0. Release notes for Hub v2.4.0 / Wizard v2.2.1 were corrected by hand (originals on the owner's Mac, `~/work/truesignal-release/release-notes-fix/orig-*.md`).
+- **The Hub image is linux/amd64 only.** On arm64 (the owner's Mac) use `DOCKER_DEFAULT_PLATFORM=linux/amd64`. Wizard binaries are amd64 + arm64; sensor images amd64 only; `install.sh` refuses arm64 nodes unless `TS_ALLOW_ARM64=1`.
+- SOC notices `Docs/siem/soc-notice-2.3.0.md` and `-2.4.0.md` were **sent** (owner confirmed).
 
-### On `main`, NOT released: the analyst features (phases 1-2, 2026-10-26)
+### On `main` after 2.4.0, not released (CI only / compose; no version bump needed)
 
-Built from a SARAB-style feature list the owner supplied (screenshots of a deception product). Features and ideas only; no code or branding copied.
+- **#32** (owner, via his Claude Code): per-component release notes; `:latest` only from the highest Hub tag. CLAUDE.md release state refreshed.
+- **#33**: `Hub/docker-compose.yml` has no `build:`. A failed pull now fails `up` instead of building local source under the release tag (finding F3 from the release run). Builds are opt-in via `Hub/docker-compose.build.yml`. A CI guard checks it.
+- **This handoff PR**: fixes #32's Codex P2 (a stale run could still regress `:latest`). `:latest` moves in a separate `promote-latest` job, serialized across Hub tags (`concurrency: publish-hub-latest`). It points at the highest **published and cosign-verified** `hub/v*`, not its own tag. It is untested until the next Hub tag runs; check that run's `promote-latest` log.
 
-| Area | What | Where |
-|---|---|---|
-| Dashboard | Decoy coverage tiles (touched/deployed, attacker sources, critical, ATT&CK techniques, honeytokens used) with 24H/7D/30D/All; bar charts per decoy type; touched/untouched donut | `projections/insights`, `GET /api/v2/insights`, `components/dashboard/{InsightTiles,DecoyTypeChart,DecoyCoverageChart}.vue` |
-| Source lists | Whitelist takes IPs/CIDRs/names; new **Known Scanners** list (archived, no notify, flagged `known_scanner`); file import in Settings | `services/sourcelist`, config keys `whitelisted_sources`, `known_scanners` |
-| Triage | Per-source labels (multi-decoy, known asset, repeat, single touch, internal/external, whitelisted, scanner), label + tactic filters, search, badges | `projections/sources`, `GET /api/v2/sources`, `EventTable.vue` |
-| Honeytokens page | Planted credentials, uses, CSV | `views/Honeytokens.vue` |
-| Detected Scans page | Port scans and ICMP probes, most-probed ports, "scanned then touched a decoy" | `views/Scans.vue` |
-| MITRE ATT&CK | Primary + secondary technique per trigger; 16 techniques; derived on read, never stored | `internal/attack`, table `Docs/siem/attack-mapping.md` (a test keeps them in sync), `projections/attackmap`, `GET /api/v2/attack[/layer]`, `views/Attack.vue` |
-| Assets | Inventory (criticality, owner, tags; config key `assets`, JSON, no migration); events carry `sourceAsset` | `internal/assets`, `GET/PUT /api/v2/assets`, `views/Assets.vue` |
-| Attack Path | Per-source route through the decoys: steps, tactic progression (multi-tactic technique = one step), timeline | `projections/path`, `GET /api/v2/path`, `views/AttackPath.vue` |
-| Reports | Evidence report for a range, printed to PDF from the browser; JSON copy; PCI DSS 11.5.1 / CBE scope statement and sign-off | `projections/report`, `GET /api/v2/report`, `views/Report.vue` |
+CI (Tests + Security Scans) on `main` @ `e920d88` (#33 merge): green.
 
-**SIEM contract changes since 2.2.0, all additive.** Tell the SOC before release.
-- **RFC 5424 structured data:** gains `known_scanner`, `mitre_technique`, `mitre_tactic`, `source_asset` and `source_asset_criticality`. All are always present (empty when n/a), so parameter positions are stable.
-- **RFC 5424 JSON body:** gains `known_scanner`, `attack` and `source_asset`.
-- **ECS:**
-  - `threat.*`, with sub-techniques under `threat.technique.subtechnique.*`;
-  - `truesignal.known_scanner`, `truesignal.attack` and `truesignal.source_asset`;
-  - the `known_scanner` tag;
-  - `event.kind: event` for scanner sources.
-- **Action for existing rules:** any rule that excludes `whitelisted=true` must also exclude `known_scanner=true`.
+### The owner's Mac lab (not production)
 
-**Owner-approved / delegated decisions:**
-- **Triage:** "Apply Mines" became labels and filters only; nothing suppresses notifications.
-- **List labels:** whitelist/scanner labels reflect the lists as they are now.
-- **Internal ranges:** fixed (RFC 1918, RFC 6598, loopback, link-local, ULA), plus any inventoried asset.
-- **ATT&CK:**
-  - `web_page_view` and liveness are unmapped;
-  - T1078 keeps its four ATT&CK tactics (never Credential Access);
-  - `web_path_probe` → T1595.003;
-  - `decoy_file_tampered` → T1565.001, with T1486 secondary.
+- **Hub:** `~/TrueSignal-latest/Hub`, compose project `hub`, port 8088, on **v2.4.0** (pinned in `.env`), schema 5. Migrated from 2.1.0. The pre-migration snapshot is `truesignal_data/truesignal.db.pre-v4-20261030220008.bak`, plus full backups in `~/work/truesignal-release/backup-*`.
+- `TS_DASHBOARD_PASSWORD` override is set in `.env` (password in the macOS Keychain, service "TrueSignal Hub (localhost:8088)"). While set, the UI password change is disabled.
+- `TS_GEOIP_AUTO_UPDATE=true`; DB-IP City Lite 2026-10 loaded.
+- SIEM output: a toy catcher, `~/work/truesignal-release/siem-catcher.py`, on `127.0.0.1:9514` (ECS stream, `siem-capture.log`). It does not survive a reboot. **No real LogScale/Elastic is wired to any Hub yet.**
+- `local-test-node` (2026-10-24) is orphaned: no `/opt/truesignal` or CLI on the Mac, plus an old `ts-sensor-web-router-decoy` 2.1.0 container. A 2.4.0 Hub gives it no compose (unsigned 2.1.0 manifests). Left as test history by owner decision. **A real node needs a Linux x86_64 VM.**
+- `docker logout ghcr.io` was done; log in again only if needed (pulls are anonymous).
 
-## 4. PRs this session
+### Not yet done in the real world
 
-| PR | Outcome |
+- No node has run `install.sh --link` → `discover`/`apply` → `firedrill` end to end on Linux.
+- No Token Receiver is deployed: it needs a DMZ host, a delegated zone (NS records) and `TS_ANSWER_IPV4`.
+- MFA is not enabled on any real Hub. No Hub sits behind TLS/F5 yet.
+
+## 4. PRs this session (branch `claude/vigilant-dirac-x3oppg`)
+
+| PR | What |
 |---|---|
-| #23 | Private source / public dist: **closed** (repo stays public). Commit `370e69c`. |
-| #24 | Phase 1. Merged. One Codex P2 (IPv6 `::1` import regex) fixed before merge. |
-| #25 | Phase 2. Merged before Codex finished. Its one P2 (report "assets involved" counted from the 25-row top list and per address) is fixed in the handoff PR (`assets` aggregate in `GET /api/v2/report`). |
-| (this) | Session handoff + the #25 Codex fix. |
+| #27 | Hub 2.3.0 release prep; `tag-release` counts only origin tags |
+| #28 | Phase 3 part 1: beacons (DNS, web bug, kubeconfig), Token Receiver, Beacons page, migration v5 |
+| #29 | Phase 3 part 2: DB-IP Lite GeoIP enrichment, map page, ECS/syslog geo fields |
+| #30 | Fixes F1-F19 from the local verification run (2.4.0, Wizard 2.2.1, two sensor bumps) |
+| #31 | Late Codex fixes on #30 (preflight mounts, recovery detection) |
+| #32 | (owner) release notes per component, `:latest` race, CLAUDE.md |
+| #33 | Compose never builds from source |
+| (this) | Handoff + #32 Codex fix |
 
-Session branch for this work: `claude/beautiful-ptolemy-t0uxdm`. A new session gets its own branch: start it from `origin/main`.
+All Codex P2s on #27-#31 were fixed, replied and resolved. #33: no findings. #32's thread is answered by this PR.
 
 ## 5. Lessons learned (don't repeat)
 
-- **Builds:** Dockerfiles must `go build .` / `./cmd/hub`, never `./main.go`.
-- **Tags:** never `git push --tags`; use `make push-tags`, one tag per push. Never re-run a publish for a released version.
+- **Compose:** never put `build:` next to `image:` in a production compose: a failed pull silently builds source under the release tag. Upgrades: `pull` → check digest → `cosign verify` → `up -d --no-build --pull never` → `GET /api/v2/version`.
+- **Release verification:** trust `git ls-remote --tags origin`, the publish run, the GHCR digest and `cosign verify`, not a report's summary line.
+- **Parallel releases:** two Hub tags pushed together run in parallel. Anything "latest"-shaped must be serialized and idempotent (promote the highest published, not your own).
+- **Builds:** Dockerfiles must `go build .` / `./cmd/hub`, never `./main.go`. Base images digest-pinned.
+- **Tags:** never `git push --tags`; use `make push-tags`, one tag per push (GitHub fires nothing for >3 tags in one push). Never re-run a publish for a released version. To tag a non-HEAD commit (2.3.0), `git tag <tag> <sha>` by hand: `make tag-release` tags HEAD.
 - **Guards:** fail-open guards are bugs. Use direct HTTP with explicit 200/404/else.
-- **nginx / F5:** see `Docs/operations.md` §11 (`Host` as `$http_host`; replace, don't append, `X-Real-IP`/XFF).
-- **Trivy:** gates on fixable HIGH/CRITICAL; new deps can trip it. Prefer no new deps; the Reports PDF uses browser print for this reason.
-- **Safety classifier:**
-  - It stopped work on `RemoteAccessDecoy/main_test.go` (SSH client test content). Don't regenerate that file.
-  - It also blocks force-push and `rm -rf "$VAR"` patterns inside `bash -c`. Use `mktemp -d` dirs instead.
+- **mmap:** never overwrite an mmapped file in place (GeoIP DB): open a private snapshot copy.
+- **nginx / F5:** `Docs/operations.md` §11 (`Host` as `$http_host`; replace, don't append, `X-Real-IP`/XFF).
+- **Trivy:** gates on fixable HIGH/CRITICAL; new deps can trip it (go-jose 4.1.4 → 4.1.6). Prefer no new deps.
+- **Safety classifier:** it stopped work on `RemoteAccessDecoy/main_test.go` (SSH client test content): don't regenerate that file. It blocks force-push and `rm -rf "$VAR"` inside `bash -c`; use `mktemp -d`.
 - **Processes:** kill only by exact `awk '$2=="./binary"'`; `pkill -f` killed the session shell.
-- **Git:** `git mv -k` silently skips untracked files; check that the move happened.
-- **Repo `.gitignore`:** it ignores any `dist/` directory, so don't name a source folder `dist`.
-- **Hub store:** `UpdateConfigBatch` silently drops config keys not in its allowlist (`store/config.go`). Add new keys there.
-- **SIEM tests:** don't anchor syslog assertions on the last structured-data parameter (`…"]`); new parameters get appended.
-- **UI:**
-  - Check the event table at 1440 px. Badges pushed the Time column off-screen twice, so keep triage badges on the second line.
-  - Two `:class` bindings on one element is a Vue compile error that `vue-tsc` doesn't catch; only `vite build` does.
-  - `.bg-grid` is unlayered CSS, so Tailwind utilities can't override it; print styles are in `assets/style.css`.
-- **Screenshot testing:** a seeded local Hub plus Playwright found most layout bugs. A failed step in a script can leave an old screenshot in place, so verify timestamps.
+- **Git:** `git mv -k` silently skips untracked files. The repo `.gitignore` ignores any `dist/`.
+- **Hub store:** `UpdateConfigBatch` silently drops config keys not in its allowlist (`store/config.go`).
+- **SIEM tests / parsers:** don't anchor on the last structured-data parameter (`…"]`); parameters get appended (2.4.0 appended `source_country`, `source_geo_basis`).
+- **UI:** check the event table at 1440 px; two `:class` bindings on one element only fail in `vite build`; `.bg-grid` is unlayered CSS. The embedded UI needs a Hub rebuild before screenshots. Verify screenshot timestamps.
+- **Sessions:** UI sessions do not survive a Hub restart; expect to log in again after any recreate.
 
 ## 6. Open work, prioritised
 
-1. **Release Hub 2.3.0, then 2.4.0** (owner decision 2026-10-30: tag 2.3.0 at the commit that matches its notes, then cut 2.4.0).
-   - **2.3.0:** `git tag hub/v2.3.0 4471d82 && git push origin refs/tags/hub/v2.3.0` (not `make tag-release`, which tags HEAD). SOC notice: `Docs/siem/soc-notice-2.3.0.md`.
-   - **2.4.0 + Wizard 2.2.1:** after the fixes PR merges, `make tag-release && make push-tags` on `main`, then `make tag-sensors && make push-tags` (token-receiver 2.0.0, web-router-decoy 2.1.2, file-canary 2.0.3). Set the new `truesignal-tokenreceiver` GHCR package Public. Send `Docs/siem/soc-notice-2.4.0.md` to the SOC **before** upgrading: it includes an ECS `user.domain` behaviour change.
-   - **Verification:** done on 2026-10-30 on the owner's Mac (`Docs/LOCAL-VERIFICATION-PROMPT.md`). Its findings F1-F19 are fixed in 2.4.0, except the items left by decision: arm64 refused rather than built, and the community Python template image left unpinned.
-2. **Phase 3: callback beacons and the GeoIP map.** **2026-10-29, part 1 built:** Token Receiver sensor + Beacons page (DNS, web bug, kubeconfig), `Docs/operations.md` §14. Owner decisions: GeoIP = **DB-IP Lite**; first beacons = DNS + web bug + kubeconfig. **2026-10-30, part 2 built:** DB-IP Lite enrichment + GeoIP Map (`Docs/operations.md` §15). Verified with the real DB-IP file and auto-update on the owner's Mac (2026-10-30). Next: Office docs and AWS keys. These are the SaaS/document honeytokens named in the purpose.
-   - **Design (agreed in principle):**
-     - A **separate hardened token receiver** (HTTP + DNS), never the Hub; the Hub must stay off the internet.
-     - The receiver forwards to the Hub like a sensor does.
-     - Beacon types: Word/Excel doc, web bug, DNS token, kubeconfig, `.bashrc`/Windows batch, MySQL dump, cloned-site, and AWS keys. AWS keys need a real IAM user and CloudTrail alerting.
-     - Then GeoIP and the map. Internal sources are RFC 1918, so the map only fills from beacons opened outside.
-   - **Ask the owner:**
-     - **GeoIP source**: MaxMind GeoLite2 (free account, licence key) or DB-IP Lite (no account, CC-BY attribution). Still unanswered.
-     - Which beacon types first.
-   - **Also pending:** SARAB's monthly "beacon generation" charts (B5/B6) belong here, once beacons have creation dates.
-3. **Installer end to end on the owner's test VM.**
-   - **Hub:** behind TLS, `TS_REQUIRE_MFA=true`, `TS_TRUSTED_PROXIES` set.
-   - **On the node:** `install.sh --link`, then `discover`/`apply`, then `firedrill`.
-   - **Confirm:** events reach LogScale/Elastic, with the new ATT&CK and asset fields.
-   - **Order:** roll Wizard 2.2.0 out before enabling MFA.
-4. **SIEM detection content.** Still only the honeytoken rule ships. Now that events carry `threat.*` and `source_asset`, write Elastic rules and LogScale queries for:
-   - critical logins;
-   - scan-then-touch;
-   - `source_asset.criticality` in (high, critical) → escalate;
+1. **SIEM detection content.** Offered, **awaiting the owner's "go"**. Only the honeytoken rule ships (`Docs/siem/elastic/`, `Docs/siem/honeytoken-detection.md`). Write Elastic rules (ndjson/TOML in `Docs/siem/elastic/`) and LogScale queries in parallel for:
+   - `beacon_triggered` with `beacon_known != false` → page (honeytoken priority); an **internal resolver** as `source` of a DNS beacon = used inside the network; country rules must check `source_geo_basis`;
+   - `receiver_saturated` sustained over 15 min;
+   - critical logins (`*_login`, `honeytoken_used`);
+   - scan-then-touch (`network_scan_detected`/`icmp_scan_received` then a decoy event from the same source);
+   - `source_asset_criticality` in (high, critical) → escalate;
    - lateral movement (`threat.tactic.id: TA0008`);
-   - liveness;
-   - MFA reset / audit.
-   Test them against real samples.
-5. **Non-root sensors.** Six run as UID 0 in the host netns; most only need `NET_BIND_SERVICE`.
-6. **Smaller items:**
+   - liveness (`sensor_heartbeat_lost`, `sensor_stopped` without `sensor_recovered`);
+   - MFA reset / audit records.
+   Exclude `whitelisted=true` **and** `known_scanner=true` (except the Hub-raised `honeytoken_used` / known beacons, which bypass both lists). Field names come from `Hub/internal/services/siem/{service.go,ecs.go}` and `Docs/siem-integration.md`; never invent fields. Add tests against real samples (`siem/*_test.go` fixtures or captured `siem-capture.log` records). Update `Docs/siem/attack-mapping.md` if the mapping changes.
+2. **End to end on a Linux x86_64 VM** (the Mac can't host nodes). Hub behind TLS (`docker-compose.tls.yml` or F5), `TS_REQUIRE_MFA=true`, `TS_TRUSTED_PROXIES` set. Node: `install.sh --link` → `discover`/`apply` → `firedrill`. Confirm events reach a real LogScale/Elastic with ATT&CK, asset and geo fields. Then a Token Receiver on a DMZ host with a delegated zone. Roll Wizard 2.2.1 out before enabling MFA.
+3. **Phase 3, next beacons:** Office documents (Word/Excel) and AWS keys (needs a real IAM user plus CloudTrail → SIEM alerting). Then `.bashrc`/batch, MySQL dump, cloned-site. Then SARAB-style monthly beacon-creation charts (B5/B6).
+4. **Non-root sensors.** Six run as UID 0 in the host netns; most only need `NET_BIND_SERVICE`.
+5. **Smaller items:**
+   - `cosign verify` of the Token Receiver *image* was skipped in the release run. Do it once, from any machine with Sigstore access.
+   - An arm64 Hub image (currently out of scope; the compose fails loudly instead).
    - The installer could verify the wizard's `.sigstore.json`.
    - The Gitea mirror workflows lack signing and release guards.
    - The Remote Access Decoy has no unit tests.
    - VNC/rsync/MSSQL-TLS decoys are not built.
-   - The port-conflict check is protocol-agnostic.
    - "Internal" ranges could become configurable (owner to say whether Kashier uses public space internally).
 
 ## 7. Key references
 
-- **Operations:** `Docs/operations.md`
-  - §7 upgrade/rollback
-  - §10 honeytokens
-  - §11 TLS/F5
-  - §12 MFA
-  - §13 signing
-- **SIEM:** `Docs/siem-integration.md`, `Docs/siem/attack-mapping.md`, `Docs/siem/honeytoken-detection.md`, `Docs/architecture/dataContracts.md` (syslog example)
-- **API:** `Docs/architecture/hub/backend/API.md`. All the new endpoints are documented.
-- **Release:** `Docs/development/maintainer-workflow.md`, `Makefile`, `.github/workflows/publish-*.yml`
-- **History:** `CHANGELOG.md` (newest first; `[Unreleased]` = phases 1-2)
+- **Operations:** `Docs/operations.md`: §7 upgrade/rollback (amd64 note, no-build), §10 honeytokens, §11 TLS/F5, §12 MFA, §13 signing, §14 beacons/Token Receiver, §15 GeoIP.
+- **SIEM:** `Docs/siem-integration.md`, `Docs/siem/attack-mapping.md`, `Docs/siem/honeytoken-detection.md`, `Docs/siem/soc-notice-2.{3,4}.0.md`, `Docs/architecture/dataContracts.md`.
+- **API:** `Docs/architecture/hub/backend/API.md`.
+- **Release:** `Docs/development/maintainer-workflow.md`, `Makefile`, `.github/workflows/publish-*.yml`.
+- **Local verification:** `Docs/LOCAL-VERIFICATION-PROMPT.md`.
+- **History:** `CHANGELOG.md` (newest first).
