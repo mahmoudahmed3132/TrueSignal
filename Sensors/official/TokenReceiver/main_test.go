@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"net"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -229,5 +230,54 @@ func TestClientSubnetMalformed(t *testing.T) {
 	}
 	if cs := clientSubnet(q[:len(q)-3], qq.end); cs != "" {
 		t.Errorf("truncated packet parsed as %q", cs)
+	}
+}
+
+func TestLimitListenerDropsBeyondCap(t *testing.T) {
+	raw, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln := newLimitListener(raw, 1)
+	defer ln.Close()
+	accepted := make(chan net.Conn, 4)
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted <- c
+		}
+	}()
+	dial := func() net.Conn {
+		c, err := net.Dial("tcp", raw.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	first := dial()
+	defer first.Close()
+	held := <-accepted
+
+	// Over the cap: the server closes it straight away.
+	second := dial()
+	defer second.Close()
+	second.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := second.Read(make([]byte, 1)); err == nil {
+		t.Fatal("connection over the cap was served")
+	}
+
+	// Closing the held connection frees the slot (twice is harmless).
+	held.Close()
+	held.Close()
+	third := dial()
+	defer third.Close()
+	select {
+	case c := <-accepted:
+		c.Close()
+	case <-time.After(2 * time.Second):
+		t.Fatal("slot not released")
 	}
 }
