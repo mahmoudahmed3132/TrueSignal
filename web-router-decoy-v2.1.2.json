@@ -1,0 +1,166 @@
+{
+  "id": "ts-sensor-web-router-decoy",
+  "version": "2.1.2",
+  "name": "Web Router Decoy",
+  "category": "web",
+  "osi_layer": "Application Layer",
+  "icon_svg": "M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01",
+  "description": "Fake internal login portal (router, NAS, VPN, webmail, admin console or Basic auth) that logs reconnaissance and credential use.",
+  "documentation": {
+    "summary": "The Web Router Decoy mimics vulnerable internal administration interfaces to catch rogue insiders or compromised network assets scanning the LAN for easy targets.",
+    "sections": [
+      {
+        "title": "Features",
+        "type": "list",
+        "content": [
+          "Skin Engine: TS_SKIN picks the login surface: router (default; footer matches TS_ROUTER_BRAND), nas, vpn (SSL VPN with realm), webmail, admin, or basic (HTTP Basic auth challenge). TS_SKIN_JSON defines a custom skin.",
+          "Credential Capture: Records submitted usernames; passwords are hashed by default so real credentials never land in cleartext.",
+          "Reconnaissance Logging: Page views and path probes (/admin, /.env, ...) are reported at medium severity, rate-limited per source."
+        ]
+      },
+      {
+        "title": "Security Architecture",
+        "type": "list",
+        "content": [
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL Linux capabilities, enforces a read-only filesystem and no-new-privileges, and applies log rotation.",
+          "Execution Privilege: Runs as container root only so NET_BIND_SERVICE can bind ports below 1024 when configured.",
+          "Hardening: Request header/body limits and timeouts protect the decoy against slow-client exhaustion."
+        ]
+      }
+    ]
+  },
+  "heuristics": {
+    "triggers": {
+      "processes": [
+        "nginx",
+        "apache2",
+        "httpd",
+        "lighttpd",
+        "docker-proxy",
+        "traefik",
+        "caddy",
+        "envoy",
+        "haproxy"
+      ],
+      "ports": [
+        80,
+        443,
+        8080,
+        8443,
+        9000
+      ]
+    },
+    "recommendation_reason": "Live web proxy or HTTP server detected. Deploy a fake administrative panel to catch internal network snooping and directory brute-forcing."
+  },
+  "deployment": {
+    "network_mode": "host",
+    "user": "0:0",
+    "cap_add": [
+      "NET_BIND_SERVICE"
+    ],
+    "env_vars": [
+      {
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
+        "default": "__HUB_ENDPOINT__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_HUB_KEY",
+        "description": "The shared Node Key.",
+        "default": "__HUB_KEY__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SENSOR_ID",
+        "description": "Unique identifier for this specific trap.",
+        "default": "ts-sensor-web-router-decoy",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SEVERITY",
+        "description": "Alert severity sent to the Hub.",
+        "default": "critical",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
+        "name": "TS_TEST_MODE",
+        "description": "Enable CI/CD synthetic alerts.",
+        "default": "false",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_BIND_PORT",
+        "description": "Port to bind the decoy web server.",
+        "default": "{{ availablePort 8080 }}",
+        "type": "int",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_ROUTER_BRAND",
+        "description": "Router brand to simulate (router skin only).",
+        "default": "Netgear",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SKIN",
+        "description": "Login surface: router, nas, vpn, webmail, admin or basic.",
+        "default": "router",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SKIN_PRODUCT",
+        "description": "Optional product name shown in the page header and title (Basic auth realm for the basic skin).",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SKIN_JSON",
+        "description": "Optional custom skin as JSON (overrides TS_SKIN). See Docs/sensors/web-skins.md.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_PASSWORDS",
+        "description": "How submitted passwords are recorded: hash (keyed HMAC-SHA256 + length, default), plain (cleartext; avoid in PCI scope), none.",
+        "default": "hash",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_CAPTURE_HASH_KEY",
+        "description": "Set by the Hub: this node's capture key (derived from the Hub's master key), so password HMACs can be matched against planted honeytokens. Any value set here is ignored.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      }
+    ],
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-webrouterdecoy",
+    "image_tag": "v2.1.2",
+    "image_digest": "sha256:424d4bf881f889ef4df473a9c62e270b2c450f6d5b8746d82cb2fe415c5fcdd2",
+    "listen_ports_env": [
+      "TS_BIND_PORT"
+    ]
+  }
+}
