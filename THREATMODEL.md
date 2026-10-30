@@ -126,6 +126,11 @@ Sensors execute as isolated containers.
 * **Mitigations (IMPLEMENTED):** authoritative-only DNS for one zone (everything else REFUSED, no recursion or forwarding), replies rate-limited per source and a few records in size; fixed-response HTTP with header/read timeouts; the receiver is a normal sandboxed sensor (read-only, `cap_drop: ALL` + `NET_BIND_SERVICE`) that only connects out to the Hub.
 * **Residual risk:** `TS_BEACON_KEY` is shared by all receivers, so a compromised receiver can tell a beacon from a random name under the zone (it cannot learn which beacons exist) and can forge `beacon_triggered` for tokens it has seen. The zone name itself identifies every beacon to an attacker who knows it belongs to TrueSignal, so choose a zone that does not. Deploy the receiver on its own node in a DMZ; the Hub must not be reachable from the internet. **[NOT IN PROJECT]**: the DMZ placement and the firewall rule from the receiver to the Hub's sensor API.
 
+### T5c: GeoIP database download
+**Attacker Capability:** With `TS_GEOIP_AUTO_UPDATE=true` the Hub fetches an unsigned MMDB from `download.db-ip.com` monthly.
+* **Mitigations (IMPLEMENTED):** HTTPS only, size caps (256 MB compressed, 1 GB decompressed), the file must open as a City database before it replaces the current one, and lookups only decorate events (country, city, coordinates), never drive policy. Off by default; an operator-supplied file needs no Hub egress.
+* **Residual risk:** whoever controls that download (DB-IP, or a TLS-intercepting proxy the Hub trusts) can mislocate sources on the map and in the SIEM. Parsing is done by a maintained, fuzzed MMDB reader.
+
 ### T6: Sensitive Data Captured by Decoys
 **Attacker Capability:** An attacker, or a staff member by mistake, types real credentials into a decoy login page.
 

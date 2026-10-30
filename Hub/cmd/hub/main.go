@@ -13,6 +13,7 @@ import (
 
 	"github.com/truesignal/hub/internal/api"
 	"github.com/truesignal/hub/internal/catalog"
+	"github.com/truesignal/hub/internal/geo"
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/auth"
 	"github.com/truesignal/hub/internal/services/beacon"
@@ -89,6 +90,14 @@ func main() {
 	eventSvc.SetHoneytokenMatcher(honeytokenSvc)
 	beaconSvc := beacon.NewService(dbStore)
 	eventSvc.SetBeaconResolver(beaconSvc)
+	geoSvc := geo.New(cfg.GeoIPDB, cfg.GeoIPAutoUpdate)
+	defer geoSvc.Close()
+	eventSvc.SetGeo(geoSvc)
+	if cfg.GeoIPAutoUpdate {
+		log.Printf("[GeoIP] TS_GEOIP_AUTO_UPDATE: the Hub downloads DB-IP IP to City Lite monthly from download.db-ip.com into %s.", cfg.GeoIPDB)
+	} else if !geoSvc.Status().Enabled {
+		log.Printf("[GeoIP] No database at %s: the map stays empty. Place DB-IP IP to City Lite there or set TS_GEOIP_AUTO_UPDATE=true.", cfg.GeoIPDB)
+	}
 	sensorSvc := sensor.NewService(dbStore, wsService, eventSvc)
 	configService := config.NewService(dbStore, authService, siemService, notifyService, cfg.DashboardPassword, cfg.Version)
 	composeService := composesvc.NewService(dbStore, catalogService)
@@ -132,6 +141,7 @@ func main() {
 	sensorHandler := api.NewSensorHandler(sensorSvc, composeService)
 	eventsHandler := api.NewEventHandler(eventSvc, cfg)
 	analyticsHandler := api.NewAnalyticsHandler(dbStore)
+	analyticsHandler.Geo = geoSvc
 	updaterSvc := updater.NewService(configService, catalogService)
 	configHandler := api.NewConfigHandler(configService, cfg, updaterSvc)
 	composeHandler := api.NewComposeHandler(composeService)
@@ -200,6 +210,7 @@ func main() {
 	}
 
 	go eventSvc.StartRetentionWorker(rootCtx)
+	go geoSvc.StartUpdater(rootCtx)
 
 	// 4. Start HTTP Server
 	// ReadHeaderTimeout/IdleTimeout bound slow or idle clients (slowloris).

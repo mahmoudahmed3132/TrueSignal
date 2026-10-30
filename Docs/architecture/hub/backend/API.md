@@ -545,6 +545,19 @@ Lists the honeytokens the Hub has planted (one per File Canary instance, created
 [{"id":"ht_956c6041","username":"svc_reports97ef","nodeId":"node-d41340e4","sensorId":"ts-sensor-file-canary","createdAt":"2026-10-24T02:19:11Z","lastUsedAt":"2026-10-24T02:19:40Z","useCount":2}]
 ```
 
+### GET /api/v2/geo
+
+Located decoy activity for the GeoIP map (`Docs/operations.md` §15). Query: `timeframe` (`24H`, `7D`, `30D`, else all time), `archived`, `nodeId`, `sensorId`. Liveness events are excluded. Events are split into located, `internalEvents` (private, CGNAT, loopback, link-local: never looked up) and `unlocatedEvents` (a public address the database has no location for, or a non-IP source). `geoip` reports the database and carries the attribution the DB-IP licence requires wherever locations are shown.
+
+```json
+{"timeframe":"alltime","geoip":{"enabled":true,"path":"/data/geoip/dbip-city-lite.mmdb","databaseType":"DBIP-City-Lite","buildDate":"2026-10-01","autoUpdate":true,"attribution":"IP Geolocation by DB-IP","attributionUrl":"https://db-ip.com"},
+ "events":6,"locatedEvents":4,"internalEvents":1,"unlocatedEvents":1,
+ "points":[{"lat":30.04,"lon":31.24,"city":"Cairo","region":"Cairo Governorate","country":"Egypt","countryCode":"EG","events":1,"beaconEvents":1,"sourceCount":1,"sources":["198.51.100.0"],"triggers":["beacon_triggered"],"maxSeverity":"critical","lastSeen":"2026-10-30T00:36:16Z"}],
+ "countries":[{"countryCode":"EG","country":"Egypt","events":1,"sources":1}]}
+```
+
+`points` are per place (coordinates rounded to 0.01°; at most 20 `sources` listed, `sourceCount` exact); a country-only location counts in `countries` but has no point. Events from `GET /api/v2/events` carry the same lookup as `sourceGeo` (`{countryCode, country, region, city, lat, lon, basis, address}`).
+
 ### GET /api/v2/beacons · POST /api/v2/beacons · DELETE /api/v2/beacons/{id} · GET /api/v2/beacons/{id}/download
 
 Callback beacons (`Docs/operations.md` §14). `GET` returns every beacon with its rendered artifact, plus `domains`: the zones deployed Token Receivers serve (`TS_BEACON_DOMAIN`).

@@ -123,6 +123,7 @@ func SetupRouter(cfg RouterConfig) (*chi.Mux, error) {
 		r.Get("/api/v2/report", cfg.Analytics.GetReport)
 		r.Get("/api/v2/attack", cfg.Analytics.GetAttack)
 		r.Get("/api/v2/attack/layer", cfg.Analytics.GetAttackLayer)
+		r.Get("/api/v2/geo", cfg.Analytics.GetGeo)
 		if cfg.Assets != nil {
 			r.Get("/api/v2/assets", cfg.Assets.ListAssets)
 			r.Put("/api/v2/assets", cfg.Assets.ReplaceAssets)

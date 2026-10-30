@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/truesignal/hub/internal/assets"
+	"github.com/truesignal/hub/internal/geo"
 	"github.com/truesignal/hub/internal/models"
 )
 
@@ -165,16 +166,45 @@ func TestFormatSyslog_SourceAsset(t *testing.T) {
 		EventTrigger: "ssh_login", Source: "10.20.4.17", SensorID: "s", Details: json.RawMessage("{}"),
 		SourceAsset: &assets.Ref{Name: "pg-primary", Criticality: "critical"}}
 	msg := svc.formatSyslog(ev)
-	if !strings.Contains(msg, `source_asset="pg-primary" source_asset_criticality="critical"]`) ||
+	if !strings.Contains(msg, `source_asset="pg-primary" source_asset_criticality="critical" `) ||
 		!strings.Contains(msg, `"source_asset":{"name":"pg-primary","criticality":"critical"}`) {
 		t.Fatalf("asset missing: %s", msg)
 	}
 	ev.SourceAsset = nil
-	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `source_asset="" source_asset_criticality=""]`) || !strings.Contains(msg, `"source_asset":null`) {
+	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `source_asset="" source_asset_criticality="" `) || !strings.Contains(msg, `"source_asset":null`) {
 		t.Fatalf("no-asset event: %s", msg)
 	}
 	doc := svc.ecsEvent(models.Event{EventTrigger: "ssh_login", Source: "10.20.4.17", SourceAsset: &assets.Ref{Name: "pg-primary", Criticality: "critical"}})
 	if r, _ := doc["truesignal"].(map[string]any)["source_asset"].(*assets.Ref); r == nil || r.Name != "pg-primary" {
 		t.Fatalf("ECS truesignal.source_asset = %v", doc["truesignal"])
+	}
+}
+
+func TestSourceGeo(t *testing.T) {
+	svc := NewService(nil, Options{PEN: "99999"})
+	loc := &geo.Location{CountryCode: "GB", Country: "United Kingdom", City: "London", Lat: 51.5, Lon: -0.09, Basis: "source", Address: "81.2.69.160"}
+	ev := models.Event{ID: 4, NodeID: "n", Timestamp: "2026-01-01T00:00:00Z", Severity: "critical",
+		EventTrigger: "beacon_triggered", Source: "81.2.69.160", SensorID: "s", Details: json.RawMessage("{}"), SourceGeo: loc}
+	msg := svc.formatSyslog(ev)
+	if !strings.Contains(msg, `source_country="GB"`) || !strings.Contains(msg, `"source_geo":{"countryCode":"GB"`) {
+		t.Fatalf("syslog: %s", msg)
+	}
+	doc := roundTrip(t, svc.ecsEvent(ev))
+	if get(doc, "source.geo.country_iso_code") != "GB" || get(doc, "source.geo.city_name") != "London" ||
+		get(doc, "source.geo.location.lat") != 51.5 || get(doc, "truesignal.source_geo.basis") != "source" {
+		t.Fatalf("ECS: %v", doc)
+	}
+	// Located by a beacon's client subnet: not source.ip's location, so only
+	// truesignal.source_geo carries it.
+	cs := *loc
+	cs.Basis = "client_subnet"
+	ev.SourceGeo = &cs
+	doc = roundTrip(t, svc.ecsEvent(ev))
+	if get(doc, "source.geo") != nil || get(doc, "truesignal.source_geo.basis") != "client_subnet" {
+		t.Fatalf("client_subnet ECS: %v", doc)
+	}
+	ev.SourceGeo = nil
+	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `source_country=""`) || !strings.Contains(msg, `"source_geo":null`) {
+		t.Fatalf("unlocated: %s", msg)
 	}
 }

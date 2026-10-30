@@ -47,3 +47,7 @@ services:
     environment:
       - TS_PORT=8080
       - TS_DB_PATH=/data/truesignal.db
+      # GeoIP map (Docs/operations.md §15): put DB-IP IP to City Lite at
+      # ./truesignal_data/geoip/dbip-city-lite.mmdb, or let the Hub fetch it
+      # monthly from download.db-ip.com (outbound HTTPS):
+      # - TS_GEOIP_AUTO_UPDATE=true

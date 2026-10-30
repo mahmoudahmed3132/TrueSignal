@@ -451,6 +451,13 @@ const formatTime = (timestamp: string) => {
                                                 <span class="ml-2 font-medium">{{ bySource.get(event.source)!.asset!.name }}</span>
                                                 <span class="text-text-m"> ({{ bySource.get(event.source)!.asset!.criticality }} criticality): likely compromised internal host</span>
                                             </div>
+                                            <div v-if="event.sourceGeo" class="text-text-h">
+                                                <span class="text-text-m">Location</span>
+                                                <span class="ml-2">{{ [event.sourceGeo.city, event.sourceGeo.region, event.sourceGeo.country].filter(Boolean).join(', ') }}</span>
+                                                <span class="text-text-m font-mono"> {{ event.sourceGeo.countryCode }}</span>
+                                                <span v-if="event.sourceGeo.basis === 'client_subnet'" class="text-text-m"> (from the beacon's client subnet {{ event.sourceGeo.address }}, not the resolver)</span>
+                                                <router-link to="/map" class="ml-2 text-highlight-text underline underline-offset-2" @click.stop>Map →</router-link>
+                                            </div>
                                         </div>
                                         <div class="flex flex-wrap gap-x-6 gap-y-6">
                                             

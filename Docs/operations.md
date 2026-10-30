@@ -308,3 +308,28 @@ Beacons are artifacts the Hub generates for you to plant where only an intruder 
 **Lifecycle:** beacons and their master key (`beacon_master_key`) survive receiver redeploys, node deletion and a factory reset. Every receiver gets the same derived key, so a second receiver (a second NS for redundancy) needs no change to existing beacons. `purgeHoneytokens: true` on a factory reset deletes beacons and rotates the key, so every planted beacon goes silent. Remove the artifacts first.
 
 **Not built yet:** Word/Excel documents, AWS keys, `.bashrc`/batch beacons, MySQL dumps, cloned-site beacons, GeoIP enrichment and the map (DB-IP Lite, next).
+
+## 15. GeoIP enrichment and the map
+
+The Hub can place public source addresses on a map and in the SIEM feed, using DB-IP's free **IP to City Lite** database (MMDB, monthly, CC BY 4.0).
+
+**What gets located:**
+- Only public addresses. Private, CGNAT (100.64/10), loopback, link-local and ULA sources are never looked up. The decoys live in internal space, so most decoy hits stay unmapped. The map fills from beacons opened outside and from any decoy reachable from public addresses.
+- A DNS beacon carrying an EDNS Client Subnet is placed by that subnet (`basis: client_subnet`), not by the resolver that reported it.
+- Lookups happen when events are read or forwarded. Nothing is stored, so a database update re-places past events too.
+
+**Enable it.** Choose one:
+- **Operator-supplied file (no Hub egress):** download `dbip-city-lite-YYYY-MM.mmdb.gz` from db-ip.com, unzip it to `truesignal_data/geoip/dbip-city-lite.mmdb` (the Hub's `/data/geoip/`), or point `TS_GEOIP_DB` at it. The Hub loads it at start and re-checks the file hourly. Replacing it in place is safe, because the Hub reads a private copy.
+- **Hub auto-update:** set `TS_GEOIP_AUTO_UPDATE=true`.
+  - The Hub fetches the current month's file from `https://download.db-ip.com/free/` at start and daily until it has that month's file. With no database at all, it falls back to the previous month's file.
+  - This needs outbound HTTPS to `download.db-ip.com` (about 60 MB a month). DB-IP publishes no signature, so the file is trusted to TLS. It must still open as a City database before it replaces the current one, and a bad download leaves the old one in use.
+  - Failures show on the map page and in the log.
+
+**Where it appears:**
+- **Map page** (sidebar): points per place, coloured by the highest severity there, with countries shaded by event count. Selecting a point lists its sources, each linking to Attack Path.
+- **Event details:** the source's location.
+- **SIEM:** ECS `source.geo.*` and `truesignal.source_geo`; syslog `source_country` and `"source_geo"` (`Docs/siem-integration.md`).
+
+**Accuracy:** GeoIP is approximate. City-level placement of consumer and mobile ranges is often wrong, and VPN, Tor and cloud egress addresses show the provider's location. Treat the map as triage context, not attribution.
+
+**Licence:** CC BY 4.0 requires crediting DB-IP wherever the data is shown. The map page does this ("IP Geolocation by DB-IP"). Keep the credit in screenshots and reports you share. MaxMind GeoLite2 files share the MMDB format and also load, but their EULA has its own terms (account, 30-day refresh, no redistribution), and the Hub's auto-update only fetches DB-IP.

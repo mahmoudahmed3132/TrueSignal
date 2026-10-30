@@ -41,6 +41,11 @@ const routes = [
     component: () => import('./views/Beacons.vue')
   },
   {
+    path: '/map',
+    name: 'GeoIP map',
+    component: () => import('./views/GeoMap.vue')
+  },
+  {
     path: '/scans',
     name: 'scans',
     component: () => import('./views/Scans.vue')

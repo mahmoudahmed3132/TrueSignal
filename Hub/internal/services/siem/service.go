@@ -528,6 +528,11 @@ func (s *Service) formatSyslog(event models.Event) string {
 	if m, ok := attack.For(event.EventTrigger); ok {
 		mitreTechnique, mitreTactic, mitre = m.Primary.ID, m.Primary.TacticIDs(), m
 	}
+	var country string
+	var sourceGeo any
+	if event.SourceGeo != nil {
+		country, sourceGeo = event.SourceGeo.CountryCode, event.SourceGeo
+	}
 
 	sd := structuredData("truesignal@"+s.pen, [][2]string{
 		{"event_id", fmt.Sprint(event.ID)},
@@ -544,6 +549,8 @@ func (s *Service) formatSyslog(event models.Event) string {
 		{"mitre_tactic", mitreTactic},
 		{"source_asset", assetName},
 		{"source_asset_criticality", assetCriticality},
+		// Added for Hub 2.4.0; always present, empty when not located.
+		{"source_country", country},
 	})
 
 	body, _ := json.Marshal(map[string]any{
@@ -560,6 +567,7 @@ func (s *Service) formatSyslog(event models.Event) string {
 		"known_scanner": event.KnownScanner,
 		"attack":        mitre,
 		"source_asset":  sourceAsset,
+		"source_geo":    sourceGeo,
 		"details":       json.RawMessage(detailsJSON),
 	})
 

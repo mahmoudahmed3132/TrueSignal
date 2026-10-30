@@ -7,6 +7,7 @@ import (
 
 	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/attack"
+	"github.com/truesignal/hub/internal/geo"
 )
 
 // HubVersion defines the backend protocol version for resolving compatible sensors and authenticating Agents.
@@ -87,6 +88,10 @@ type Event struct {
 	// (package assets), resolved against the current inventory; nil when
 	// none. Not persisted.
 	SourceAsset *assets.Ref `json:"sourceAsset,omitempty"`
+	// SourceGeo is where the source (or a DNS beacon's client subnet) is,
+	// from the GeoIP database (package geo); nil for internal addresses or
+	// without a database. Resolved on read, not persisted.
+	SourceGeo *geo.Location `json:"sourceGeo,omitempty"`
 }
 
 // Heartbeat represents a routine ping from a sensor

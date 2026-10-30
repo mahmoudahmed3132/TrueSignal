@@ -36,5 +36,14 @@ Modifications (AGPLv3 section 5(a))
             reproduced. The SSH decoy uses golang.org/x/crypto/ssh
             (BSD-3-Clause).
 
+2026-10-30  Added the GeoIP map. Country outlines (Hub/ui/src/utils/worldMap.ts)
+            are derived from Natural Earth 1:110m (public domain) via
+            world-atlas (https://github.com/topojson/world-atlas), Copyright
+            2013-2019 Michael Bostock, ISC licence. Location data is not
+            distributed: operators supply DB-IP IP to City Lite
+            (https://db-ip.com, CC BY 4.0), and the UI credits DB-IP wherever
+            it shows locations, as that licence requires. The Hub reads it
+            with github.com/oschwald/maxminddb-golang (ISC).
+
 Source for any network-accessible deployment of TrueSignal must be made
 available to its users as required by AGPLv3 section 13.

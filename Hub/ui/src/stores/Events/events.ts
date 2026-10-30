@@ -20,6 +20,17 @@ export interface EventPayload {
   isArchived: boolean
   details?: Record<string, any>
   attack?: AttackMapping
+  // Resolved from the Hub's GeoIP database on read; absent for internal sources.
+  sourceGeo?: {
+    countryCode: string
+    country: string
+    region?: string
+    city?: string
+    lat: number
+    lon: number
+    basis: 'source' | 'client_subnet'
+    address: string
+  }
 }
 
 export interface SeverityProjection {
