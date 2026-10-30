@@ -40,3 +40,19 @@ func TestRenderIsDeterministicAndUsesToken(t *testing.T) {
 		t.Errorf("web bug url = %s", w.Value)
 	}
 }
+
+// The planted content must not reveal the product or the operator's note.
+func TestArtifactsCarryNoProductOrPlantingNote(t *testing.T) {
+	for _, typ := range []string{TypeDNS, TypeWebBug, TypeKubeconfig} {
+		b := models.Beacon{Token: "aaaqeayeaudaocaj4jyx76cl", Type: typ, Name: "jump-01 finance share", Domain: "t.example.com"}
+		c := strings.ToLower(Render(b).Content)
+		for _, leak := range []string{"truesignal", "beacon", "jump-01", "finance"} {
+			if strings.Contains(c, leak) {
+				t.Errorf("%s artifact contains %q:\n%s", typ, leak, c)
+			}
+		}
+	}
+	if w := Render(models.Beacon{Token: "aaaqeayeaudaocaj4jyx76cl", Type: TypeWebBug, Domain: "t.example.com"}); !strings.HasPrefix(w.Content, "<img ") {
+		t.Errorf("web bug content = %q", w.Content)
+	}
+}

@@ -38,7 +38,7 @@ Returns the running Hub version.
 
 **Response:**
 ```json
-{ "version": "2.1.0" }
+{ "version": "2.4.0" }
 ```
 
 ### POST /login
@@ -320,7 +320,8 @@ Returns runtime configuration loaded from SQLite.
 | `siemFormat` | `string` | Line format for `tcp`/`udp`/`tls`: `rfc5424` (default) or `ecs`. The HTTP outputs always send ECS. |
 | `siemTokenSet` | `boolean` | Whether an HTTP output token is stored. The token itself is never returned. |
 | `registryUrl` | `string` | Base URL of the sensor registry (`index.json` and `<sensor>-v<version>.json`). |
-| `whitelistedSources` | `string` | Comma-separated exact `source` values. Matching events are stored archived and forwarded to the SIEM with `whitelisted=true`, but raise no webhook or UI alert. |
+| `whitelistedSources` | `string` | Allow-listed sources: IPs, CIDR ranges (IPv4/IPv6) or exact source names, separated by commas or newlines (a source with a port matches its address). Matching events are stored archived and forwarded to the SIEM with `whitelisted=true`, but raise no webhook or UI alert. Validated on save: `400` on a bad CIDR, over 10,000 entries or an entry over 256 characters. |
+| `knownScanners` | `string` | Same format and handling as `whitelistedSources`, for authorised scanners and monitoring; events are flagged `known_scanner=true` instead. |
 | `autoPurgeHeartbeatsDays` | `integer` | Days to keep heartbeat/status history. |
 | `updateCheckIntervalHours` | `integer` | Hours between Hub/Wizard release checks. |
 
@@ -358,7 +359,7 @@ Updates runtime settings. Only supported fields are applied. This endpoint also 
 - `siemFormat` (`rfc5424`, `ecs`)
 - `siemToken`: write-only. The encoded Elasticsearch API key or the LogScale ingest token. Omit it to keep the stored token; `""` clears it.
 - `registryUrl`
-- `whitelistedSources`
+- `whitelistedSources`, `knownScanners` (strings, not arrays; see above)
 - `autoPurgeHeartbeatsDays`
 - `updateCheckIntervalHours`
 
@@ -426,11 +427,11 @@ Returns release update states for both the Hub and the TrueSignal Wizard.
 ```json
 {
   "update_available": false,
-  "latest_version": "v2.1.0",
+  "latest_version": "v2.4.0",
   "release_notes_url": "",
   "wizard_update_available": true,
-  "latest_wizard_version": "v2.1.0",
-  "wizard_release_notes_url": "https://github.com/mahmoudahmed3132/TrueSignal/releases/tag/wizard/v2.1.0",
+  "latest_wizard_version": "v2.2.1",
+  "wizard_release_notes_url": "https://github.com/mahmoudahmed3132/TrueSignal/releases/tag/wizard/v2.2.1",
   "acknowledged_wizard_release": ""
 }
 ```
@@ -441,7 +442,7 @@ Acknowledges/dismisses a Wizard update announcement so the UI indicator is not s
 
 **Request:**
 ```json
-{ "version": "v2.1.0" }
+{ "version": "v2.4.0" }
 ```
 
 **Response:**

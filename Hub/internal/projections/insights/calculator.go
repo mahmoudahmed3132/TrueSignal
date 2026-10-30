@@ -26,9 +26,18 @@ func LivenessTriggers() []string {
 	return out
 }
 
-// IsAttackerEvent reports whether an event counts as decoy interaction.
+// FiredrillSource is the source of firedrill and TS_TEST_MODE events
+// (truesignal firedrill, SIGUSR1): a test, not an attacker.
+const FiredrillSource = "Wizard Firedrill"
+
+// NonAttackerSources lists sources that never count as attacker activity.
+func NonAttackerSources() []string { return []string{FiredrillSource} }
+
+// IsAttackerEvent reports whether an event counts as decoy interaction:
+// not Hub liveness and not a firedrill, which would otherwise inflate the
+// attacker and coverage figures in the dashboard and the evidence report.
 func IsAttackerEvent(e models.Event) bool {
-	return !livenessTriggers[e.EventTrigger]
+	return !livenessTriggers[e.EventTrigger] && e.Source != FiredrillSource
 }
 
 // Calculate aggregates events since `since` (zero = all time) against the

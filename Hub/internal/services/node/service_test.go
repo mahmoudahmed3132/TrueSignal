@@ -2,8 +2,10 @@ package node_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/truesignal/hub/internal/catalog"
@@ -132,4 +134,43 @@ func (c *CatalogStore) GetConfigValue(key string) (string, error) {
 		return c.url, nil
 	}
 	return "", nil
+}
+
+func TestSensorChangesAreValidatedBeforeSaving(t *testing.T) {
+	store := NewMockNodeStore()
+	store.nodes["node-1"] = &models.Node{ID: "node-1", InstalledSensors: []models.NodeSensor{
+		{ID: "ts-sensor-remote-access-decoy", EnvVars: map[string]interface{}{"TS_SERVICES": "ssh:2222"}, DeployedVersion: "2.0.1"},
+	}}
+	svc := node.NewService(store, &MockNodeBroadcaster{}, nil)
+	var seen [][]models.NodeSensor
+	svc.SetSensorValidator(func(s []models.NodeSensor) error {
+		seen = append(seen, s)
+		for _, x := range s {
+			if x.EnvVars["TS_DECOY_PORTS"] == "2222" {
+				return errors.New("port_conflict: 2222")
+			}
+		}
+		return nil
+	})
+
+	err := svc.AddSensor("node-1", "ts-sensor-tcp-tarpit", "Tarpit", map[string]interface{}{"TS_DECOY_PORTS": "2222"})
+	if !errors.Is(err, node.ErrInvalidSensorConfig) || !strings.Contains(err.Error(), "port_conflict") {
+		t.Fatalf("clash: err = %v", err)
+	}
+	if len(seen) != 1 || len(seen[0]) != 2 {
+		t.Fatalf("validator saw %v", seen)
+	}
+	if err := svc.AddSensor("node-1", "ts-sensor-remote-access-decoy", "dup", nil); !errors.Is(err, node.ErrSensorExists) {
+		t.Fatalf("duplicate: err = %v", err)
+	}
+	// An edit validates the node with the new values in place of the old.
+	if err := svc.EditSensor("node-1", "ts-sensor-remote-access-decoy", "SSH", map[string]interface{}{"TS_DECOY_PORTS": "2222"}); !errors.Is(err, node.ErrInvalidSensorConfig) {
+		t.Fatalf("edit: err = %v", err)
+	}
+	if err := svc.AddSensor("node-1", "ts-sensor-tcp-tarpit", "Tarpit", map[string]interface{}{"TS_DECOY_PORTS": "2323"}); err != nil {
+		t.Fatalf("valid add: %v", err)
+	}
+	if err := svc.AddSensor("node-missing", "ts-sensor-tcp-tarpit", "x", nil); err == nil {
+		t.Fatal("missing node accepted")
+	}
 }

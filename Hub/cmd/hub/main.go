@@ -118,6 +118,9 @@ func main() {
 	composeService.AllowUnpinnedImages(cfg.AllowUnpinnedImages)
 	composeService.SetHoneytokens(honeytokenSvc)
 	composeService.SetBeacons(beaconSvc)
+	nodeSvc.SetSensorValidator(func(sensors []models.NodeSensor) error {
+		return composeService.ValidateSensors(sensors, models.HubVersion)
+	})
 	if cfg.AllowUnpinnedImages {
 		log.Println("[WARNING] TS_ALLOW_UNPINNED_IMAGES=true: sensor images are not required to be digest-pinned. Do not use in production.")
 	}
@@ -168,7 +171,9 @@ func main() {
 		log.Fatalf("[FATAL] Router setup failed: %v", err)
 	}
 
-	if token := configService.EnsureSetupToken(); token != "" {
+	if token := configService.EnsureSetupToken(); token != "" && os.Getenv("TS_SETUP_TOKEN") != "" {
+		log.Printf("[SETUP] Hub is not initialised. Use the setup token from TS_SETUP_TOKEN on the setup page (not logged).")
+	} else if token != "" {
 		log.Printf("[SETUP] Hub is not initialised. One-time setup token: %s", token)
 		log.Printf("[SETUP] Enter it on the setup page to create the admin account.")
 	}

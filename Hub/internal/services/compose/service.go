@@ -334,7 +334,7 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 			// bundle: silently skipping it would make `apply` tear the running
 			// decoy down (--remove-orphans) and leave the node undefended.
 			log.Printf("[ERROR] Manifest for sensor %s (v%s) unavailable: %v", sensor.ID, targetVersion, err)
-			return nil, fmt.Errorf("manifest_unavailable: %s v%s", sensor.ID, targetVersion)
+			return nil, fmt.Errorf("manifest_unavailable: %s %s", sensor.ID, versionLabel(targetVersion))
 		}
 		manifest := *manifestPtr
 
@@ -433,6 +433,58 @@ func (s *Service) renderNodeCompose(nodeID, nodeKey, hostFallback string, curren
 	}
 
 	return yaml.Marshal(&finalCompose)
+}
+
+// versionLabel names a sensor version in an error; an empty one means the
+// registry has no compatible release of that sensor.
+func versionLabel(v string) string {
+	if v == "" {
+		return "(no compatible release in the registry)"
+	}
+	return "v" + v
+}
+
+// ValidateSensors checks a node's sensor list the way rendering its compose
+// would (each sensor has a signed, valid manifest; no two bind the same
+// port) without rendering or changing anything. The node service calls it
+// before saving a sensor add or edit, so a typo is refused at once instead
+// of blocking every later `apply` on that node.
+func (s *Service) ValidateSensors(sensors []models.NodeSensor, currentHubVersion string) error {
+	portOwner := map[int]string{}
+	for _, sensor := range sensors {
+		version := sensor.DeployedVersion
+		if version == "" && s.catalog != nil {
+			version, _ = s.catalog.GetLatestCompatibleVersion(sensor.ID, currentHubVersion)
+		}
+		if version == "" {
+			return fmt.Errorf("manifest_unavailable: %s %s", sensor.ID, versionLabel(version))
+		}
+		manifestPtr, err := s.FetchSpecificManifest(sensor.ID, version)
+		if err != nil || manifestPtr == nil {
+			return fmt.Errorf("manifest_unavailable: %s %s", sensor.ID, versionLabel(version))
+		}
+		manifest := *manifestPtr
+		if err := security.ValidateManifest(manifest); err != nil {
+			return fmt.Errorf("invalid_manifest: %w", err)
+		}
+		userVars := make(map[string]string)
+		for k, v := range sensor.EnvVars {
+			switch val := v.(type) {
+			case string:
+				userVars[k] = val
+			case bool, float64:
+				userVars[k] = fmt.Sprint(val)
+			}
+		}
+		envMap := composeEngine.BuildEnv(manifest, userVars, nil)
+		for _, p := range listenPortsFromEnv(manifest.Deployment.ListenPortsEnv, envMap) {
+			if other, dup := portOwner[p]; dup && other != sensor.ID {
+				return fmt.Errorf("port_conflict: sensors %s and %s both bind port %d", other, sensor.ID, p)
+			}
+			portOwner[p] = sensor.ID
+		}
+	}
+	return nil
 }
 
 // listenPortsFromEnv extracts the ports a sensor binds, from the resolved values

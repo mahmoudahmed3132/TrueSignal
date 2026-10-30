@@ -82,7 +82,15 @@ do_install() {
     ARCH=$(uname -m)
     case "$ARCH" in
         x86_64)        BIN_ARCH="amd64" ;;
-        aarch64|arm64) BIN_ARCH="arm64" ;;
+        aarch64|arm64)
+            # Sensor images are published for linux/amd64 only, so an arm64
+            # node pulls nothing and `apply` fails. Refuse up front unless
+            # the operator has amd64 emulation (binfmt/QEMU) and opts in;
+            # then sensors must run with DOCKER_DEFAULT_PLATFORM=linux/amd64.
+            if [ "${TS_ALLOW_ARM64:-}" != "1" ]; then
+                fail "arm64 nodes are not supported: TrueSignal sensor images are built for linux/amd64 only. Use an x86_64 host, or set TS_ALLOW_ARM64=1 if this host has amd64 emulation (binfmt) and you will run sensors with DOCKER_DEFAULT_PLATFORM=linux/amd64."
+            fi
+            BIN_ARCH="arm64" ;;
         *) fail "Unsupported architecture ($ARCH)" ;;
     esac
 

@@ -31,8 +31,8 @@ const typeLabels: Record<Beacon['type'], string> = {
     kubeconfig: 'Kubeconfig',
 }
 const typeHelp: Record<Beacon['type'], string> = {
-    dns: 'A host name that alerts when resolved. Plant it in SSH configs, .env files, inventories or scripts.',
-    web_bug: 'A remote image that alerts when loaded. Embed it in an HTML page, e-mail or document that fetches remote images.',
+    dns: 'A host name that alerts when resolved. Plant it where only an intruder would use it: an ~/.ssh/config Host entry, DB_HOST in an .env file, an inventory, or a script an attacker would run.',
+    web_bug: 'A remote image that alerts when loaded. Paste the <img> tag into an HTML page or a document that fetches remote images. Avoid mail that crosses a gateway: link scanners fetch images on delivery.',
     kubeconfig: 'A kubeconfig whose API server name alerts when kubectl resolves it. Plant it as ~/.kube/config on a jump host or in a repo.',
 }
 

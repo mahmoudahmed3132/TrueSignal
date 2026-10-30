@@ -6,15 +6,18 @@
 #
 # The proxy gets a fixed address so TS_TRUSTED_PROXIES names exactly it. If
 # 172.30.80.0/29 clashes with your networks, set TS_PROXY_SUBNET and
-# TS_PROXY_IP (an address inside the subnet) in .env.
+# TS_PROXY_IP and TS_HUB_IP (two different addresses inside the subnet) in .env.
 services:
   truesignal-hub:
     ports: !reset []
     environment:
       - TS_TRUST_PROXY=true
       - TS_TRUSTED_PROXIES=${TS_PROXY_IP:-172.30.80.2}
+    # Pinned too: the Hub starts first, and a dynamic address would take
+    # .2, the proxy's fixed address, so the proxy could never start.
     networks:
-      - hub
+      hub:
+        ipv4_address: ${TS_HUB_IP:-172.30.80.3}
 
   tls-proxy:
     image: nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0

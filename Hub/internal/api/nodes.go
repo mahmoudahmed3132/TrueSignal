@@ -139,7 +139,7 @@ func (h *NodeHandler) AddNodeSensor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.AddSensor(nodeID, req.SensorID, req.CustomName, req.ConfigValues); err != nil {
-		RespondError(w, "Failed to add sensor. It may already be installed on this node.", http.StatusInternalServerError)
+		respondSensorChangeError(w, err, "Failed to add sensor")
 		return
 	}
 
@@ -162,7 +162,7 @@ func (h *NodeHandler) EditNodeSensor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.EditSensor(nodeID, sensorID, req.CustomName, req.ConfigValues); err != nil {
-		RespondError(w, "Failed to update sensor", http.StatusInternalServerError)
+		respondSensorChangeError(w, err, "Failed to update sensor")
 		return
 	}
 
@@ -270,4 +270,18 @@ func (h *NodeHandler) GetCurrentNode(w http.ResponseWriter, r *http.Request) {
 		"status":             node.Status,
 		"installedSensors":   node.InstalledSensors,
 	})
+}
+
+// respondSensorChangeError maps a refused sensor add/edit: 409 when the
+// sensor is already on the node, 422 with the reason when the change would
+// break the node's compose (port clash, no signed manifest).
+func respondSensorChangeError(w http.ResponseWriter, err error, fallback string) {
+	switch {
+	case errors.Is(err, node.ErrSensorExists):
+		RespondError(w, "This sensor is already installed on the node.", http.StatusConflict)
+	case errors.Is(err, node.ErrInvalidSensorConfig):
+		RespondError(w, err.Error(), http.StatusUnprocessableEntity)
+	default:
+		RespondError(w, fallback, http.StatusInternalServerError)
+	}
 }

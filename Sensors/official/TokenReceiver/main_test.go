@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,15 +25,28 @@ type event struct {
 	details                   map[string]any
 }
 
-type fakeReporter struct{ events []event }
+type fakeReporter struct {
+	mu     sync.Mutex
+	events []event
+}
 
 func (f *fakeReporter) ReportEventSeverity(severity, trigger, source, _ string, d sdk.EventDetails) bool {
 	m := map[string]any{}
 	for _, kv := range d {
 		m[kv.Key] = kv.Value
 	}
+	f.mu.Lock()
 	f.events = append(f.events, event{severity, trigger, source, m})
+	f.mu.Unlock()
 	return true
+}
+
+// snapshot copies the events (the saturation test reports from the accept
+// goroutine).
+func (f *fakeReporter) snapshot() []event {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]event(nil), f.events...)
 }
 
 func newTestReceiver(t *testing.T, ipv4 string) (*receiver, *fakeReporter) {
@@ -238,7 +252,7 @@ func TestLimitListenerDropsBeyondCap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln := newLimitListener(raw, 1)
+	ln := newLimitListener(raw, "http", 1, 0, nil, nil)
 	defer ln.Close()
 	accepted := make(chan net.Conn, 4)
 	go func() {
@@ -279,5 +293,69 @@ func TestLimitListenerDropsBeyondCap(t *testing.T) {
 		c.Close()
 	case <-time.After(2 * time.Second):
 		t.Fatal("slot not released")
+	}
+}
+
+// One source can hold at most perSource slots; others still get in, a
+// trusted proxy is exempt, and refusals are reported once per window.
+func TestPerSourceCapAndSaturationEvent(t *testing.T) {
+	raw, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeReporter{}
+	sat := newSaturation(f, "t.example.com")
+	ln := newLimitListener(raw, "http", 10, 2, nil, sat.refused)
+	defer ln.Close()
+	accepted := make(chan net.Conn, 16)
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted <- c
+		}
+	}()
+	dial := func() net.Conn {
+		c, err := net.Dial("tcp", raw.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	a, b := dial(), dial()
+	defer a.Close()
+	defer b.Close()
+	<-accepted
+	<-accepted
+	third := dial() // 127.0.0.1 is at its cap of 2
+	defer third.Close()
+	third.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := third.Read(make([]byte, 1)); err == nil {
+		t.Fatal("third connection from one source was served")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for len(f.snapshot()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if ev := f.snapshot(); len(ev) != 1 || ev[0].trigger != SaturatedTrigger || ev[0].source != "127.0.0.1" ||
+		ev[0].details["refused_per_source"] != 1 || ev[0].details["listener"] != "http" {
+		t.Fatalf("events = %+v", ev)
+	}
+	// A second refusal inside the window is counted, not reported.
+	fourth := dial()
+	defer fourth.Close()
+	fourth.SetReadDeadline(time.Now().Add(2 * time.Second))
+	fourth.Read(make([]byte, 1))
+	time.Sleep(50 * time.Millisecond)
+	if n := len(f.snapshot()); n != 1 {
+		t.Fatalf("saturation not rate-limited: %d events", n)
+	}
+
+	// A trusted proxy is not capped per source.
+	exempt := newLimitListener(raw, "http", 10, 1, func(string) bool { return true }, nil).(*limitListener)
+	if exempt.perSource != 1 || !exempt.exempt("127.0.0.1") {
+		t.Fatal("exempt wiring")
 	}
 }

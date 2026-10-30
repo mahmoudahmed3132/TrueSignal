@@ -168,15 +168,16 @@ func TestGetSourceActivity(t *testing.T) {
 		('n1','s2','2026-10-03T00:00:00Z','ldap_login','10.0.0.5'),
 		('n2','s1','2026-10-02T00:00:00Z','tcp_connection','10.0.0.5'),
 		('n2','s1','2026-10-02T00:00:00Z','tcp_connection','10.0.0.9'),
-		('n2','s1','2026-10-04T00:00:00Z','sensor_heartbeat_lost','truesignal-hub')`); err != nil {
+		('n2','s1','2026-10-04T00:00:00Z','sensor_heartbeat_lost','truesignal-hub'),
+		('n2','s1','2026-10-05T00:00:00Z','tcp_connection','Wizard Firedrill')`); err != nil {
 		t.Fatal(err)
 	}
-	got, err := st.GetSourceActivity([]string{"sensor_heartbeat_lost"})
+	got, err := st.GetSourceActivity([]string{"sensor_heartbeat_lost"}, "Wizard Firedrill")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("got %d sources, want 2 (liveness excluded): %+v", len(got), got)
+		t.Fatalf("got %d sources, want 2 (liveness and firedrill excluded): %+v", len(got), got)
 	}
 	for _, a := range got {
 		if a.Source == "10.0.0.5" && (a.Events != 3 || a.Decoys != 3 || a.FirstSeen != "2026-10-01T00:00:00Z" || a.LastSeen != "2026-10-03T00:00:00Z") {

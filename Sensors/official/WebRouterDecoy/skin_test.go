@@ -239,3 +239,20 @@ func TestSuppressedCountIsReported(t *testing.T) {
 		t.Fatalf("event after window = %+v", e)
 	}
 }
+
+// A page view must not hide the path probe that follows it (both are
+// limited per source and trigger, not per source).
+func TestPageViewDoesNotSuppressPathProbe(t *testing.T) {
+	skin, _ := loadSkin("router", "", "", "")
+	_, fr, h := newTestDecoy(t, skin)
+	serve(h, httptest.NewRequest(http.MethodGet, "/", nil))
+	serve(h, httptest.NewRequest(http.MethodGet, "/.env", nil))
+	serve(h, httptest.NewRequest(http.MethodGet, "/cgi-bin/luci", nil))
+	var triggers []string
+	for _, e := range fr.events {
+		triggers = append(triggers, e.trigger)
+	}
+	if len(triggers) != 2 || triggers[0] != "web_page_view" || triggers[1] != "web_path_probe" {
+		t.Fatalf("triggers = %v", triggers)
+	}
+}

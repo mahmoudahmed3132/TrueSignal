@@ -54,7 +54,11 @@ func TestBrandProfileConsistency(t *testing.T) {
 func TestProbeLimiter(t *testing.T) {
 	p := newProbeLimiter(time.Minute)
 	t0 := time.Unix(0, 0)
-	if !p.allow("1.2.3.4", t0) || p.allow("1.2.3.4", t0.Add(time.Second)) || !p.allow("1.2.3.4", t0.Add(2*time.Minute)) {
-		t.Fatal("limiter window not respected")
+	ok1, _ := p.allow("1.2.3.4", t0)
+	ok2, _ := p.allow("1.2.3.4", t0.Add(time.Second))
+	p.allow("1.2.3.4", t0.Add(2*time.Second))
+	ok3, suppressed := p.allow("1.2.3.4", t0.Add(2*time.Minute))
+	if !ok1 || ok2 || !ok3 || suppressed != 2 {
+		t.Fatalf("window or suppressed count wrong: %v %v %v %d", ok1, ok2, ok3, suppressed)
 	}
 }

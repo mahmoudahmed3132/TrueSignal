@@ -27,6 +27,8 @@ func TestCalculate(t *testing.T) {
 		ev("n1", "ts-sensor-identity-decoy", "rdp_login", "critical", "10.0.0.9", now.Add(-time.Hour)),
 		// Liveness is not attacker activity.
 		ev("n2", "ts-sensor-tcp-tarpit", "sensor_heartbeat_lost", "high", "truesignal-hub", now.Add(-time.Hour)),
+		// Nor is a firedrill (it would inflate the evidence report).
+		ev("n2", "ts-sensor-tcp-tarpit", "tcp_connection", "high", FiredrillSource, now.Add(-time.Hour)),
 		// Outside a 24H window.
 		ev("n2", "ts-sensor-tcp-tarpit", "tcp_connection", "low", "10.0.0.7", now.Add(-48*time.Hour)),
 		// A sensor since removed from its node still counts as activity.

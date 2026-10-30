@@ -1,6 +1,6 @@
 {
   "id": "ts-sensor-file-canary",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "name": "File Canary (FIM)",
   "category": "file",
   "osi_layer": "Host Level",

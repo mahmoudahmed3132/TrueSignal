@@ -49,7 +49,7 @@ DB_PASSWORD=%s
 REDIS_PASSWORD=%s
 AWS_ACCESS_KEY_ID=AKIA%s
 AWS_SECRET_ACCESS_KEY=%s
-`, randB64(32), user, secret, randHex(12), strings.ToUpper(randHex(8)), randB64(30)))
+`, randB64(32), user, secret, randHex(12), awsKeyIDSuffix(), randB64(30)))
 	case strings.HasSuffix(lower, ".php"):
 		return []byte(fmt.Sprintf(`<?php
 // Backup of production configuration
@@ -100,6 +100,19 @@ func randHex(n int) string {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// awsKeyIDSuffix is the 16 characters after "AKIA". Real access key IDs use
+// the base32 alphabet (A-Z, 2-7), so hex digits like 0, 1, 8, 9 would mark
+// the lure, and its planted credential, as fake.
+func awsKeyIDSuffix() string {
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	for i := range b {
+		b[i] = alphabet[int(b[i])%len(alphabet)]
+	}
+	return string(b)
 }
 
 func randB64(n int) string {

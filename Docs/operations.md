@@ -26,6 +26,7 @@ A **Node** is any physical or virtual machine where you want to deploy deceptive
    ```
    The key is passed in the environment (`TS_NODE_API_KEY`) rather than as `--api-key`, so it does not show up in the process list. It still lands in your shell history; clear it if that matters.
 4. **Pin the binary (recommended):** `install.sh` verifies the download against the release's `checksums.txt`, which detects corruption but not a tampered release. Add `--sha256 <expected-hash>` to require a specific binary hash obtained out of band.
+5. **Architecture:** nodes must be **x86_64**. Sensor images are published for `linux/amd64` only, so `install.sh` refuses arm64 hosts. On an arm64 host with amd64 emulation (binfmt/QEMU), `TS_ALLOW_ARM64=1` lets the install proceed. Sensors then need `DOCKER_DEFAULT_PLATFORM=linux/amd64`, and they run under emulation.
 
 ## 2. Sensor Deployment
 
@@ -189,7 +190,7 @@ mkdir -p deploy/tls && cp hub.crt deploy/tls/hub.crt && cp hub.key deploy/tls/hu
 docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
 ```
 
-The overlay runs a digest-pinned unprivileged nginx (`Hub/deploy/nginx/truesignal.conf`): read-only, no capabilities, TLS 1.2/1.3 with ECDHE AEAD suites, HSTS, HTTP→HTTPS redirect, WebSocket pass-through for `/api/v2/ws`. The Hub's own port is no longer published, the proxy has a fixed address (`TS_PROXY_IP`, default `172.30.80.2` in `TS_PROXY_SUBNET` `172.30.80.0/29`), and `TS_TRUSTED_PROXIES` is set to it. The proxy overwrites `X-Real-IP`/`X-Forwarded-For` with the TCP peer, so client-supplied values never reach the Hub. Requires Docker Compose 2.24+.
+The overlay runs a digest-pinned unprivileged nginx (`Hub/deploy/nginx/truesignal.conf`): read-only, no capabilities, TLS 1.2/1.3 with ECDHE AEAD suites, HSTS, HTTP→HTTPS redirect, WebSocket pass-through for `/api/v2/ws`. The Hub's own port is no longer published, the proxy and the Hub have fixed addresses (`TS_PROXY_IP`, default `172.30.80.2`, and `TS_HUB_IP`, default `172.30.80.3`, in `TS_PROXY_SUBNET` `172.30.80.0/29`; the Hub is pinned too, or it would take `.2` first and the proxy could not start), and `TS_TRUSTED_PROXIES` is set to it. The proxy overwrites `X-Real-IP`/`X-Forwarded-For` with the TCP peer, so client-supplied values never reach the Hub. Requires Docker Compose 2.24+.
 
 If you edit the config: nginx drops every server-level `proxy_set_header` in a location that sets any of its own, which is why the forwarding headers are repeated in each `location`. Keep `Host` as `$http_host` (with port) or the WebSocket origin check rejects the dashboard on a non-443 port.
 
@@ -307,7 +308,9 @@ Beacons are artifacts the Hub generates for you to plant where only an intruder 
 
 **Lifecycle:** beacons and their master key (`beacon_master_key`) survive receiver redeploys, node deletion and a factory reset. Every receiver gets the same derived key, so a second receiver (a second NS for redundancy) needs no change to existing beacons. `purgeHoneytokens: true` on a factory reset deletes beacons and rotates the key, so every planted beacon goes silent. Remove the artifacts first.
 
-**Not built yet:** Word/Excel documents, AWS keys, `.bashrc`/batch beacons, MySQL dumps, cloned-site beacons, GeoIP enrichment and the map (DB-IP Lite, next).
+**Receiver under attack:** each source may hold at most 4 DNS/TCP and 8 HTTP connections (a TLS front end listed in `TS_TRUSTED_PROXIES` is exempt), within totals of 128 and 256. Refusals raise `receiver_saturated` (medium, at most once per 5 minutes per listener, the busiest refused address as `source`). Sustained events mean someone is trying to blind the beacons; block the source upstream.
+
+**Not built yet:** Word/Excel documents, AWS keys, `.bashrc`/batch beacons, MySQL dumps, cloned-site beacons. GeoIP and the map: §15.
 
 ## 15. GeoIP enrichment and the map
 

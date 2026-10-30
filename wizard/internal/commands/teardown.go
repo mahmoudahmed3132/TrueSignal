@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/truesignal/wizard/internal/app"
 	"github.com/truesignal/wizard/internal/cli"
@@ -34,6 +35,10 @@ func HandleTeardown(force bool) error {
 	if err := os.Remove(app.ConfigPath); err != nil && !os.IsNotExist(err) {
 		fmt.Printf("%s[!] Failed to remove config file: %v%s\n", cli.Yellow, err, cli.Reset)
 	}
+	// Leave no empty /etc/truesignal or /opt/truesignal behind; os.Remove
+	// only deletes a directory that is already empty.
+	os.Remove(filepath.Dir(app.ConfigPath))
+	os.Remove(filepath.Dir(deploy.DeployDir))
 
 	fmt.Printf("\n%s[*] Removing TrueSignal CLI binary...%s\n", cli.Dim, cli.Reset)
 	if execPath, err := os.Executable(); err == nil {

@@ -354,7 +354,8 @@ func (r *receiver) serveDNSTCP(conn net.Conn) {
 	defer conn.Close()
 	src := decoy.RemoteIP(conn.RemoteAddr())
 	for i := 0; i < 8; i++ {
-		conn.SetDeadline(time.Now().Add(10 * time.Second))
+		// Resolvers send the query at once; an idle client gets 3 s.
+		conn.SetDeadline(time.Now().Add(3 * time.Second))
 		var l [2]byte
 		if _, err := io.ReadFull(conn, l[:]); err != nil {
 			return

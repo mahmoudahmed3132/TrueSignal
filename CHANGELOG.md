@@ -1,4 +1,61 @@
-# [Unreleased] - GeoIP enrichment and the map (phase 3, part 2) (2026-10-30)
+# [2.4.0] - Hub 2.4.0: beacons, GeoIP, verification fixes (2026-10-30)
+
+**Released together:**
+- Hub 2.4.0;
+- Wizard 2.2.1;
+- sensors token-receiver 2.0.0 (new), web-router-decoy 2.1.2 and file-canary 2.0.3.
+
+The other sensors are unchanged. Only the major version must match, so 2.2.x wizards and existing sensors keep working.
+
+**Upgrade:**
+- **Schema migration v5** (the `beacons` table). The Hub snapshots the database first (`*.pre-v4-*.bak`).
+- **Rollback** to 2.3.0 or 2.2.0 needs that `.bak` (`Docs/operations.md` §7, case 2). Pinning the old image alone makes it refuse the newer database.
+- **Verified:** upgrade from 2.2.0 with data intact; the old version refusing schema 5; the documented restore.
+
+**SIEM contract.** Tell the SOC first: `Docs/siem/soc-notice-2.4.0.md`. In short:
+- new triggers `beacon_triggered` and `receiver_saturated`;
+- syslog `source_country` and `source_geo_basis` appended after `source_asset_criticality`, and `"source_geo"` in the JSON body;
+- ECS `source.geo.*` and `truesignal.source_geo`;
+- **behaviour change:** ECS `user.domain`/`user.name` are now also split from `bind_dn` and `attempted_username` (`DOMAIN\user`).
+
+## Fixes from the local end-to-end verification (2026-10-30)
+
+A full run on macOS with Docker Desktop (`Docs/LOCAL-VERIFICATION-PROMPT.md`) covered tests, images, Sigstore, Hub API and MFA, real sensors and the wizard, the real DB-IP database, beacons, SIEM formats (including Elasticsearch ingest), the TLS overlay, the UI, and upgrade/rollback. Fixed:
+
+* **TLS overlay didn't start on any fresh deploy.** The Hub took the proxy's fixed IP (`.2`). The Hub is now pinned to `TS_HUB_IP` (default `.3`), and a CI job brings the overlay up.
+* **Syslog over TCP/TLS lost records after a collector restart:** writes into the closed socket looked successful. The Hub now checks the stream and redials before writing. Elastic and LogScale (HTTP) remain the lossless outputs.
+* **Token Receiver could be blinded by one host** holding every TCP slot. It now has:
+  * per-source caps (DNS 4, HTTP 8; trusted proxies exempt) inside the global caps;
+  * 3 s first-read timeouts;
+  * a rate-limited `receiver_saturated` event.
+* **Beacon artifacts revealed the deception:**
+  * the web bug carried a `<!-- TrueSignal web bug "<planting note>" -->` comment;
+  * the DNS file named the product;
+  * kubeconfig names repeated the planting note.
+
+  Artifacts are now the bare tag, host name or neutral config. The guidance lives in the UI.
+* **Web Router Decoy 2.1.2:** a page view hid the following wordlist probe (T1595.003) for 60 s. Recon events are now limited per source *and* trigger, with `suppressed_since_last`.
+* **Sensor add/edit** used to accept configs that broke the node's whole compose: a port clash, or a sensor with no signed release. It now runs the same checks first and returns 422 with the reason, or 409 for a duplicate sensor. Errors say "(no compatible release in the registry)" instead of a bare `v`.
+* **Sensor env vars** accept only names the manifest declares. Previously any name passed through (e.g. `HTTPS_PROXY`), which a dashboard session could use to route a sensor's Hub traffic, and its node key, through a proxy.
+* **Firedrills** (`Wizard Firedrill`) no longer count as attacker sources in the dashboard, Attack Path, ATT&CK, the map or the evidence report.
+* **File Canary 2.0.3:** the lure's fake AWS key ID used hex digits real key IDs never contain, marking the lure and its honeytoken as fake. It now uses the base32 alphabet.
+* **Wizard 2.2.1:**
+  * `<command> --help` prints usage (`discover --help` used to run a real discovery);
+  * the Compose download hint links `download/v<ver>/`;
+  * uninstall removes the then-empty `/etc/truesignal` and `/opt/truesignal`.
+* **arm64:** sensor images are amd64-only, so `install.sh` refuses arm64 hosts. `TS_ALLOW_ARM64=1` proceeds with amd64 emulation.
+* **Liveness:**
+  * a new sensor's first heartbeat no longer raises `sensor_recovered`;
+  * `not_restarted_after_stop` reports `timeout_sec: 300`.
+* **Setup:** the setup token is no longer logged when it came from `TS_SETUP_TOKEN`.
+* **UI:** the dashboard event table fits 1440 px again (Target and Sensor columns capped).
+* **Build:**
+  * the Hub UI builds on Node 22 (Node 20 is EOL);
+  * every Hub and sensor Dockerfile pins its base image by digest;
+  * vite 8.3.5 (dev-dependency advisories).
+* **Repo:** `docs/` merged into `Docs/`. The two directories collided on case-insensitive filesystems (macOS).
+
+## GeoIP enrichment and the map (phase 3, part 2)
 
 * **GeoIP from DB-IP IP to City Lite** (MMDB, CC BY 4.0; `Hub/internal/geo`, read with `oschwald/maxminddb-golang/v2`).
   * Only public addresses are looked up. Private, CGNAT, loopback, link-local and ULA addresses are not.
@@ -24,7 +81,7 @@
   * `"source_geo"` in the JSON body.
 * **Token Receiver:** concurrent TCP clients are capped (DNS 128, HTTP 256); connections over the cap are closed at once. This fixes the Codex review finding on #28: an unbounded goroutine per internet connection.
 
-# [Unreleased] - Beacons and the Token Receiver (phase 3, part 1) (2026-10-29)
+## Beacons and the Token Receiver (phase 3, part 1)
 
 * **Beacons page** (sidebar): create callback tokens to plant where only an intruder would use them. There are three types:
   * a DNS name;

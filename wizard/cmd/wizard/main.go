@@ -31,6 +31,15 @@ func run() error {
 
 	flag.Parse()
 
+	// Help never runs a command: "discover --help" used to start a real
+	// discovery that could register sensors with one keypress. Go's flag
+	// package stops at the first non-flag, so subcommand flags are checked
+	// here, before the root check, so help works for any user.
+	if wantsHelp(flag.Args()) {
+		flag.Usage()
+		return nil
+	}
+
 	if warning, _ := system.CheckRoot(); warning != "" {
 		return fmt.Errorf("TrueSignal wizard must be run as root (sudo) for system analysis and sensor deployment.")
 	}
@@ -64,4 +73,15 @@ func run() error {
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
+}
+
+// wantsHelp reports a help request anywhere after the subcommand.
+func wantsHelp(args []string) bool {
+	for _, a := range args {
+		switch a {
+		case "-h", "-help", "--help", "help":
+			return true
+		}
+	}
+	return false
 }

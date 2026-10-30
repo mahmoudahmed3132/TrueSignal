@@ -479,3 +479,34 @@ func TestComposeInjectsFleetKeyAndHoneytoken(t *testing.T) {
 		t.Errorf("TokenFor calls = %v", ht.calls)
 	}
 }
+
+// ValidateSensors applies the render checks to a candidate list without
+// rendering: user values count, an unknown sensor names the gap.
+func TestValidateSensors(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/alpha-v1.0.0.json":
+			json.NewEncoder(w).Encode(portClashManifest("alpha", "ssh:2222"))
+		case "/beta-v1.0.0.json":
+			json.NewEncoder(w).Encode(portClashManifest("beta", "tcp:2323"))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+	store := &portClashStore{RegistryURL: ts.URL}
+	svc := composesvc.NewService(store, catalog.NewService(store, nil))
+
+	ok := []models.NodeSensor{{ID: "ts-sensor-alpha", DeployedVersion: "1.0.0"}, {ID: "ts-sensor-beta", DeployedVersion: "1.0.0"}}
+	if err := svc.ValidateSensors(ok, "1.0.0"); err != nil {
+		t.Fatalf("valid list: %v", err)
+	}
+	clash := []models.NodeSensor{ok[0], {ID: "ts-sensor-beta", DeployedVersion: "1.0.0", EnvVars: map[string]interface{}{"TS_SERVICES": "tcp:2222"}}}
+	if err := svc.ValidateSensors(clash, "1.0.0"); err == nil || !strings.Contains(err.Error(), "port_conflict") {
+		t.Fatalf("clash: %v", err)
+	}
+	unknown := []models.NodeSensor{{ID: "ts-sensor-unreleased"}}
+	if err := svc.ValidateSensors(unknown, "1.0.0"); err == nil || !strings.Contains(err.Error(), "no compatible release") {
+		t.Fatalf("unknown: %v", err)
+	}
+}

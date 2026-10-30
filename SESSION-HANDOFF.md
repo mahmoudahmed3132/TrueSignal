@@ -1,6 +1,6 @@
 # Session handoff (2026-10-26)
 
-Read this first, then `CLAUDE.md` (project memory, kept current) and `docs/KNOWLEDGE-GAPS.md`. Where docs and code disagree, trust the code.
+Read this first, then `CLAUDE.md` (project memory, kept current) and `Docs/KNOWLEDGE-GAPS.md`. Where docs and code disagree, trust the code.
 
 ## 1. Who and how
 
@@ -123,11 +123,11 @@ Session branch for this work: `claude/beautiful-ptolemy-t0uxdm`. A new session g
 
 ## 6. Open work, prioritised
 
-1. **Release Hub 2.3.0** (phases 1-2 are on `main`, unreleased). **2026-10-29:** `HubVersion` is 2.3.0, CHANGELOG has the 2.3.0 notes, the SOC notice is `Docs/siem/soc-notice-2.3.0.md`, and `make tag-release` skips tags already on origin; go-jose bumped for a new HIGH CVE. Remaining: the owner sends the SOC notice, then pushes `hub/v2.3.0`.
-   - **Claude:** bump `HubVersion` to `2.3.0` in `Hub/internal/models/models.go`. The wizard is unchanged, so keep `WizardVersion` 2.2.0 (only the major must match). The CHANGELOG `[Unreleased]` entries become the 2.3.0 notes.
-   - **The owner:** `make tag-release` tags both constants and would fail on the existing `wizard/v2.2.0`, so either push `hub/v2.3.0` alone or adjust the Makefile. Pin `TS_HUB_VERSION=v2.3.0`.
-   - **Before release:** tell the SOC about the SIEM additions (§3).
-2. **Phase 3: callback beacons and the GeoIP map.** **2026-10-29, part 1 built:** Token Receiver sensor + Beacons page (DNS, web bug, kubeconfig), `Docs/operations.md` §14. Owner decisions: GeoIP = **DB-IP Lite**; first beacons = DNS + web bug + kubeconfig. **2026-10-30, part 2 built:** DB-IP Lite enrichment + GeoIP Map (`Docs/operations.md` §15). Not verified against the real DB-IP file or download from a cloud session (download.db-ip.com is blocked here); tested with a generated fixture in its layout. Next: release Hub 2.4.0 + token-receiver 2.0.0 (`sensor/token-receiver/v2.0.0`, then set the GHCR package Public), a SOC notice for the 2.4.0 SIEM additions (`beacon_triggered`, `source.geo`, `source_country`), then Office docs and AWS keys. These are the SaaS/document honeytokens named in the purpose.
+1. **Release Hub 2.3.0, then 2.4.0** (owner decision 2026-10-30: tag 2.3.0 at the commit that matches its notes, then cut 2.4.0).
+   - **2.3.0:** `git tag hub/v2.3.0 4471d82 && git push origin refs/tags/hub/v2.3.0` (not `make tag-release`, which tags HEAD). SOC notice: `Docs/siem/soc-notice-2.3.0.md`.
+   - **2.4.0 + Wizard 2.2.1:** after the fixes PR merges, `make tag-release && make push-tags` on `main`, then `make tag-sensors && make push-tags` (token-receiver 2.0.0, web-router-decoy 2.1.2, file-canary 2.0.3). Set the new `truesignal-tokenreceiver` GHCR package Public. Send `Docs/siem/soc-notice-2.4.0.md` to the SOC **before** upgrading: it includes an ECS `user.domain` behaviour change.
+   - **Verification:** done on 2026-10-30 on the owner's Mac (`Docs/LOCAL-VERIFICATION-PROMPT.md`). Its findings F1-F19 are fixed in 2.4.0, except the items left by decision: arm64 refused rather than built, and the community Python template image left unpinned.
+2. **Phase 3: callback beacons and the GeoIP map.** **2026-10-29, part 1 built:** Token Receiver sensor + Beacons page (DNS, web bug, kubeconfig), `Docs/operations.md` §14. Owner decisions: GeoIP = **DB-IP Lite**; first beacons = DNS + web bug + kubeconfig. **2026-10-30, part 2 built:** DB-IP Lite enrichment + GeoIP Map (`Docs/operations.md` §15). Verified with the real DB-IP file and auto-update on the owner's Mac (2026-10-30). Next: Office docs and AWS keys. These are the SaaS/document honeytokens named in the purpose.
    - **Design (agreed in principle):**
      - A **separate hardened token receiver** (HTTP + DNS), never the Hub; the Hub must stay off the internet.
      - The receiver forwards to the Hub like a sensor does.
