@@ -407,9 +407,9 @@ const formatTime = (timestamp: string) => {
                                           :title="sourceBadges(event.source).slice(1).map(b => b.title).join('\n')">+{{ sourceBadges(event.source).length - 1 }}</span>
                                 </div>
                             </td>
-                            <td class="px-4 py-3 text-base text-text-m font-mono max-w-[120px] md:max-w-[180px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.target">{{ event.target }}</td>
+                            <td class="px-4 py-3 text-base text-text-m font-mono max-w-[120px] md:max-w-[160px] lg:max-w-[10rem] xl:max-w-[12rem] 2xl:max-w-xs truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.target">{{ event.target }}</td>
                             
-                            <td class="px-4 py-3 text-base text-text-h font-mono max-w-[140px] md:max-w-[200px] lg:max-w-sm xl:max-w-xl 2xl:max-w-none truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.sensorId">{{ formatSensorId(event.sensorId) }}</td>
+                            <td class="px-4 py-3 text-base text-text-h font-mono max-w-[140px] md:max-w-[160px] lg:max-w-[10rem] xl:max-w-[11rem] 2xl:max-w-xs truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.sensorId">{{ formatSensorId(event.sensorId) }}</td>
                             
                             <td class="px-4 py-3 text-base font-medium text-right text-text-h font-mono w-[130px] min-w-[130px] max-w-[130px] truncate" :class="expandedRows.has(event.id) ? 'border-b border-transparent' : 'border-b border-border-default'" :title="event.nodeId || 'Unassigned'">{{ getNodeAlias(event.nodeId) }}</td>
                             
