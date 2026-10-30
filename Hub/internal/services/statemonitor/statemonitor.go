@@ -160,7 +160,13 @@ func (s *StateMonitor) alert(statusID int64, st sensorState, reason string) {
 	if s.events == nil {
 		return
 	}
-	details := map[string]any{"reason": reason, "timeout_sec": int(heartbeatTimeout.Seconds())}
+	// timeout_sec is the wait that expired: the heartbeat timeout, or the
+	// grace a stopped sensor gets to come back.
+	timeout := heartbeatTimeout
+	if reason == "not_restarted_after_stop" {
+		timeout = stoppedEscalation
+	}
+	details := map[string]any{"reason": reason, "timeout_sec": int(timeout.Seconds())}
 	if st.lastHeartbeat.Valid {
 		details["last_heartbeat"] = st.lastHeartbeat.String
 	}

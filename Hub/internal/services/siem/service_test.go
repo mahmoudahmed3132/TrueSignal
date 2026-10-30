@@ -186,7 +186,7 @@ func TestSourceGeo(t *testing.T) {
 	ev := models.Event{ID: 4, NodeID: "n", Timestamp: "2026-01-01T00:00:00Z", Severity: "critical",
 		EventTrigger: "beacon_triggered", Source: "81.2.69.160", SensorID: "s", Details: json.RawMessage("{}"), SourceGeo: loc}
 	msg := svc.formatSyslog(ev)
-	if !strings.Contains(msg, `source_country="GB"`) || !strings.Contains(msg, `"source_geo":{"countryCode":"GB"`) {
+	if !strings.Contains(msg, `source_country="GB" source_geo_basis="source"`) || !strings.Contains(msg, `"source_geo":{"countryCode":"GB"`) {
 		t.Fatalf("syslog: %s", msg)
 	}
 	doc := roundTrip(t, svc.ecsEvent(ev))
@@ -203,8 +203,11 @@ func TestSourceGeo(t *testing.T) {
 	if get(doc, "source.geo") != nil || get(doc, "truesignal.source_geo.basis") != "client_subnet" {
 		t.Fatalf("client_subnet ECS: %v", doc)
 	}
+	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `source_country="GB" source_geo_basis="client_subnet"`) {
+		t.Fatalf("client_subnet syslog: %s", msg)
+	}
 	ev.SourceGeo = nil
-	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `source_country=""`) || !strings.Contains(msg, `"source_geo":null`) {
+	if msg := svc.formatSyslog(ev); !strings.Contains(msg, `source_country="" source_geo_basis=""`) || !strings.Contains(msg, `"source_geo":null`) {
 		t.Fatalf("unlocated: %s", msg)
 	}
 }

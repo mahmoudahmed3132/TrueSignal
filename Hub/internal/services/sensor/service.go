@@ -17,6 +17,7 @@ type Store interface {
 	GetSensorLastHeartbeat(nodeID, sensorID string) (string, error)
 	GetSensorLatestStatus(nodeID, sensorID string) (string, error)
 	InsertStatusChange(nodeID, sensorID, status, timestamp string) error
+	HasSensorBeenOnline(nodeID, sensorID string) (bool, error)
 }
 
 // Broadcaster defines how the service sends real-time updates
@@ -87,8 +88,9 @@ func (s *Service) ProcessHeartbeat(nodeID, sensorID, configRev string) error {
 			log.Printf("[WARNING] Failed to log status change: %v", err)
 		}
 		// Only a return from a known-offline state is a recovery; the very
-		// first heartbeat of a newly deployed sensor is not.
-		if latestStatus == "offline" {
+		// first heartbeat of a newly deployed sensor is not, even though the
+		// state monitor records a never-seen sensor as offline (pending).
+		if latestStatus == "offline" && s.wasOnline(nodeID, sensorID) {
 			s.emit(nodeID, sensorID, TriggerSensorRecovered, "info", map[string]any{"config_rev": configRev})
 		}
 		s.broadcaster.Broadcast("NODE_SYNCED", map[string]interface{}{
@@ -155,4 +157,15 @@ func (s *Service) ToggleSilence(nodeID, sensorID string, isSilenced bool) error 
 	})
 
 	return nil
+}
+
+// wasOnline reports whether the sensor was ever online before (the status
+// row this heartbeat just inserted aside, there must be an earlier one).
+func (s *Service) wasOnline(nodeID, sensorID string) bool {
+	ok, err := s.store.HasSensorBeenOnline(nodeID, sensorID)
+	if err != nil {
+		log.Printf("[WARNING] Failed to check sensor history for %s/%s: %v", nodeID, sensorID, err)
+		return true // keep reporting recoveries rather than hide one
+	}
+	return ok
 }

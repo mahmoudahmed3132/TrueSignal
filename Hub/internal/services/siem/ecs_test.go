@@ -381,3 +381,62 @@ func TestHoneytokenRecordsNeverCarrySecret(t *testing.T) {
 		t.Fatalf("queued record = %+v", item.honeytoken)
 	}
 }
+
+// A collector restart must not swallow the next record: the Hub notices the
+// closed stream and redials instead of writing into the dead connection.
+func TestStreamSurvivesCollectorRestart(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	svc := NewService(nil)
+	svc.UpdateConfig(Output{Address: ln.Addr().String(), Protocol: "tcp", Format: "ECS"})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorker(ctx)
+
+	readLine := func(c net.Conn) string {
+		c.SetReadDeadline(time.Now().Add(5 * time.Second))
+		line, err := bufio.NewReader(c).ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		return line
+	}
+	first := ldapLoginEvent()
+	first.ID = 1
+	svc.QueueEvent(first)
+	c1, err := ln.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	readLine(c1)
+	c1.Close() // collector restarts
+	time.Sleep(50 * time.Millisecond)
+
+	second := ldapLoginEvent()
+	second.ID = 2
+	svc.QueueEvent(second)
+	ln.(*net.TCPListener).SetDeadline(time.Now().Add(5 * time.Second))
+	c2, err := ln.Accept()
+	if err != nil {
+		t.Fatalf("Hub did not reconnect: %v", err)
+	}
+	defer c2.Close()
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(readLine(c2)), &doc); err != nil || get(doc, "event.id") != "2" {
+		t.Fatalf("second record lost or wrong: %v %v", doc, err)
+	}
+}
+
+func TestECSUserDomainFromAnyField(t *testing.T) {
+	for _, d := range []map[string]any{{"bind_dn": `CORP\jdoe`}, {"attempted_username": `CORP\jdoe`}, {"username": `CORP\jdoe`}} {
+		if u := ecsUser(d); u["domain"] != "CORP" || u["name"] != "jdoe" {
+			t.Errorf("%v -> %v", d, u)
+		}
+	}
+	if u := ecsUser(map[string]any{"bind_dn": `CN=svc\, ops,DC=corp,DC=local`}); u["domain"] != nil {
+		t.Errorf("DN was split: %v", u)
+	}
+}

@@ -4,10 +4,39 @@ import (
 	"testing"
 )
 
+type recordingEmitter struct{ triggers []string }
+
+func (r *recordingEmitter) EmitSystemEvent(nodeID, sensorID, trigger, severity string, details map[string]any) {
+	r.triggers = append(r.triggers, trigger)
+}
+
+// A never-seen sensor is recorded offline (pending) by the state monitor;
+// its first heartbeat is not a recovery. A sensor that was online is.
+func TestFirstHeartbeatIsNotARecovery(t *testing.T) {
+	for _, tc := range []struct {
+		prior bool
+		want  int
+	}{{false, 0}, {true, 1}} {
+		em := &recordingEmitter{}
+		svc := NewService(&mockStore{latestStatus: "offline", priorOnline: tc.prior}, &mockBroadcaster{}, em)
+		if err := svc.ProcessHeartbeat("n", "s", "rev"); err != nil {
+			t.Fatal(err)
+		}
+		if len(em.triggers) != tc.want {
+			t.Errorf("prior online %v: emitted %v", tc.prior, em.triggers)
+		}
+	}
+}
+
 type mockStore struct {
 	latestStatus   string
 	insertedStatus []string
 	lastHeartbeat  string
+	priorOnline    bool // was online before this heartbeat
+}
+
+func (m *mockStore) HasSensorBeenOnline(nodeID, sensorID string) (bool, error) {
+	return m.priorOnline, nil
 }
 
 func (m *mockStore) ProcessHeartbeat(nodeID, sensorID, configRev, nowStr string) (bool, error) {

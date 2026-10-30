@@ -180,7 +180,10 @@ func ecsUser(details map[string]any) map[string]any {
 			continue
 		}
 		user := map[string]any{"name": name}
-		if key == "username" {
+		// DOMAIN\user splits into user.domain / user.name whatever field it
+		// came in (AD accepts it as a simple-bind name too), so joins with
+		// Windows logs on user.name work. A real DN (cn=…,dc=…) stays whole.
+		if !strings.Contains(name, "=") {
 			if dom, u, found := strings.Cut(name, `\`); found && dom != "" && u != "" {
 				user["domain"] = dom
 				user["name"] = u

@@ -305,6 +305,27 @@ func (s *Service) StartWorker(ctx context.Context) {
 	}()
 }
 
+// peerClosed reports whether the collector has closed a stream connection.
+// Collectors never send on a syslog stream, so a read that does not time
+// out at once means EOF or a reset. A short timeout is temporary and leaves
+// TCP and TLS connections usable. Best effort: a close that races the
+// write can still lose that record; the HTTP outputs are the lossless ones.
+func peerClosed(conn net.Conn) bool {
+	if err := conn.SetReadDeadline(time.Now().Add(time.Millisecond)); err != nil {
+		return true
+	}
+	defer conn.SetReadDeadline(time.Time{})
+	var b [1]byte
+	_, err := conn.Read(b[:])
+	if err == nil {
+		return false // unexpected data from the collector; the stream is alive
+	}
+	if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		return false
+	}
+	return true
+}
+
 // dial opens the configured transport. "tls" is TCP with TLS 1.2+ and
 // certificate verification (system roots or TS_SIEM_CA_FILE).
 func (s *Service) dial(proto, addr string) (net.Conn, error) {
@@ -327,6 +348,15 @@ func (sess *streamSession) processWithRetry(ctx context.Context, msg string) {
 
 		if addr == "" || IsHTTPProtocol(proto) {
 			return // Exporter explicitly disabled via configuration
+		}
+
+		// A collector that restarted closed our connection, but writes into
+		// it keep "succeeding" (into the kernel buffer) until the RST
+		// arrives, silently losing records. Check an existing TCP/TLS
+		// connection before writing and redial if the peer is gone.
+		if sess.conn != nil && proto != "udp" && addr == sess.currentAddr && proto == sess.currentProto && peerClosed(sess.conn) {
+			log.Printf("[!] SIEM collector closed the stream (%s://%s); reconnecting before the next write.", proto, addr)
+			sess.close()
 		}
 
 		// Handle Stream Synchronization/Instantiation cleanly
@@ -528,10 +558,10 @@ func (s *Service) formatSyslog(event models.Event) string {
 	if m, ok := attack.For(event.EventTrigger); ok {
 		mitreTechnique, mitreTactic, mitre = m.Primary.ID, m.Primary.TacticIDs(), m
 	}
-	var country string
+	var country, geoBasis string
 	var sourceGeo any
 	if event.SourceGeo != nil {
-		country, sourceGeo = event.SourceGeo.CountryCode, event.SourceGeo
+		country, geoBasis, sourceGeo = event.SourceGeo.CountryCode, event.SourceGeo.Basis, event.SourceGeo
 	}
 
 	sd := structuredData("truesignal@"+s.pen, [][2]string{
@@ -551,6 +581,9 @@ func (s *Service) formatSyslog(event models.Event) string {
 		{"source_asset_criticality", assetCriticality},
 		// Added for Hub 2.4.0; always present, empty when not located.
 		{"source_country", country},
+		// "source" (the source address) or "client_subnet" (a DNS beacon's
+		// EDNS Client Subnet, not the resolver in source). Always present.
+		{"source_geo_basis", geoBasis},
 	})
 
 	body, _ := json.Marshal(map[string]any{

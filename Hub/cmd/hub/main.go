@@ -171,7 +171,9 @@ func main() {
 		log.Fatalf("[FATAL] Router setup failed: %v", err)
 	}
 
-	if token := configService.EnsureSetupToken(); token != "" {
+	if token := configService.EnsureSetupToken(); token != "" && os.Getenv("TS_SETUP_TOKEN") != "" {
+		log.Printf("[SETUP] Hub is not initialised. Use the setup token from TS_SETUP_TOKEN on the setup page (not logged).")
+	} else if token != "" {
 		log.Printf("[SETUP] Hub is not initialised. One-time setup token: %s", token)
 		log.Printf("[SETUP] Enter it on the setup page to create the admin account.")
 	}
