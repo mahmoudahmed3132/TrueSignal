@@ -1,6 +1,7 @@
 package sensor
 
 import (
+	"database/sql"
 	"errors"
 	"log"
 	"strings"
@@ -17,7 +18,6 @@ type Store interface {
 	GetSensorLastHeartbeat(nodeID, sensorID string) (string, error)
 	GetSensorLatestStatus(nodeID, sensorID string) (string, error)
 	InsertStatusChange(nodeID, sensorID, status, timestamp string) error
-	HasSensorBeenOnline(nodeID, sensorID string) (bool, error)
 }
 
 // Broadcaster defines how the service sends real-time updates
@@ -74,6 +74,15 @@ func (s *Service) ProcessHeartbeat(nodeID, sensorID, configRev string) error {
 	// this incoming heartbeat marks an online transition.
 	isOffline := (latestStatus != "online")
 
+	// Whether the sensor ever reported before this heartbeat. last_heartbeat
+	// is set by every heartbeat and sensor event and never cleared, unlike
+	// status history, which heartbeat retention trims to the latest row.
+	prevHeartbeat, err := s.store.GetSensorLastHeartbeat(nodeID, sensorID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[WARNING] Failed to read last heartbeat for %s/%s: %v", nodeID, sensorID, err)
+		prevHeartbeat = "unknown" // keep reporting recoveries rather than hide one
+	}
+
 	_, err = s.store.ProcessHeartbeat(nodeID, sensorID, configRev, nowStr)
 	if err != nil {
 		if errors.Is(err, models.ErrNotFound) {
@@ -90,7 +99,7 @@ func (s *Service) ProcessHeartbeat(nodeID, sensorID, configRev string) error {
 		// Only a return from a known-offline state is a recovery; the very
 		// first heartbeat of a newly deployed sensor is not, even though the
 		// state monitor records a never-seen sensor as offline (pending).
-		if latestStatus == "offline" && s.wasOnline(nodeID, sensorID) {
+		if latestStatus == "offline" && prevHeartbeat != "" {
 			s.emit(nodeID, sensorID, TriggerSensorRecovered, "info", map[string]any{"config_rev": configRev})
 		}
 		s.broadcaster.Broadcast("NODE_SYNCED", map[string]interface{}{
@@ -157,15 +166,4 @@ func (s *Service) ToggleSilence(nodeID, sensorID string, isSilenced bool) error 
 	})
 
 	return nil
-}
-
-// wasOnline reports whether the sensor was ever online before (the status
-// row this heartbeat just inserted aside, there must be an earlier one).
-func (s *Service) wasOnline(nodeID, sensorID string) bool {
-	ok, err := s.store.HasSensorBeenOnline(nodeID, sensorID)
-	if err != nil {
-		log.Printf("[WARNING] Failed to check sensor history for %s/%s: %v", nodeID, sensorID, err)
-		return true // keep reporting recoveries rather than hide one
-	}
-	return ok
 }

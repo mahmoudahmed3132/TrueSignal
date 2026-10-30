@@ -483,6 +483,12 @@ func (s *Service) ValidateSensors(sensors []models.NodeSensor, currentHubVersion
 			}
 			portOwner[p] = sensor.ID
 		}
+		// The build checks what only exists once env is expanded: dynamic
+		// mounts from values like TS_DECOY_FILES must pass the same
+		// denylist as at render time (e.g. /run/docker.sock is refused).
+		if _, err := composeEngine.BuildService(sensor.ID, manifest, envMap); err != nil {
+			return fmt.Errorf("build_failed: %w", err)
+		}
 	}
 	return nil
 }

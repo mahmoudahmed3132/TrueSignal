@@ -510,3 +510,35 @@ func TestValidateSensors(t *testing.T) {
 		t.Fatalf("unknown: %v", err)
 	}
 }
+
+// A forbidden dynamic mount (here the Docker socket via TS_DECOY_FILES) is
+// refused before saving, not only when the node later renders its compose.
+func TestValidateSensorsRejectsForbiddenDynamicMount(t *testing.T) {
+	canary := map[string]interface{}{
+		"id": "ts-sensor-canary", "version": "1.0.0",
+		"deployment": map[string]interface{}{
+			"image_repository": "canary", "image_tag": "1.0.0", "image_digest": testDigest,
+			"volume_mounts": []map[string]interface{}{{"type": "dynamic_file_bind", "source_env": "TS_DECOY_FILES", "target_prefix": "/canaries"}},
+			"env_vars":      []map[string]interface{}{{"name": "TS_DECOY_FILES", "default": "/srv/app/.env", "type": "string"}},
+		},
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/canary-v1.0.0.json" {
+			json.NewEncoder(w).Encode(canary)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+	store := &portClashStore{RegistryURL: ts.URL}
+	svc := composesvc.NewService(store, catalog.NewService(store, nil))
+
+	ok := []models.NodeSensor{{ID: "ts-sensor-canary", DeployedVersion: "1.0.0"}}
+	if err := svc.ValidateSensors(ok, "1.0.0"); err != nil {
+		t.Fatalf("default lure path: %v", err)
+	}
+	bad := []models.NodeSensor{{ID: "ts-sensor-canary", DeployedVersion: "1.0.0", EnvVars: map[string]interface{}{"TS_DECOY_FILES": "/run/docker.sock"}}}
+	if err := svc.ValidateSensors(bad, "1.0.0"); err == nil || !strings.Contains(err.Error(), "build_failed") {
+		t.Fatalf("docker socket accepted: %v", err)
+	}
+}
