@@ -1,0 +1,161 @@
+{
+  "id": "ts-sensor-token-receiver",
+  "version": "2.0.0",
+  "name": "Token Receiver (beacons)",
+  "category": "deception",
+  "osi_layer": "Application Layer",
+  "icon_svg": "M12 20h.01M8.5 16.5a5 5 0 017 0M5 13a10 10 0 0114 0M1.5 9.5a15 15 0 0121 0",
+  "description": "Callback endpoint for beacons (DNS tokens, web bugs, kubeconfig files) created on the Hub's Beacons page. Deploy it on its own internet-facing node; the Hub stays internal.",
+  "documentation": {
+    "summary": "The Token Receiver is an authoritative-only DNS server for one delegated zone and a fixed-response HTTP endpoint. Beacons the Hub generates point into that zone. When an intruder uses one (resolves the planted host name, opens a document with a web bug, runs kubectl with the planted kubeconfig) the lookup or request reaches the receiver, which raises a critical beacon_triggered event. Tokens are HMAC-tagged, so random names under the zone raise nothing.",
+    "sections": [
+      {
+        "title": "Features",
+        "type": "list",
+        "content": [
+          "DNS (UDP and TCP): answers SOA/NS at the apex and A for every name in the zone (TS_ANSWER_IPV4); everything else is NODATA. Names outside the zone are REFUSED: no recursion, no forwarding.",
+          "Records the resolver, query name and type, and the EDNS Client Subnet when the resolver sends one (the network of the real client behind a public resolver).",
+          "HTTP: every request gets the same 1x1 GIF with no-cache headers; requests carrying a token are recorded with method, host, path, User-Agent and Referer. X-Forwarded-For is believed only from TS_TRUSTED_PROXIES.",
+          "One event per token and channel per TS_ALERT_COOLDOWN; repeats are counted (repeats_since_last)."
+        ]
+      },
+      {
+        "title": "Deployment",
+        "type": "list",
+        "content": [
+          "Delegate a subdomain (e.g. t.example.com) to this host: NS record for the subdomain pointing at a name with an A record (glue) for the receiver's public address.",
+          "Expose udp+tcp/53 and tcp/80 from the internet to this node only. The node needs outbound HTTPS to the Hub's sensor API and nothing else.",
+          "For HTTPS web bugs, terminate TLS on a front end (F5) and list it in TS_TRUSTED_PROXIES."
+        ]
+      },
+      {
+        "title": "Security Architecture",
+        "type": "list",
+        "content": [
+          "Global Sandbox Baseline: Enforced by the TrueSignal Hub. Drops ALL default Linux kernel capabilities and enforces a read-only filesystem.",
+          "Execution Privilege: Runs as container root (UID 0) strictly to bind ports 53 and 80.",
+          "Token check: TS_BEACON_KEY is a Hub-derived key shared by all receivers; the master never leaves the Hub. It can verify tokens but the Hub decides which beacon a token belongs to.",
+          "DNS replies are rate-limited per source (50/s) and no larger than a few records, so spoofed queries can't use the receiver as an amplifier."
+        ]
+      }
+    ]
+  },
+  "heuristics": {
+    "triggers": {
+      "processes": [],
+      "ports": []
+    },
+    "recommendation_reason": "Deploy manually on an internet-facing node to receive beacon callbacks."
+  },
+  "deployment": {
+    "network_mode": "host",
+    "user": "0:0",
+    "cap_add": [
+      "NET_BIND_SERVICE"
+    ],
+    "listen_ports_env": [
+      "TS_SERVICES"
+    ],
+    "env_vars": [
+      {
+        "name": "TS_HUB_ENDPOINT",
+        "description": "The URL of your central TrueSignal Hub.",
+        "default": "__HUB_ENDPOINT__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_HUB_KEY",
+        "description": "The shared Node Key.",
+        "default": "__HUB_KEY__",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SENSOR_ID",
+        "description": "Unique identifier for this specific trap.",
+        "default": "ts-sensor-token-receiver",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_TEST_MODE",
+        "description": "Enable CI/CD synthetic alerts.",
+        "default": "false",
+        "type": "string",
+        "required": true,
+        "hidden": true
+      },
+      {
+        "name": "TS_SEVERITY",
+        "description": "Unused: beacon events are always critical; the Hub lowers unknown tokens to medium.",
+        "default": "critical",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      },
+      {
+        "name": "TS_BEACON_DOMAIN",
+        "description": "The zone delegated to this receiver, e.g. t.example.com. Beacons created on the Hub point into it.",
+        "default": "",
+        "type": "string",
+        "required": true,
+        "hidden": false
+      },
+      {
+        "name": "TS_BEACON_NS",
+        "description": "Comma-separated name servers of the zone, as in the parent's NS records. Default ns1.<zone>.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_ANSWER_IPV4",
+        "description": "This receiver's public IPv4 address. A queries for the zone are answered with it, so web bugs reach the HTTP listener. Empty: A queries get NODATA (DNS beacons still fire).",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_SERVICES",
+        "description": "Comma-separated listeners as proto:port (dns serves UDP and TCP).",
+        "default": "dns:53,http:80",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_ALERT_COOLDOWN",
+        "description": "Minimum time between two events for the same token and channel (one lookup is several queries).",
+        "default": "60s",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_TRUSTED_PROXIES",
+        "description": "IPs/CIDRs of a TLS front end whose X-Forwarded-For is believed. Empty: the TCP peer is the source.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": false
+      },
+      {
+        "name": "TS_BEACON_KEY",
+        "description": "Set by the Hub: the receiver key that verifies beacon tokens. Any value set here is ignored.",
+        "default": "",
+        "type": "string",
+        "required": false,
+        "hidden": true
+      }
+    ],
+    "image_repository": "ghcr.io/mahmoudahmed3132/truesignal-tokenreceiver",
+    "image_tag": "v2.0.0",
+    "image_digest": "sha256:5957ed13fc730d40a638295284ebaee71c2c49f30ba8ece26a99b44580428b69"
+  }
+}

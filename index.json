@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-30T21:14:59Z",
+  "generated": "2026-10-30T21:15:07Z",
   "sensors": [
     {
       "id": "ts-sensor-database-decoy",
@@ -121,6 +121,18 @@
         },
         {
           "v": "2.0.3"
+        }
+      ]
+    },
+    {
+      "id": "ts-sensor-token-receiver",
+      "name": "Token Receiver (beacons)",
+      "category": "deception",
+      "icon_svg": "M12 20h.01M8.5 16.5a5 5 0 017 0M5 13a10 10 0 0114 0M1.5 9.5a15 15 0 0121 0",
+      "latest": "2.0.0",
+      "versions": [
+        {
+          "v": "2.0.0"
         }
       ]
     },
