@@ -1,3 +1,17 @@
+# [Unreleased] - SIEM detection rules for Elastic and LogScale (2026-10-30)
+
+* **16 Elastic Security rules and a matching LogScale query for each** (`Docs/siem/elastic/`, `Docs/siem/logscale/`, catalog with triage and false positives in `Docs/siem/detection-rules.md`). They cover:
+  * beacons: known (external / internal source), unknown token, unexpected country (GeoIP basis-aware, ships disabled);
+  * sustained Token Receiver saturation;
+  * honeytoken use; SSH/RDP lateral movement; other decoy logins; a baseline rule for every other decoy alert;
+  * scan-then-touch; high/critical source assets;
+  * liveness: heartbeat lost, still dark after 30 minutes;
+  * Hub audit: MFA reset or disable, changes that can blind detection, admin login brute force.
+* Every decoy event raises exactly one primary alert; correlation and escalation rules add to it. All rules drop whitelisted and known-scanner sources. The Hub already exempts `honeytoken_used` and known beacons from both lists, and a test now enforces that.
+* **Tested against real output.** `TestSIEMDetectionSamples` runs 57 scenarios through the real event pipeline and the ECS formatter into `Docs/siem/testdata/detection-samples.ndjson`, and fails on drift. `TestSIEMRuleFieldsExist` rejects any rule field the Hub does not emit. `scripts/siem-rules/run-elastic.sh` (workflow **SIEM Rules**) imports the rules into a real Elasticsearch/Kibana 8.19 detection engine and checks every alert against `scripts/siem-rules/expected-elastic.json`. **The LogScale queries are field-checked only, not executed.**
+* `Docs/siem/attack-mapping.md`: the LogScale example now uses `array:contains("threat.tactic.id[]", …)`. The JSON parser flattens arrays, so `threat.tactic.id="TA0008"` never matched.
+* No change to the Hub binary or the SIEM output format.
+
 # [Unreleased] - Hub compose never builds from source (2026-10-30)
 
 * **`Hub/docker-compose.yml` no longer has a `build:` section next to `image:`.**

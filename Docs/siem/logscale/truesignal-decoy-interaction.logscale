@@ -1,0 +1,9 @@
+// truesignal-decoy-interaction: baseline, any decoy alert not covered by a dedicated rule. Severity follows truesignal.severity.
+// Excludes beacons, receiver saturation and authentication triggers (*_login, web_login*, honeytoken_used).
+// Elastic twin: Docs/siem/elastic/truesignal-decoy-interaction.json
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.kind="alert"
+| event.action!=/_login$|^web_login|^honeytoken_used$|^beacon_triggered$|^receiver_saturated$/
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| table([@timestamp, truesignal.severity, host.name, event.action, source.ip, file.path, url.path, truesignal.source_asset.name])

@@ -1,0 +1,51 @@
+{
+  "rule_id": "truesignal-critical-asset-source",
+  "name": "TrueSignal decoy touched from a high-criticality asset",
+  "description": "A decoy was touched from an address the Hub's Assets page marks high or critical. A production system has no reason to talk to a decoy, so the asset itself is the likely compromised machine. Escalation on top of the per-event rule.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "high",
+  "risk_score": 85,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Escalation",
+    "Asset"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-critical-asset-source"
+  ],
+  "false_positives": [
+    "Monitoring, backup or inventory agents on the asset that sweep the decoy subnet.",
+    "Asset ranges on the Assets page that are wider than the asset."
+  ],
+  "note": "## Triage\n1. `truesignal.source_asset.name` is the asset; its owner is on the Hub's Assets page.\n2. Pull the asset's EDR timeline around `@timestamp` (Falcon process tree for the connecting process).\n3. Check for a recent change on the asset (deployment, new monitoring agent) before declaring compromise; then contain.",
+  "threat": [],
+  "query": "event.dataset:\"truesignal.alert\" and event.kind:\"alert\" and truesignal.source_asset.criticality:(\"high\" or \"critical\") and not truesignal.whitelisted:true and not truesignal.known_scanner:true",
+  "type": "query",
+  "language": "kuery",
+  "severity_mapping": [
+    {
+      "field": "truesignal.source_asset.criticality",
+      "operator": "equals",
+      "value": "critical",
+      "severity": "critical"
+    },
+    {
+      "field": "truesignal.source_asset.criticality",
+      "operator": "equals",
+      "value": "high",
+      "severity": "high"
+    }
+  ]
+}

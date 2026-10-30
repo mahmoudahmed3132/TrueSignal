@@ -1,0 +1,14 @@
+// truesignal-beacon-unexpected-country: known beacon located outside the expected countries (high). Disabled by default.
+// Elastic twin: Docs/siem/elastic/truesignal-beacon-unexpected-country.json
+// The location is trusted only for the client: basis client_subnet, or basis source on an HTTP beacon.
+// A DNS beacon located by its source is the resolver, never used here.
+// [NOT IN PROJECT] Replace "EG" with every country your staff, VPN egress and cloud regions use.
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action="beacon_triggered" truesignal.details.beacon.id=*
+| case {
+    truesignal.source_geo.basis="client_subnet";
+    truesignal.source_geo.basis="source" truesignal.details.channel="http";
+  }
+| !in(field="truesignal.source_geo.countryCode", values=["EG"])
+| table([@timestamp, host.name, source.ip, truesignal.details.channel, truesignal.source_geo.countryCode, truesignal.source_geo.basis, truesignal.source_geo.address, truesignal.details.beacon.name])

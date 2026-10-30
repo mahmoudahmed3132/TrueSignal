@@ -1,0 +1,56 @@
+{
+  "rule_id": "truesignal-sensor-dark",
+  "name": "TrueSignal sensor still down after 30 minutes",
+  "description": "A sensor's latest liveness event in the last 24 hours is sensor_heartbeat_lost, at least 30 minutes old, with no sensor_recovered after it. The decoy is blind. Re-alerts every run while it stays down (ES|QL aggregating rule).",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "severity": "high",
+  "risk_score": 73,
+  "interval": "1h",
+  "from": "now-24h",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Liveness"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-sensor-dark"
+  ],
+  "false_positives": [
+    "Decommissioned sensors removed without deleting them on the Hub (delete them, or the rule repeats for 24 hours).",
+    "Long planned maintenance."
+  ],
+  "note": "## Triage\n1. The alert lists `host.name`, `truesignal.sensor_id`, `last_lost` and `last_recovered`.\n2. Restore the sensor (`truesignal apply` on the node) or record the outage; a decoy an intruder disabled is evidence, so check the host before redeploying.\n3. Stops alerting once the sensor heartbeats again (the Hub emits `sensor_recovered`) or 24 hours after the loss.",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0005",
+        "name": "Defense Evasion",
+        "reference": "https://attack.mitre.org/tactics/TA0005/"
+      },
+      "technique": [
+        {
+          "id": "T1562",
+          "name": "Impair Defenses",
+          "reference": "https://attack.mitre.org/techniques/T1562/",
+          "subtechnique": [
+            {
+              "id": "T1562.001",
+              "name": "Disable or Modify Tools",
+              "reference": "https://attack.mitre.org/techniques/T1562/001/"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "query": "FROM logs-truesignal-*\n| WHERE event.dataset == \"truesignal.alert\" AND event.action IN (\"sensor_heartbeat_lost\", \"sensor_recovered\") AND truesignal.whitelisted == false AND truesignal.known_scanner == false\n| EVAL lost = CASE(event.action == \"sensor_heartbeat_lost\", @timestamp, null), recovered = CASE(event.action == \"sensor_recovered\", @timestamp, null)\n| STATS last_lost = MAX(lost), last_recovered = MAX(recovered) BY host.id, host.name, truesignal.sensor_id\n| WHERE last_lost IS NOT NULL AND (last_recovered IS NULL OR last_recovered < last_lost) AND last_lost <= NOW() - 30 minutes\n| KEEP host.id, host.name, truesignal.sensor_id, last_lost, last_recovered",
+  "type": "esql",
+  "language": "esql"
+}

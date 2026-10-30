@@ -1,0 +1,36 @@
+{
+  "rule_id": "truesignal-beacon-unexpected-country",
+  "name": "TrueSignal beacon located outside the expected countries",
+  "description": "A known beacon fired from outside the expected countries. The location is trusted only when it describes the client: an EDNS client subnet (truesignal.source_geo.basis: client_subnet) or the source address of an HTTP beacon. A DNS beacon located by its source is the resolver, so it is never used here. Ships disabled: set the expected-country list first.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": false,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "high",
+  "risk_score": 80,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Beacon",
+    "GeoIP"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-beacon-unexpected-country"
+  ],
+  "false_positives": [
+    "Travelling staff, VPN or cloud egress in another country, privacy relays (iCloud Private Relay, corporate SASE) that hide the client's country."
+  ],
+  "note": "## Before enabling\nReplace the country list in the query (`EG` is a placeholder) with every country your staff, VPN egress and cloud regions legitimately use. [NOT IN PROJECT]\n\n## Triage\n1. This always accompanies truesignal-beacon-triggered for the same event; triage that alert and use this one as context.\n2. `truesignal.source_geo.address` is the address that was located (the subnet network for `client_subnet`).",
+  "threat": [],
+  "query": "event.dataset:\"truesignal.alert\" and event.action:\"beacon_triggered\" and truesignal.details.beacon.id:* and (truesignal.source_geo.basis:\"client_subnet\" or (truesignal.source_geo.basis:\"source\" and truesignal.details.channel:\"http\")) and not truesignal.source_geo.countryCode:(\"EG\")",
+  "type": "query",
+  "language": "kuery"
+}

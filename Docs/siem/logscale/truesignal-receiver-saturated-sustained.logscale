@@ -1,0 +1,9 @@
+// truesignal-receiver-saturated-sustained: one Token Receiver listener refused connections for 15 minutes (medium).
+// The sensor reports at most once per listener per 5 minutes, so 3 reports = sustained.
+// Elastic twin: Docs/siem/elastic/truesignal-receiver-saturated-sustained.json
+// Schedule: every 5m over the last 16m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action="receiver_saturated"
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| groupBy([host.id, host.name, truesignal.details.listener], function=[count(as=reports), max(truesignal.details.distinct_sources, as=max_distinct_sources)])
+| reports >= 3

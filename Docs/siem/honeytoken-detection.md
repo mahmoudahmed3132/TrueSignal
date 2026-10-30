@@ -1,6 +1,6 @@
 # Honeytoken Detection Beyond the Decoys
 
-The Hub raises `honeytoken_used` when a planted credential is tried against a TrueSignal decoy. Attackers also try stolen credentials against real systems: domain controllers, VPN, databases, and the endpoints the Falcon sensor covers. The Hub can't see those logins, but your SIEM can. This page connects them.
+The Hub raises `honeytoken_used` when a planted credential is tried against a TrueSignal decoy (rule `truesignal-honeytoken-used`, `Docs/siem/detection-rules.md`). Attackers also try stolen credentials against real systems: domain controllers, VPN, databases, and the endpoints the Falcon sensor covers. The Hub can't see those logins, but your SIEM can. This page connects them.
 
 Honeytoken usernames (`svc_<word><4 hex>`) match no real account. **Any authentication event that names one is malicious, whether it succeeded or failed.** False positives arise only if someone creates a real account with that exact name.
 

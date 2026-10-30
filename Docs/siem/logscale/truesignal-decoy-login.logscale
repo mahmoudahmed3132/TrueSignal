@@ -1,0 +1,8 @@
+// truesignal-decoy-login: login attempt against a decoy service, not SSH/RDP (TA0008) and not honeytoken_used.
+// Severity follows truesignal.severity (default critical). Elastic twin: Docs/siem/elastic/truesignal-decoy-login.json
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action=/_login$|^web_login/ event.action!="honeytoken_used"
+| !array:contains("threat.tactic.id[]", value="TA0008")
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| table([@timestamp, truesignal.severity, host.name, event.action, source.ip, user.domain, user.name, destination.port, truesignal.source_asset.name])

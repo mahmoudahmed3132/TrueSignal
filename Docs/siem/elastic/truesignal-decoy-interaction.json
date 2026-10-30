@@ -1,0 +1,69 @@
+{
+  "rule_id": "truesignal-decoy-interaction",
+  "name": "TrueSignal decoy interaction",
+  "description": "Baseline rule: any TrueSignal decoy alert not covered by a dedicated rule (scans, connections, queries, path probes, page views, file access and tampering). Every interaction with a decoy is suspicious by design; severity and risk follow the event. Beacons, receiver saturation, logins and honeytoken use have their own rules.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "medium",
+  "risk_score": 47,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Baseline"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-decoy-interaction"
+  ],
+  "false_positives": [
+    "Monitoring (ICMP/uptime checks, SNMP pollers), backup and inventory agents reaching the decoys: add them to the whitelist or known scanners on the Hub.",
+    "Wizard firedrills (source `Wizard Firedrill`)."
+  ],
+  "note": "## Triage\n1. `event.action` and `truesignal.details` say what was done; `threat.*` carries the ATT&CK mapping.\n2. File Canary (`decoy_file_accessed`/`decoy_file_tampered`): `file.path` is the lure; find the process via EDR file telemetry on `host.name`.\n3. Network decoys: identify `source.ip` and look for other TrueSignal alerts from it (scan-then-touch fires when it escalates).",
+  "threat": [],
+  "query": "event.dataset:\"truesignal.alert\" and event.kind:\"alert\" and not event.category:\"authentication\" and not event.action:(\"beacon_triggered\" or \"receiver_saturated\") and not truesignal.whitelisted:true and not truesignal.known_scanner:true",
+  "type": "query",
+  "language": "kuery",
+  "severity_mapping": [
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "low",
+      "severity": "low"
+    },
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "medium",
+      "severity": "medium"
+    },
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "high",
+      "severity": "high"
+    },
+    {
+      "field": "truesignal.severity",
+      "operator": "equals",
+      "value": "critical",
+      "severity": "critical"
+    }
+  ],
+  "risk_score_mapping": [
+    {
+      "field": "event.severity",
+      "operator": "equals",
+      "value": ""
+    }
+  ]
+}

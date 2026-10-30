@@ -4,6 +4,8 @@ The Hub forwards every event (including whitelisted evidence and Hub-generated l
 
 Field additions per release are announced in a SOC notice (Hub 2.3.0: `Docs/siem/soc-notice-2.3.0.md`).
 
+Detection rules for Elastic Security and LogScale, tested against this output: `Docs/siem/detection-rules.md`.
+
 ## Outputs
 
 | `siemProtocol` | `siemAddress` | Payload | Auth |

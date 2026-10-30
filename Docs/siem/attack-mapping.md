@@ -36,4 +36,4 @@ The mapping is derived when events are read or forwarded, never stored, so a cha
 | RFC 5424 syslog | structured data `mitre_technique="T1021.004" mitre_tactic="TA0008"` (comma-separated when several; both always present, empty when unmapped); JSON body `"attack"` (object or `null`) |
 | Hub API | `attack` on every event (`GET /api/v2/events`, WebSocket `NEW_EVENT`); `GET /api/v2/attack`; `GET /api/v2/attack/layer` (ATT&CK Navigator layer, format 4.5) |
 
-Example Elastic query (KQL) for lateral movement against decoys: `event.module: "truesignal" and threat.tactic.id: "TA0008"`. LogScale: `#event.module="truesignal" | threat.tactic.id="TA0008"` (field names depend on your parser; with the HEC ECS input they arrive as shown).
+Example Elastic query (KQL) for lateral movement against decoys: `event.module: "truesignal" and threat.tactic.id: "TA0008"`. LogScale (HEC output, JSON parser, which flattens arrays to `threat.tactic.id[0]`, `[1]`, …): `event.module="truesignal" | array:contains("threat.tactic.id[]", value="TA0008")`. Shipped rules: `Docs/siem/detection-rules.md` (`truesignal-lateral-movement`).

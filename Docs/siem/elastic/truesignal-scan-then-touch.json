@@ -1,0 +1,52 @@
+{
+  "rule_id": "truesignal-scan-then-touch",
+  "name": "TrueSignal scan followed by decoy interaction from the same source",
+  "description": "A source was seen scanning (network_scan_detected or icmp_scan_received) and, within an hour, interacted with a decoy beyond discovery (any medium-or-higher alert that is not a scan or a bare *_connection). Scan-then-touch separates an operator working through targets from background noise. Correlates across nodes by source.ip.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "high",
+  "risk_score": 80,
+  "interval": "5m",
+  "from": "now-65m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Correlation",
+    "Discovery"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-scan-then-touch"
+  ],
+  "false_positives": [
+    "Authorised penetration tests and vulnerability scans with authenticated checks: add the scanners to known scanners for the test window."
+  ],
+  "note": "## Triage\n1. The sequence shows the scan (`host.name` of the scanning detector) and the follow-up (trigger, decoy, credentials tried).\n2. Identify `source.ip` (`truesignal.source_asset`, DHCP, EDR) and check it for an interactive session or implant.\n3. Escalate to an intrusion case if the follow-up is a login, file access or honeytoken.",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0007",
+        "name": "Discovery",
+        "reference": "https://attack.mitre.org/tactics/TA0007/"
+      },
+      "technique": [
+        {
+          "id": "T1046",
+          "name": "Network Service Discovery",
+          "reference": "https://attack.mitre.org/techniques/T1046/"
+        }
+      ]
+    }
+  ],
+  "query": "sequence by source.ip with maxspan=1h\n  [any where event.dataset == \"truesignal.alert\" and event.action in (\"network_scan_detected\", \"icmp_scan_received\") and truesignal.whitelisted == false and truesignal.known_scanner == false]\n  [any where event.dataset == \"truesignal.alert\" and event.kind == \"alert\" and event.severity >= 47 and not event.action in (\"network_scan_detected\", \"icmp_scan_received\") and not event.action like \"*_connection\" and truesignal.whitelisted == false and truesignal.known_scanner == false]",
+  "type": "eql",
+  "language": "eql"
+}

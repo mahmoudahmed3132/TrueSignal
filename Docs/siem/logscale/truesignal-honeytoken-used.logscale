@@ -1,0 +1,7 @@
+// truesignal-honeytoken-used: planted honeytoken credential used against a decoy (critical).
+// Hub-raised only; it ignores the source lists, so no list filter here.
+// Elastic twin: Docs/siem/elastic/truesignal-honeytoken-used.json. Real systems: Docs/siem/honeytoken-detection.md
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action="honeytoken_used"
+| table([@timestamp, host.name, source.ip, truesignal.details.honeytoken_username, truesignal.details.planted_node_id, truesignal.details.planted_sensor_id, truesignal.details.triggering_trigger])

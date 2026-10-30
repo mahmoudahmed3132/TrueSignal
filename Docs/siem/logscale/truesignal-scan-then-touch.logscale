@@ -1,0 +1,18 @@
+// truesignal-scan-then-touch: a source scanned, then touched a decoy beyond discovery within the hour (high).
+// "Touch" = alert of medium or higher that is not a scan and not a bare *_connection. Correlates across nodes.
+// Elastic twin (EQL sequence): Docs/siem/elastic/truesignal-scan-then-touch.json
+// Schedule: every 5m over the last 65m. correlate() (LogScale 1.150+) is an alternative to the groupBy below.
+event.module="truesignal" event.dataset="truesignal.alert"
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| case {
+    event.action=/^(network_scan_detected|icmp_scan_received)$/ | stage := "scan";
+    event.kind="alert" event.severity >= 47 event.action!=/_connection$/ | stage := "touch";
+  }
+| groupBy([source.ip], function=[
+    { stage="scan" | min(@timestamp, as=first_scan) },
+    { stage="touch" | max(@timestamp, as=last_touch) },
+    collect([event.action, host.name], limit=20)
+  ])
+| first_scan=* last_touch=*
+| test(last_touch > first_scan)
+| test(last_touch - first_scan <= 3600000)

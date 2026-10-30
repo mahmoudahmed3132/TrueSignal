@@ -1,0 +1,74 @@
+{
+  "rule_id": "truesignal-honeytoken-used",
+  "name": "TrueSignal honeytoken credential used against a decoy",
+  "description": "The Hub matched a planted honeytoken (a fabricated credential written into a File Canary lure) in a login against a decoy. The lure was read and its credential is being used. Raised by the Hub only (sensors cannot send it) and never subject to the whitelist or known-scanner lists, so this rule does not filter on them.",
+  "author": [
+    "TrueSignal"
+  ],
+  "license": "AGPL-3.0",
+  "version": 1,
+  "enabled": true,
+  "index": [
+    "logs-truesignal-*"
+  ],
+  "severity": "critical",
+  "risk_score": 99,
+  "interval": "5m",
+  "from": "now-6m",
+  "max_signals": 100,
+  "tags": [
+    "TrueSignal",
+    "Deception",
+    "Honeytoken",
+    "Credential Access"
+  ],
+  "references": [
+    "https://github.com/mahmoudahmed3132/TrueSignal/blob/main/Docs/siem/detection-rules.md#truesignal-honeytoken-used"
+  ],
+  "false_positives": [
+    "None expected. Only someone who read a lure knows the credential; an administrator testing with it should use a firedrill instead."
+  ],
+  "note": "## Triage\n1. `truesignal.details.planted_node_id` / `planted_sensor_id` name the lure; its `decoy_file_accessed` events show when and how it was read.\n2. `truesignal.details.triggering_trigger` / `triggering_event_id` point at the login that used it; `source.ip` is the attacker's host.\n3. Run truesignal-honeytoken-authentication (real systems) for the same `truesignal.details.honeytoken_username`.\n4. Treat as active intrusion: contain `source.ip` and the host that read the lure.",
+  "threat": [
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0001",
+        "name": "Initial Access",
+        "reference": "https://attack.mitre.org/tactics/TA0001/"
+      },
+      "technique": [
+        {
+          "id": "T1078",
+          "name": "Valid Accounts",
+          "reference": "https://attack.mitre.org/techniques/T1078/"
+        }
+      ]
+    },
+    {
+      "framework": "MITRE ATT&CK",
+      "tactic": {
+        "id": "TA0006",
+        "name": "Credential Access",
+        "reference": "https://attack.mitre.org/tactics/TA0006/"
+      },
+      "technique": [
+        {
+          "id": "T1552",
+          "name": "Unsecured Credentials",
+          "reference": "https://attack.mitre.org/techniques/T1552/",
+          "subtechnique": [
+            {
+              "id": "T1552.001",
+              "name": "Credentials In Files",
+              "reference": "https://attack.mitre.org/techniques/T1552/001/"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "query": "event.dataset:\"truesignal.alert\" and event.action:\"honeytoken_used\"",
+  "type": "query",
+  "language": "kuery"
+}

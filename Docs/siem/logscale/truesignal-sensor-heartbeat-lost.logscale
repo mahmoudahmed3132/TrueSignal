@@ -1,0 +1,7 @@
+// truesignal-sensor-heartbeat-lost: the Hub reports a sensor stopped heartbeating or was not restarted after a stop (high).
+// Elastic twin: Docs/siem/elastic/truesignal-sensor-heartbeat-lost.json
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action="sensor_heartbeat_lost"
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| table([@timestamp, host.name, truesignal.sensor_id, truesignal.details.reason, truesignal.details.last_heartbeat])

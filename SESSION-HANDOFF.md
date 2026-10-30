@@ -1,4 +1,4 @@
-# Session handoff (2026-10-30)
+# Session handoff (2026-10-30, updated after the SIEM rules)
 
 Read this first, then `CLAUDE.md` (project memory, kept current) and `Docs/KNOWLEDGE-GAPS.md`. Where docs and code disagree, trust the code.
 
@@ -52,7 +52,9 @@ Component map, env vars, conventions and hard rules: `CLAUDE.md` §2-§8.
 - **#33**: `Hub/docker-compose.yml` has no `build:`. A failed pull now fails `up` instead of building local source under the release tag (finding F3 from the release run). Builds are opt-in via `Hub/docker-compose.build.yml`. A CI guard checks it.
 - **This handoff PR**: fixes #32's Codex P2 (a stale run could still regress `:latest`). `:latest` moves in a separate `promote-latest` job, serialized across Hub tags (`concurrency: publish-hub-latest`). It points at the highest **published and cosign-verified** `hub/v*`, not its own tag. It is untested until the next Hub tag runs; check that run's `promote-latest` log.
 
-CI (Tests + Security Scans) on `main` @ `e920d88` (#33 merge): green.
+CI (Tests + Security Scans) on `main` @ `6121925` (#35 merge): green. #34 and #35 Codex reviews: #34's only P2 was fixed in #35 and resolved; #35 had no findings.
+
+- **#35** made `promote-latest` copy the signed manifest unchanged (`--prefer-index=false`) and fail unless `:latest` resolves to the cosign-verified digest. **Untested until the next `hub/v*` tag.** When it runs, its log must show `:latest -> vX.Y.Z (sha256:…)`, and `cosign verify ghcr.io/mahmoudahmed3132/truesignal-hub:latest` must pass.
 
 ### The owner's Mac lab (not production)
 
@@ -69,7 +71,7 @@ CI (Tests + Security Scans) on `main` @ `e920d88` (#33 merge): green.
 - No Token Receiver is deployed: it needs a DMZ host, a delegated zone (NS records) and `TS_ANSWER_IPV4`.
 - MFA is not enabled on any real Hub. No Hub sits behind TLS/F5 yet.
 
-## 4. PRs this session (branch `claude/vigilant-dirac-x3oppg`)
+## 4. Recent PRs (#27-#35 on branch `claude/vigilant-dirac-x3oppg`)
 
 | PR | What |
 |---|---|
@@ -80,7 +82,9 @@ CI (Tests + Security Scans) on `main` @ `e920d88` (#33 merge): green.
 | #31 | Late Codex fixes on #30 (preflight mounts, recovery detection) |
 | #32 | (owner) release notes per component, `:latest` race, CLAUDE.md |
 | #33 | Compose never builds from source |
-| (this) | Handoff + #32 Codex fix |
+| #34 | Handoff + #32 Codex fix |
+| #35 | Keep the signed digest when promoting `:latest` |
+| (branch `claude/loving-knuth-29rxvu`) | SIEM detection rules (Elastic + LogScale), sample corpus from the real pipeline, Kibana rule test + CI |
 
 All Codex P2s on #27-#31 were fixed, replied and resolved. #33: no findings. #32's thread is answered by this PR.
 
@@ -105,16 +109,11 @@ All Codex P2s on #27-#31 were fixed, replied and resolved. #33: no findings. #32
 
 ## 6. Open work, prioritised
 
-1. **SIEM detection content.** Offered, **awaiting the owner's "go"**. Only the honeytoken rule ships (`Docs/siem/elastic/`, `Docs/siem/honeytoken-detection.md`). Write Elastic rules (ndjson/TOML in `Docs/siem/elastic/`) and LogScale queries in parallel for:
-   - `beacon_triggered` with `beacon_known != false` → page (honeytoken priority); an **internal resolver** as `source` of a DNS beacon = used inside the network; country rules must check `source_geo_basis`;
-   - `receiver_saturated` sustained over 15 min;
-   - critical logins (`*_login`, `honeytoken_used`);
-   - scan-then-touch (`network_scan_detected`/`icmp_scan_received` then a decoy event from the same source);
-   - `source_asset_criticality` in (high, critical) → escalate;
-   - lateral movement (`threat.tactic.id: TA0008`);
-   - liveness (`sensor_heartbeat_lost`, `sensor_stopped` without `sensor_recovered`);
-   - MFA reset / audit records.
-   Exclude `whitelisted=true` **and** `known_scanner=true` (except the Hub-raised `honeytoken_used` / known beacons, which bypass both lists). Field names come from `Hub/internal/services/siem/{service.go,ecs.go}` and `Docs/siem-integration.md`; never invent fields. Add tests against real samples (`siem/*_test.go` fixtures or captured `siem-capture.log` records). Update `Docs/siem/attack-mapping.md` if the mapping changes.
+1. **SIEM detection content: follow-ups.** The rule set shipped 2026-10-30 (`Docs/siem/detection-rules.md`): 16 Elastic rules plus LogScale twins, tested by `Hub/internal/services/event/siem_samples_test.go` (samples from the real pipeline) and `scripts/siem-rules/run-elastic.sh` (real Kibana 8.19 detection engine, CI workflow `siem-rules.yml`). Open:
+   - **Run the LogScale queries once on real LogScale.** They are field-checked only; syntax is unverified. Record the result in the doc.
+   - **Owner input:** the expected-country list for `truesignal-beacon-unexpected-country` (`EG` placeholder, ships disabled); the corporate resolver/proxy egress addresses for the Assets page; Elastic data stream and LogScale repository names; alert routing.
+   - **Hub heartbeat to the SIEM** (new record type, e.g. `truesignal.heartbeat` every 5 min). Without it a dead Hub or a broken output is invisible. This is a SIEM contract change (SOC notice).
+   - Optional: a new-terms rule for admin logins from a never-seen IP; a "node blinded" rule (several sensors lost on one node within minutes).
 2. **End to end on a Linux x86_64 VM** (the Mac can't host nodes). Hub behind TLS (`docker-compose.tls.yml` or F5), `TS_REQUIRE_MFA=true`, `TS_TRUSTED_PROXIES` set. Node: `install.sh --link` → `discover`/`apply` → `firedrill`. Confirm events reach a real LogScale/Elastic with ATT&CK, asset and geo fields. Then a Token Receiver on a DMZ host with a delegated zone. Roll Wizard 2.2.1 out before enabling MFA.
 3. **Phase 3, next beacons:** Office documents (Word/Excel) and AWS keys (needs a real IAM user plus CloudTrail → SIEM alerting). Then `.bashrc`/batch, MySQL dump, cloned-site. Then SARAB-style monthly beacon-creation charts (B5/B6).
 4. **Non-root sensors.** Six run as UID 0 in the host netns; most only need `NET_BIND_SERVICE`.

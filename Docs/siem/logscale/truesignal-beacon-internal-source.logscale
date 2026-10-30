@@ -1,0 +1,13 @@
+// truesignal-beacon-internal-source: known beacon fired from a private/CGNAT/ULA address or an Assets-page address (critical).
+// Elastic twin: Docs/siem/elastic/truesignal-beacon-internal-source.json
+// Schedule: every 5m over the last 6m.
+event.module="truesignal" event.dataset="truesignal.alert"
+| event.action="beacon_triggered" truesignal.details.beacon.id=*
+| truesignal.whitelisted!="true" truesignal.known_scanner!="true"
+| case {
+    cidr(source.ip, subnet=["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "fc00::/7"]) | internal := "true";
+    truesignal.source_asset.name=* | internal := "true";
+    * | internal := "false";
+  }
+| internal="true"
+| table([@timestamp, host.name, source.ip, truesignal.source_asset.name, truesignal.details.channel, truesignal.details.query_name, truesignal.details.beacon.name])
