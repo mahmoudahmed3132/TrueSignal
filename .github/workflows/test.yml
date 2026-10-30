@@ -109,6 +109,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Production compose never builds from source
+        working-directory: Hub
+        # A build section next to image: lets a failed pull silently run a
+        # local build under a release tag. Builds live in docker-compose.build.yml.
+        run: |
+          if docker compose -f docker-compose.yml -f docker-compose.tls.yml config --format json | jq -e '.services[] | select(has("build"))' >/dev/null; then
+            echo "::error::Hub/docker-compose.yml (or the TLS overlay) has a build section"; exit 1
+          fi
+
       - name: Bring up base + TLS overlay
         working-directory: Hub
         run: |

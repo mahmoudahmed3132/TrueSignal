@@ -1,0 +1,14 @@
+# Development only: build the Hub from this checkout instead of pulling a
+# signed release. The image gets a local tag that can never be mistaken for
+# a release:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# Never use this file in production; release images are Sigstore-signed
+# (Docs/operations.md §13), local builds are not.
+services:
+  truesignal-hub:
+    image: truesignal-hub:local-build
+    build:
+      context: .
+      dockerfile: Dockerfile
