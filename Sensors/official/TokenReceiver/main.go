@@ -181,6 +181,8 @@ func main() {
 		now:      time.Now,
 	}
 
+	sat := newSaturation(ts, z.domain)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var lc net.ListenConfig
@@ -197,7 +199,7 @@ func main() {
 				log.Fatalf("[!] FATAL: bind dns tcp/%d: %v", s.Port, err)
 			}
 			go r.serveDNSUDP(ctx, pc)
-			go decoy.Accept(ctx, newLimitListener(ln, maxDNSTCPConns), r.serveDNSTCP)
+			go decoy.Accept(ctx, newLimitListener(ln, "dns", maxDNSTCPConns, perSourceDNS, nil, sat.refused), r.serveDNSTCP)
 			log.Printf("[+] TokenReceiver serving zone %s on udp+tcp/%d (NS %s)", z.domain, s.Port, strings.Join(z.ns, ", "))
 		case "http":
 			ln, err := lc.Listen(ctx, "tcp", bind)
@@ -205,7 +207,7 @@ func main() {
 				log.Fatalf("[!] FATAL: bind http/%d: %v", s.Port, err)
 			}
 			srv := r.httpServer()
-			go srv.Serve(newLimitListener(ln, maxHTTPConns))
+			go srv.Serve(newLimitListener(ln, "http", maxHTTPConns, perSourceHTTP, r.trustedProxy, sat.refused))
 			go func() {
 				<-ctx.Done()
 				srv.Close()

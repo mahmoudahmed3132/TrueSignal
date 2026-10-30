@@ -25,7 +25,7 @@ var pixel = []byte{
 func (r *receiver) httpServer() *http.Server {
 	return &http.Server{
 		Handler:           http.HandlerFunc(r.serveHTTP),
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,

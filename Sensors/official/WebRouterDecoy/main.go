@@ -203,17 +203,23 @@ func (d *decoy) handleRoot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if d.probes.allow(srcIP, time.Now()) {
-		trigger := "web_page_view"
-		if r.URL.Path != "/" {
-			trigger = "web_path_probe"
-		}
-		d.ts.ReportEventSeverity("medium", trigger, srcIP, d.target(), sdk.EventDetails{
+	// Limited per source and trigger: a page view must not hide the
+	// wordlist scan (T1595.003) that follows it.
+	trigger := "web_page_view"
+	if r.URL.Path != "/" {
+		trigger = "web_path_probe"
+	}
+	if ok, suppressed := d.probes.allow(srcIP+"|"+trigger, time.Now()); ok {
+		details := sdk.EventDetails{
 			{Key: "method", Value: r.Method},
 			{Key: "path", Value: truncate(r.URL.RequestURI(), 512)},
 			{Key: "user_agent", Value: truncate(userAgent(r), 512)},
 			{Key: "skin", Value: d.skin.Name},
-		})
+		}
+		if suppressed > 0 {
+			details = append(details, sdk.EventDetail{Key: "suppressed_since_last", Value: suppressed})
+		}
+		d.ts.ReportEventSeverity("medium", trigger, srcIP, d.target(), details)
 	}
 	if d.skin.Basic {
 		d.challenge(w)
@@ -350,32 +356,45 @@ func limitBody(next http.Handler) http.Handler {
 	})
 }
 
-// probeLimiter emits at most one reconnaissance event per source per window.
+// probeLimiter emits at most one reconnaissance event per key (source and
+// trigger) per window, and counts what it suppressed so the next event can
+// carry suppressed_since_last.
 type probeLimiter struct {
 	mu     sync.Mutex
 	window time.Duration
-	last   map[string]time.Time
+	last   map[string]*probeState
+}
+
+type probeState struct {
+	at         time.Time
+	suppressed int
 }
 
 func newProbeLimiter(window time.Duration) *probeLimiter {
-	return &probeLimiter{window: window, last: map[string]time.Time{}}
+	return &probeLimiter{window: window, last: map[string]*probeState{}}
 }
 
-func (p *probeLimiter) allow(key string, now time.Time) bool {
+func (p *probeLimiter) allow(key string, now time.Time) (bool, int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if t, ok := p.last[key]; ok && now.Sub(t) < p.window {
-		return false
+	st := p.last[key]
+	if st != nil && now.Sub(st.at) < p.window {
+		st.suppressed++
+		return false, 0
 	}
-	p.last[key] = now
+	prev := 0
+	if st != nil {
+		prev = st.suppressed
+	}
+	p.last[key] = &probeState{at: now}
 	if len(p.last) > 10000 {
-		for k, t := range p.last {
-			if now.Sub(t) >= p.window {
+		for k, v := range p.last {
+			if now.Sub(v.at) >= p.window {
 				delete(p.last, k)
 			}
 		}
 	}
-	return true
+	return true, prev
 }
 
 func getEnv(key, fallback string) string {
