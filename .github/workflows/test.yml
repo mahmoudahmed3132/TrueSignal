@@ -99,6 +99,39 @@ jobs:
             docker build -f "Sensors/official/${{ matrix.image }}/Dockerfile" .
           fi
 
+  # The TLS overlay pins the proxy's address; this brings the Hub compose
+  # plus the overlay up (with stand-in images, so it needs no cert or
+  # build) and fails if the two services cannot both get their addresses.
+  compose-tls-overlay:
+    name: compose TLS overlay starts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Bring up base + TLS overlay
+        working-directory: Hub
+        run: |
+          cat > /tmp/standin.yml <<'YAML'
+          services:
+            permission-fixer:
+              image: alpine:3.22
+            truesignal-hub:
+              image: alpine:3.22
+              build: !reset null
+              command: ["sleep", "120"]
+              user: "0:0"
+            tls-proxy:
+              image: alpine:3.22
+              command: ["sleep", "120"]
+              user: "0:0"
+          YAML
+          files="-f docker-compose.yml -f docker-compose.tls.yml -f /tmp/standin.yml"
+          docker compose -p tlsci $files up -d
+          test "$(docker inspect -f '{{.State.Running}}' truesignal-tls-proxy)" = true
+          test "$(docker inspect -f '{{.State.Running}}' truesignal-hub)" = true
+          docker compose -p tlsci $files down -v
+
   python:
     name: Python SDK / mock hub
     runs-on: ubuntu-latest

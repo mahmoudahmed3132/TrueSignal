@@ -189,7 +189,7 @@ mkdir -p deploy/tls && cp hub.crt deploy/tls/hub.crt && cp hub.key deploy/tls/hu
 docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
 ```
 
-The overlay runs a digest-pinned unprivileged nginx (`Hub/deploy/nginx/truesignal.conf`): read-only, no capabilities, TLS 1.2/1.3 with ECDHE AEAD suites, HSTS, HTTP→HTTPS redirect, WebSocket pass-through for `/api/v2/ws`. The Hub's own port is no longer published, the proxy has a fixed address (`TS_PROXY_IP`, default `172.30.80.2` in `TS_PROXY_SUBNET` `172.30.80.0/29`), and `TS_TRUSTED_PROXIES` is set to it. The proxy overwrites `X-Real-IP`/`X-Forwarded-For` with the TCP peer, so client-supplied values never reach the Hub. Requires Docker Compose 2.24+.
+The overlay runs a digest-pinned unprivileged nginx (`Hub/deploy/nginx/truesignal.conf`): read-only, no capabilities, TLS 1.2/1.3 with ECDHE AEAD suites, HSTS, HTTP→HTTPS redirect, WebSocket pass-through for `/api/v2/ws`. The Hub's own port is no longer published, the proxy and the Hub have fixed addresses (`TS_PROXY_IP`, default `172.30.80.2`, and `TS_HUB_IP`, default `172.30.80.3`, in `TS_PROXY_SUBNET` `172.30.80.0/29`; the Hub is pinned too, or it would take `.2` first and the proxy could not start), and `TS_TRUSTED_PROXIES` is set to it. The proxy overwrites `X-Real-IP`/`X-Forwarded-For` with the TCP peer, so client-supplied values never reach the Hub. Requires Docker Compose 2.24+.
 
 If you edit the config: nginx drops every server-level `proxy_set_header` in a location that sets any of its own, which is why the forwarding headers are repeated in each `location`. Keep `Host` as `$http_host` (with port) or the WebSocket origin check rejects the dashboard on a non-443 port.
 
