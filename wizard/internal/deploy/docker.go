@@ -152,7 +152,7 @@ func generateRemediationError(mainReason string, details string, originalErr err
 
 	sb.WriteString(fmt.Sprintf("    %sIf you installed Docker manually, update the binary:%s\n", cli.Cyan, cli.Reset))
 	sb.WriteString("      mkdir -p ~/.docker/cli-plugins && \\ \n")
-	sb.WriteString(fmt.Sprintf("      curl -SL https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -m) \\ -o ~/.docker/cli-plugins/docker-compose && \\ \n", ComposeMinVer))
+	sb.WriteString(fmt.Sprintf("      curl -SL https://github.com/docker/compose/releases/download/v%s/docker-compose-linux-$(uname -m) \\ -o ~/.docker/cli-plugins/docker-compose && \\ \n", ComposeMinVer))
 	sb.WriteString("      chmod +x ~/.docker/cli-plugins/docker-compose\n")
 
 	return errors.New(sb.String())
