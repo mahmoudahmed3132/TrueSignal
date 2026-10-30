@@ -136,5 +136,9 @@ jobs:
           cosign verify "$REPO@$DIGEST" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/publish-hub.yml@refs/tags/hub/$TAG" >/dev/null
-          docker buildx imagetools create --tag "$REPO:latest" "$REPO@$DIGEST"
+          # --prefer-index=false copies the manifest as is; the default wraps a
+          # single manifest in a new, unsigned index with another digest.
+          docker buildx imagetools create --prefer-index=false --tag "$REPO:latest" "$REPO@$DIGEST"
+          LATEST=$(docker buildx imagetools inspect "$REPO:latest" --format '{{json .Manifest.Digest}}' | tr -d '"')
+          [ "$LATEST" = "$DIGEST" ] || { echo "::error:::latest is $LATEST, expected $DIGEST"; exit 1; }
           echo ":latest -> $TAG ($DIGEST)"
