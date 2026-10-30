@@ -1,3 +1,12 @@
+# [Unreleased] - Hub compose never builds from source (2026-10-30)
+
+* **`Hub/docker-compose.yml` no longer has a `build:` section next to `image:`.**
+  * **What happened:** when a pull failed (an arm64 host pulling the amd64-only image, an offline host, a mistyped tag), `docker compose up` quietly built the source next to the compose file and tagged it as the release. One upgrade to `v2.4.0` ran an unsigned 2.2.0 build labelled `truesignal-hub:v2.4.0` this way.
+  * **Now:** a failed pull fails `up`.
+  * **Local builds** are opt-in: `docker-compose.build.yml`, tagged `truesignal-hub:local-build`.
+  * **CI** fails if the production compose or the TLS overlay gains a `build` section.
+* `Docs/operations.md` §7 covers the amd64-only Hub image (`DOCKER_DEFAULT_PLATFORM=linux/amd64` on arm64), the version check after an upgrade, and older compose files.
+
 # [2.4.0] - Hub 2.4.0: beacons, GeoIP, verification fixes (2026-10-30)
 
 **Released together:**

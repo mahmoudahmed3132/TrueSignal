@@ -107,7 +107,10 @@ Schema migrations run automatically on boot and first write a `*.pre-vN-*.bak` s
    docker compose start truesignal-hub
    ```
    Treat the archive as secret: it holds the node-key hashes, webhook URLs, the SIEM token, the capture master key and the honeytoken secrets.
-3. Upgrade: `TS_HUB_VERSION=vX.Y.Z docker compose pull && TS_HUB_VERSION=vX.Y.Z docker compose up -d`. The log shows `[DB] Running schema migration A -> B` when the schema changed, and a new `.bak` appears in `truesignal_data/`.
+3. Upgrade: `TS_HUB_VERSION=vX.Y.Z docker compose pull && TS_HUB_VERSION=vX.Y.Z docker compose up -d`. The log shows `[DB] Running schema migration A -> B` when the schema changed, and a new `.bak` appears in `truesignal_data/`. Check that `/api/v2/version` reports `X.Y.Z`.
+   - **The Hub image is `linux/amd64` only.** On an arm64 host (e.g. a Mac for testing), set `DOCKER_DEFAULT_PLATFORM=linux/amd64` for both `pull` and `up`, so it runs under emulation.
+   - **`Hub/docker-compose.yml` has no `build:` section (since 2026-10-30):** if the pull fails, `up` fails too. Before that, compose quietly built the source next to the file and tagged it as the release. On an older compose file, add `--no-build --pull never` to `up` after a successful pull, or remove the `build:` block. Local builds are opt-in, through `docker-compose.build.yml`, and get the tag `truesignal-hub:local-build`.
+   - **Optional:** verify the pulled digest with `cosign verify` (§13) before `up`.
 
 ### Rolling back the Hub
 

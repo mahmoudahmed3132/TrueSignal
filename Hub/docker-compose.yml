@@ -15,11 +15,12 @@ services:
   # 2. THE HUB: Pure Go distroless backend and UI.
   truesignal-hub:
     # Pin a release in production, e.g. TS_HUB_VERSION=v2.1.0
+    # Release images only: no build section here. With one, a failed pull
+    # (e.g. an arm64 host; the image is linux/amd64) made compose quietly
+    # build whatever source sat next to this file and tag it as the
+    # release. Building from source is opt-in: docker-compose.build.yml.
     image: ghcr.io/mahmoudahmed3132/truesignal-hub:${TS_HUB_VERSION:-latest}
     container_name: truesignal-hub
-    build:
-      context: .
-      dockerfile: Dockerfile
     restart: unless-stopped
     
     ports:
