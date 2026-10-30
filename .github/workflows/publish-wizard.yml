@@ -94,13 +94,24 @@ jobs:
             cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"
           done
 
+      - name: Release notes since the previous Wizard release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # generate_release_notes diffs against the newest release of any
+          # component (often a Hub one), so name the previous wizard/v* tag.
+          PREV=$(git ls-remote --tags origin 'refs/tags/wizard/v*' | sed 's#.*refs/tags/##' | grep -v '\^{}$' \
+            | { cat; echo "$GITHUB_REF_NAME"; } | sort -uV | grep -B1 -x "$GITHUB_REF_NAME" | grep -vx "$GITHUB_REF_NAME" || true)
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" \
+            ${PREV:+-f previous_tag_name="$PREV"} --jq .body > release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: "Wizard v${{ steps.vars.outputs.VERSION }}"
+          body_path: release-notes.md
           files: |
             build/truesignal-linux-amd64
             build/truesignal-linux-arm64
             build/checksums.txt
             build/*.sigstore.json
-          generate_release_notes: true

@@ -78,15 +78,33 @@ jobs:
             --label "org.opencontainers.image.version=$VERSION" \
             -f Hub/Dockerfile Hub/
           docker push "$IMAGE_TAG" | tee push_out.log
-          docker push "$LATEST_TAG"
+          # Releases run in parallel (e.g. an older version tagged after a
+          # newer one), so only the highest hub/v* tag may move :latest.
+          HIGHEST=$(git ls-remote --tags origin 'refs/tags/hub/v*' | sed 's#.*refs/tags/##' | grep -v '\^{}$' | sort -V | tail -n 1)
+          if [ "$HIGHEST" = "hub/v$VERSION" ]; then
+            docker push "$LATEST_TAG"
+          else
+            echo "hub/v$VERSION is not the highest Hub tag ($HIGHEST); leaving :latest alone."
+          fi
           DIGEST=$(grep -o 'sha256:[a-f0-9]\{64\}' push_out.log | tail -n 1)
           [ -n "$DIGEST" ] || { echo "::error::no digest in push output"; exit 1; }
           # Keyless signature by digest (verify with cosign verify, see
           # Docs/operations.md section 13).
           cosign sign --yes "ghcr.io/${{ github.repository_owner }}/truesignal-hub@$DIGEST"
 
+      - name: Release notes since the previous Hub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # generate_release_notes diffs against the newest release of any
+          # component (or a parallel one), so name the previous hub/v* tag.
+          PREV=$(git ls-remote --tags origin 'refs/tags/hub/v*' | sed 's#.*refs/tags/##' | grep -v '\^{}$' \
+            | { cat; echo "$GITHUB_REF_NAME"; } | sort -uV | grep -B1 -x "$GITHUB_REF_NAME" | grep -vx "$GITHUB_REF_NAME" || true)
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" \
+            ${PREV:+-f previous_tag_name="$PREV"} --jq .body > release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: "Hub v${{ steps.vars.outputs.VERSION }}"
-          generate_release_notes: true
+          body_path: release-notes.md
