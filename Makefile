@@ -24,8 +24,19 @@ tag-release:
 	if [ -z "$$hub" ] || [ -z "$$wiz" ]; then \
 		echo "ERROR: could not parse HubVersion/WizardVersion from source" >&2; exit 1; \
 	fi; \
-	git tag "hub/v$$hub" && echo "   + hub/v$$hub"; \
-	git tag "wizard/v$$wiz" && echo "   + wizard/v$$wiz"
+	remote=$$(git ls-remote --tags origin | awk '{print $$2}'); \
+	for t in "hub/v$$hub" "wizard/v$$wiz"; do \
+		local=$$(git rev-parse -q --verify "refs/tags/$$t^{commit}" || true); \
+		if printf '%s\n' "$$remote" | grep -qx "refs/tags/$$t"; then \
+			echo "   = $$t already on origin (version unchanged), skipped"; \
+		elif [ -n "$$local" ] && [ "$$local" = "$$(git rev-parse HEAD)" ]; then \
+			echo "   = $$t already on HEAD, not yet pushed"; \
+		elif [ -n "$$local" ]; then \
+			echo "ERROR: local tag $$t points at $$local, not HEAD, and is not on origin. Delete it (git tag -d $$t) or bump the version." >&2; exit 1; \
+		else \
+			git tag "$$t" && echo "   + $$t" || exit 1; \
+		fi; \
+	done
 	@echo "Push with: make push-tags (not git push --tags: see below)"
 
 # Push the release tags on HEAD one per `git push`. GitHub creates no push

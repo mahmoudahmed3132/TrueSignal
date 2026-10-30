@@ -266,7 +266,7 @@ cosign verify ghcr.io/mahmoudahmed3132/truesignal-tcptarpit@sha256:<digest> \
   --certificate-identity-regexp "^https://github.com/$REPO/.github/workflows/publish-sensor-registry.yml@refs/tags/sensor/" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 cosign verify ghcr.io/mahmoudahmed3132/truesignal-hub@sha256:<digest> \
-  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-hub.yml@refs/tags/hub/v2.2.0" \
+  --certificate-identity "https://github.com/$REPO/.github/workflows/publish-hub.yml@refs/tags/hub/v2.3.0" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # The wizard binary (release assets include <file>.sigstore.json)
