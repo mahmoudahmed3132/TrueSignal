@@ -32,6 +32,8 @@ Field additions per release are announced in a SOC notice (Hub 2.3.0: `Docs/siem
 | `event.provider`, `event.id` | Sensor ID, Hub event ID |
 | `log.level` | TrueSignal severity string |
 | `source.ip` | Event `source` when it is an IP address; otherwise `source.address` |
+| `source.geo.*` | GeoIP of `source.ip` (Hub 2.4.0, when a database is loaded; `Docs/operations.md` §15): `country_iso_code`, `country_name`, `region_name`, `city_name`, `location` (`{lat, lon}`, a geo_point under `ecs@mappings`). Absent for internal addresses. Syslog: `source_country` (ISO code, always present, empty when not located) and `"source_geo"` in the JSON body |
+| `truesignal.source_geo` | The location with `basis`: `source`, or `client_subnet` for a DNS beacon placed by its EDNS Client Subnet. A `client_subnet` location is not `source.ip`'s, so it appears only here, not in `source.geo` |
 | `destination.port` | `details.dst_port` |
 | `user.name`, `user.domain` | `details.username` (`DOMAIN\user` is split), `attempted_username` or `bind_dn` |
 | `file.path` / `url.path` | `details.path` for file canaries / web decoys |

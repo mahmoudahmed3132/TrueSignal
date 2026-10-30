@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/truesignal/hub/internal/attack"
+	"github.com/truesignal/hub/internal/geo"
 	"github.com/truesignal/hub/internal/models"
 )
 
@@ -126,6 +127,9 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 	if event.SourceAsset != nil {
 		doc["truesignal"].(map[string]any)["source_asset"] = event.SourceAsset
 	}
+	if event.SourceGeo != nil {
+		doc["truesignal"].(map[string]any)["source_geo"] = event.SourceGeo
+	}
 	if m, ok := attack.For(event.EventTrigger); ok {
 		doc["threat"] = ecsThreat(m)
 		doc["truesignal"].(map[string]any)["attack"] = m
@@ -137,6 +141,13 @@ func (s *Service) ecsEvent(event models.Event) map[string]any {
 		doc["source"] = map[string]any{"ip": ip.String()}
 	} else if event.Source != "" {
 		doc["source"] = map[string]any{"address": event.Source}
+	}
+	// source.geo describes source.ip only. A DNS beacon located by its
+	// client subnet stays in truesignal.source_geo (basis client_subnet).
+	if g := event.SourceGeo; g != nil && g.Basis == "source" {
+		if src, ok := doc["source"].(map[string]any); ok {
+			src["geo"] = ecsGeo(g)
+		}
 	}
 	if port, ok := asPort(details["dst_port"]); ok {
 		doc["destination"] = map[string]any{"port": port}
@@ -228,6 +239,24 @@ func ecsThreat(m attack.Mapping) map[string]any {
 		"technique": technique,
 		"tactic":    map[string]any{"id": tacIDs, "name": tacNames, "reference": tacRefs},
 	}
+}
+
+// ecsGeo renders a location as ECS geo fields (source.geo.*).
+func ecsGeo(g *geo.Location) map[string]any {
+	out := map[string]any{"country_iso_code": g.CountryCode}
+	if g.Country != "" {
+		out["country_name"] = g.Country
+	}
+	if g.Region != "" {
+		out["region_name"] = g.Region
+	}
+	if g.City != "" {
+		out["city_name"] = g.City
+	}
+	if g.Lat != 0 || g.Lon != 0 {
+		out["location"] = map[string]any{"lat": g.Lat, "lon": g.Lon}
+	}
+	return out
 }
 
 func ecsTags(whitelisted, knownScanner bool) []string {

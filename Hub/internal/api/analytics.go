@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/truesignal/hub/internal/assets"
+	"github.com/truesignal/hub/internal/geo"
 	"github.com/truesignal/hub/internal/projections/attackmap"
+	"github.com/truesignal/hub/internal/projections/geomap"
 	"github.com/truesignal/hub/internal/projections/insights"
 	"github.com/truesignal/hub/internal/projections/path"
 	"github.com/truesignal/hub/internal/projections/report"
@@ -20,6 +22,8 @@ import (
 
 type AnalyticsHandler struct {
 	Store *store.SQLiteStore
+	// Geo places sources on the map (GET /api/v2/geo); nil disables it.
+	Geo *geo.Service
 }
 
 func NewAnalyticsHandler(store *store.SQLiteStore) *AnalyticsHandler {
@@ -127,6 +131,23 @@ func (h *AnalyticsHandler) buildAttack(r *http.Request) (*attackmap.DTO, error) 
 		viewingArchive = 1
 	}
 	return attackmap.NewProjector(h.Store).Build(r.Context(), q.Get("timeframe"), q.Get("nodeId"), q.Get("sensorId"), viewingArchive)
+}
+
+// GetGeo handles GET /api/v2/geo: located decoy activity per place and per
+// country, and the GeoIP database status (with the DB-IP attribution the
+// licence requires wherever the data is shown).
+func (h *AnalyticsHandler) GetGeo(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	viewingArchive := 0
+	if a := q.Get("archived"); a == "true" || a == "1" {
+		viewingArchive = 1
+	}
+	d, err := geomap.Build(r.Context(), h.Store, h.Geo, q.Get("timeframe"), q.Get("nodeId"), q.Get("sensorId"), viewingArchive)
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	SendJSON(w, http.StatusOK, d)
 }
 
 // GetPath handles GET /api/v2/path?source=: one source's route through the

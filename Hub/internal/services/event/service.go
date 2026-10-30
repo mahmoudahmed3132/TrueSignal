@@ -11,6 +11,7 @@ import (
 
 	"github.com/truesignal/hub/internal/assets"
 	"github.com/truesignal/hub/internal/attack"
+	"github.com/truesignal/hub/internal/geo"
 	"github.com/truesignal/hub/internal/models"
 	"github.com/truesignal/hub/internal/services/beacon"
 	"github.com/truesignal/hub/internal/services/honeytoken"
@@ -83,6 +84,7 @@ type Service struct {
 	notifyService NotifyService
 	honeytokens   HoneytokenMatcher
 	beacons       BeaconResolver
+	geo           *geo.Service
 	whitelist     sourcelist.Cache
 	scanners      sourcelist.Cache
 	assets        assets.Cache
@@ -90,6 +92,19 @@ type Service struct {
 
 // SetHoneytokenMatcher enables honeytoken detection on incoming events.
 func (s *Service) SetHoneytokenMatcher(m HoneytokenMatcher) { s.honeytokens = m }
+
+// SetGeo enables GeoIP enrichment (sourceGeo) on events.
+func (s *Service) SetGeo(g *geo.Service) { s.geo = g }
+
+// locate attaches the event's location. Like the asset, it is resolved on
+// read, so a database update applies to past events too.
+func (s *Service) locate(e *models.Event) {
+	if !s.geo.Enabled() {
+		e.SourceGeo = nil
+		return
+	}
+	e.SourceGeo = s.geo.ForEvent(e.Source, geo.ClientSubnetDetails(e.Details))
+}
 
 // SetBeaconResolver enables beacon resolution on beacon_triggered events.
 func (s *Service) SetBeaconResolver(r BeaconResolver) { s.beacons = r }
@@ -228,6 +243,7 @@ func (s *Service) process(e *models.Event, nodeID string, hubRaised bool) error 
 	e.Count = 1
 	withAttack(e)
 	e.SourceAsset = s.assetIndex().Lookup(e.Source)
+	s.locate(e)
 
 	if e.Source != SystemSource {
 		s.store.UpdateNodeLastHeartbeat(nodeID, e.SensorID, nowStr)
@@ -354,6 +370,7 @@ func (s *Service) GetEvents(isArchived int, nodeID, sensorID string) ([]models.E
 	for i := range events {
 		withAttack(&events[i])
 		events[i].SourceAsset = ix.Lookup(events[i].Source)
+		s.locate(&events[i])
 	}
 	return events, err
 }

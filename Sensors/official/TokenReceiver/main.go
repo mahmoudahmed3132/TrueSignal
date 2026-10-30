@@ -197,7 +197,7 @@ func main() {
 				log.Fatalf("[!] FATAL: bind dns tcp/%d: %v", s.Port, err)
 			}
 			go r.serveDNSUDP(ctx, pc)
-			go decoy.Accept(ctx, ln, r.serveDNSTCP)
+			go decoy.Accept(ctx, newLimitListener(ln, maxDNSTCPConns), r.serveDNSTCP)
 			log.Printf("[+] TokenReceiver serving zone %s on udp+tcp/%d (NS %s)", z.domain, s.Port, strings.Join(z.ns, ", "))
 		case "http":
 			ln, err := lc.Listen(ctx, "tcp", bind)
@@ -205,7 +205,7 @@ func main() {
 				log.Fatalf("[!] FATAL: bind http/%d: %v", s.Port, err)
 			}
 			srv := r.httpServer()
-			go srv.Serve(ln)
+			go srv.Serve(newLimitListener(ln, maxHTTPConns))
 			go func() {
 				<-ctx.Done()
 				srv.Close()

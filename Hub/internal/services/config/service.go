@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,6 +53,12 @@ type Config struct {
 	// SigstoreTrustedRoot (TS_SIGSTORE_TRUSTED_ROOT) is an optional path to
 	// a newer Sigstore trusted_root.json than the one built in.
 	SigstoreTrustedRoot string
+	// GeoIPDB (TS_GEOIP_DB) is the DB-IP IP to City Lite MMDB file; default
+	// geoip/dbip-city-lite.mmdb next to the database. GeoIPAutoUpdate
+	// (TS_GEOIP_AUTO_UPDATE=true) lets the Hub download it monthly from
+	// download.db-ip.com (outbound HTTPS).
+	GeoIPDB         string
+	GeoIPAutoUpdate bool
 
 	// SessionTTL / SessionIdle bound dashboard sessions (TS_SESSION_TTL,
 	// TS_SESSION_IDLE_TIMEOUT; Go durations, idle "0" disables).
@@ -161,9 +168,10 @@ func Load() *Config {
 		log.Fatalf("[FATAL] %v", err)
 	}
 
+	dbPath := getEnv("TS_DB_PATH", "truesignal.db")
 	return &Config{
 		DashboardPassword: getEnv("TS_DASHBOARD_PASSWORD", ""),
-		DBPath:            getEnv("TS_DB_PATH", "truesignal.db"),
+		DBPath:            dbPath,
 		Port:              getEnv("TS_PORT", "8080"),
 		Version:           models.HubVersion,
 		Env:               getEnv("TS_ENV", "production"),
@@ -174,6 +182,8 @@ func Load() *Config {
 		AllowUnsignedManifests: getBool("TS_ALLOW_UNSIGNED_MANIFESTS"),
 		ManifestSignerRepo:     getEnv("TS_MANIFEST_SIGNER_REPO", signing.DefaultSignerRepo),
 		SigstoreTrustedRoot:    getEnv("TS_SIGSTORE_TRUSTED_ROOT", ""),
+		GeoIPDB:                getEnv("TS_GEOIP_DB", filepath.Join(filepath.Dir(dbPath), "geoip", "dbip-city-lite.mmdb")),
+		GeoIPAutoUpdate:        getBool("TS_GEOIP_AUTO_UPDATE"),
 
 		SessionTTL:          getDuration("TS_SESSION_TTL", 12*time.Hour),
 		SessionIdle:         getDuration("TS_SESSION_IDLE_TIMEOUT", 15*time.Minute),

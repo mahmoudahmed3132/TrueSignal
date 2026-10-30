@@ -1,3 +1,29 @@
+# [Unreleased] - GeoIP enrichment and the map (phase 3, part 2) (2026-10-30)
+
+* **GeoIP from DB-IP IP to City Lite** (MMDB, CC BY 4.0; `Hub/internal/geo`, read with `oschwald/maxminddb-golang/v2`).
+  * Only public addresses are looked up. Private, CGNAT, loopback, link-local and ULA addresses are not.
+  * A DNS beacon's EDNS Client Subnet takes precedence over its resolver (`basis: client_subnet`).
+  * Lookups are resolved on read, never stored.
+* **Where the database comes from:**
+  * a file, `TS_GEOIP_DB` (default `geoip/dbip-city-lite.mmdb` next to the database), re-read hourly;
+  * or, with `TS_GEOIP_AUTO_UPDATE=true`, a monthly download from `download.db-ip.com` (outbound HTTPS, off by default).
+
+  A file that fails to open or isn't a City database never replaces a working one. The Hub reads a private copy, so overwriting the file in place can't corrupt the live database. (The reader memory-maps its file; an in-place `cp` would otherwise have crashed the Hub.)
+* **GeoIP Map page** (sidebar):
+  * points per place, sized by events and coloured by the highest severity there;
+  * countries shaded by events;
+  * a per-place panel whose sources link to Attack Path, and a country table;
+  * counts of located, internal (not mapped) and unlocated events;
+  * a 24H/7D/30D/All filter and the DB-IP credit.
+
+  Country outlines are Natural Earth 1:110m, embedded, with no tile server. New endpoint: `GET /api/v2/geo`.
+* Events (`GET /api/v2/events`, WebSocket) carry `sourceGeo`; expanded event details show the location.
+* **SIEM contract (additive):**
+  * ECS `source.geo.*` (only for locations of `source.ip`) and `truesignal.source_geo` (with `basis`);
+  * RFC 5424 SD `source_country`, appended after `source_asset_criticality`, always present and empty when not located;
+  * `"source_geo"` in the JSON body.
+* **Token Receiver:** concurrent TCP clients are capped (DNS 128, HTTP 256); connections over the cap are closed at once. This fixes the Codex review finding on #28: an unbounded goroutine per internet connection.
+
 # [Unreleased] - Beacons and the Token Receiver (phase 3, part 1) (2026-10-29)
 
 * **Beacons page** (sidebar): create callback tokens to plant where only an intruder would use them. There are three types:
@@ -17,7 +43,7 @@
   * Beacons and the key survive a factory reset unless `purgeHoneytokens`.
 * **The Hub resolves the token** and attaches `details.beacon` (`id`, `name`, `type`, `domain`). A known beacon ignores the whitelist and the known-scanner list, because the reporting resolver may be an allow-listed one. An unknown token is stored at `medium` with `beacon_known: false`.
 * **SIEM contract (additive):** new trigger `beacon_triggered` (ECS category `network`). It is not ATT&CK-mapped.
-* Not built yet: Office documents, AWS keys, shell/batch beacons, MySQL dumps, cloned-site beacons, GeoIP enrichment (DB-IP Lite, decided) and the map.
+* Not built yet: Office documents, AWS keys, shell/batch beacons, MySQL dumps, cloned-site beacons, GeoIP enrichment and the map (built in part 2).
 
 # [2.3.0] - Hub 2.3.0: analyst features (2026-10-29)
 

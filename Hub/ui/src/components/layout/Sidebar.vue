@@ -143,6 +143,18 @@ const goToDashboard = () => {
                 </div>
             </button>
 
+            <button @click="router.push('/map')"
+                    type="button"
+                    class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
+                    :class="route.name === 'GeoIP map' ? 'bg-secondary-selected shadow-sm border-secondary-border' : 'border-transparent text-secondary-text hover:bg-secondary-hover hover:text-text-h'"
+                    :title="!sidebarOpen ? 'GeoIP Map' : ''">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="overflow-hidden transition-all duration-fast ease-in-out whitespace-nowrap flex items-center"
+                     :class="sidebarOpen ? 'max-w-[150px] ml-3 opacity-100' : 'max-w-0 ml-0 opacity-0'">
+                    <span>GeoIP Map</span>
+                </div>
+            </button>
+
             <button @click="router.push('/scans')"
                     type="button"
                     class="w-full flex items-center py-2.5 px-3 justify-start rounded-md text-base text-text-h transition-all border outline-none"
