@@ -118,6 +118,9 @@ func main() {
 	composeService.AllowUnpinnedImages(cfg.AllowUnpinnedImages)
 	composeService.SetHoneytokens(honeytokenSvc)
 	composeService.SetBeacons(beaconSvc)
+	nodeSvc.SetSensorValidator(func(sensors []models.NodeSensor) error {
+		return composeService.ValidateSensors(sensors, models.HubVersion)
+	})
 	if cfg.AllowUnpinnedImages {
 		log.Println("[WARNING] TS_ALLOW_UNPINNED_IMAGES=true: sensor images are not required to be digest-pinned. Do not use in production.")
 	}

@@ -16,19 +16,24 @@ var forbiddenUserVars = map[string]bool{
 }
 
 // BuildEnv securely merges manifest defaults, user overrides, and reserved system variables.
-// It explicitly drops any user-provided variables that attempt to override reserved system keys.
+// User values are accepted only for variables the manifest declares, and
+// never for reserved system keys. An undeclared name is dropped: otherwise
+// a dashboard session could set e.g. HTTPS_PROXY or SSL_CERT_FILE and route
+// a sensor's Hub traffic, node key included, through a proxy of its choice.
 func BuildEnv(manifest models.SensorManifest, userVars map[string]string, systemVars map[string]string) map[string]string {
 	envMap := make(map[string]string)
+	declared := make(map[string]bool, len(manifest.Deployment.EnvVars))
 
 	// 1. Load manifest defaults
 	for _, v := range manifest.Deployment.EnvVars {
 		envMap[v.Name] = v.Default
+		declared[v.Name] = true
 	}
 
-	// 2. Safely merge user overrides (blocking forbidden keys)
+	// 2. Merge user overrides of declared, non-reserved variables
 	for k, v := range userVars {
-		if forbiddenUserVars[k] {
-			continue // Drop malicious/accidental overrides
+		if forbiddenUserVars[k] || !declared[k] {
+			continue
 		}
 		envMap[k] = v
 	}

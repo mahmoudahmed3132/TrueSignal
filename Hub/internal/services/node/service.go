@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -47,6 +48,57 @@ type Service struct {
 	broadcaster Broadcaster
 	catalog     *catalog.Service
 	auth        AuthInvalidator
+	validate    SensorValidator
+}
+
+// SensorValidator checks a node's full sensor list the way compose
+// rendering would (manifests available, no port clash), without side
+// effects.
+type SensorValidator func(sensors []models.NodeSensor) error
+
+// SetSensorValidator makes AddSensor and EditSensor refuse a change that
+// would break the node's compose.
+func (s *Service) SetSensorValidator(v SensorValidator) { s.validate = v }
+
+// ErrSensorExists is returned when the sensor is already on the node.
+var ErrSensorExists = errors.New("sensor_exists")
+
+// ErrInvalidSensorConfig wraps the reason a sensor change was refused.
+var ErrInvalidSensorConfig = errors.New("invalid_sensor_config")
+
+// checkCandidate validates the node's sensors with change applied.
+func (s *Service) checkCandidate(nodeID string, change models.NodeSensor, isNew bool) error {
+	details, err := s.store.GetNodeDetails(nodeID)
+	if err != nil {
+		return err
+	}
+	if details == nil {
+		return fmt.Errorf("node %s not found", nodeID)
+	}
+	candidate := make([]models.NodeSensor, 0, len(details.InstalledSensors)+1)
+	found := false
+	for _, sensor := range details.InstalledSensors {
+		if sensor.ID == change.ID {
+			if isNew {
+				return ErrSensorExists
+			}
+			found = true
+			sensor.EnvVars = change.EnvVars
+		}
+		candidate = append(candidate, sensor)
+	}
+	if isNew {
+		candidate = append(candidate, change)
+	} else if !found {
+		return fmt.Errorf("sensor %s is not on node %s", change.ID, nodeID)
+	}
+	if s.validate == nil {
+		return nil
+	}
+	if err := s.validate(candidate); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidSensorConfig, err)
+	}
+	return nil
 }
 
 func NewService(store Store, broadcaster Broadcaster, cat *catalog.Service, auth ...AuthInvalidator) *Service {
@@ -194,6 +246,9 @@ func (s *Service) GetNodeDetails(nodeID string) (*models.Node, error) {
 }
 
 func (s *Service) AddSensor(nodeID, sensorID, customName string, configValues map[string]interface{}) error {
+	if err := s.checkCandidate(nodeID, models.NodeSensor{ID: sensorID, EnvVars: configValues}, true); err != nil {
+		return err
+	}
 	if err := s.store.AddSensorToNode(nodeID, sensorID, customName, configValues); err != nil {
 		return err
 	}
@@ -202,6 +257,9 @@ func (s *Service) AddSensor(nodeID, sensorID, customName string, configValues ma
 }
 
 func (s *Service) EditSensor(nodeID, sensorID, customName string, configValues map[string]interface{}) error {
+	if err := s.checkCandidate(nodeID, models.NodeSensor{ID: sensorID, EnvVars: configValues}, false); err != nil {
+		return err
+	}
 	if err := s.store.UpdateNodeSensor(nodeID, sensorID, customName, configValues); err != nil {
 		return err
 	}

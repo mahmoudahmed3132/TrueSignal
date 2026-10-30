@@ -229,7 +229,14 @@ func derived(token, purpose string, n int) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])[:n]
 }
 
-// Render produces the artifact for b. It is deterministic.
+// clusterNames are neutral kubeconfig cluster names. The beacon name says
+// where it is planted, so it must never appear in the artifact itself.
+var clusterNames = []string{"prod-eks", "prod-gke", "k8s-prod", "prod-cluster", "platform-prod", "prod-aks"}
+
+// Render produces the artifact for b. It is deterministic. Its content is
+// what gets planted, so it carries nothing that identifies TrueSignal or the
+// operator's note (the beacon name): only the filename, which stays with
+// the operator, is derived from the name.
 func Render(b models.Beacon) Artifact {
 	host := b.Token + "." + b.Domain
 	switch b.Type {
@@ -239,15 +246,15 @@ func Render(b models.Beacon) Artifact {
 			Filename:    slug(b.Name, "web-bug") + "-web-bug.html",
 			ContentType: "text/html",
 			Value:       url,
-			Content: "<!-- TrueSignal web bug \"" + strings.ReplaceAll(b.Name, "--", "-") + "\": embed in an HTML page, e-mail or document that loads remote images. -->\n" +
-				"<img src=\"" + url + "\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">\n",
+			Content:     "<img src=\"" + url + "\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none\">\n",
 		}
 	case TypeKubeconfig:
 		// No certificate-authority-data: kubectl would reject fake CA data
 		// before it resolves the server, and the lookup is the beacon.
-		cluster := slug(b.Name, "prod")
+		sum := sha256.Sum256([]byte("cluster:" + b.Token))
+		cluster := clusterNames[int(sum[0])%len(clusterNames)]
 		return Artifact{
-			Filename:    "kubeconfig-" + cluster + ".yaml",
+			Filename:    "kubeconfig-" + slug(b.Name, "beacon") + ".yaml",
 			ContentType: "application/yaml",
 			Value:       host,
 			Content: "apiVersion: v1\nkind: Config\nclusters:\n- cluster:\n    insecure-skip-tls-verify: true\n" +
@@ -260,11 +267,7 @@ func Render(b models.Beacon) Artifact {
 			Filename:    slug(b.Name, "dns") + "-dns-token.txt",
 			ContentType: "text/plain",
 			Value:       host,
-			Content: "# TrueSignal DNS beacon \"" + b.Name + "\". Any lookup of this name raises an alert.\n" + host + "\n\n" +
-				"# Placement ideas (only an intruder should ever resolve it):\n" +
-				"#   ~/.ssh/config:     Host backup-db  HostName " + host + "\n" +
-				"#   /etc/hosts-style inventory, .env:  DB_HOST=" + host + "\n" +
-				"#   a script or .bashrc alias that an attacker would run\n",
+			Content:     host + "\n",
 		}
 	}
 }

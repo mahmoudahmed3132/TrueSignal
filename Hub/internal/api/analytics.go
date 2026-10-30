@@ -231,10 +231,10 @@ func (h *AnalyticsHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetSources handles GET /api/v2/sources: one activity profile per event
-// source (all events, Hub liveness excluded) with its current list
-// membership. The dashboard derives its triage labels from it.
+// source (all events, Hub liveness and firedrills excluded) with its
+// current list membership. The dashboard derives its triage labels from it.
 func (h *AnalyticsHandler) GetSources(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.Store.GetSourceActivity(insights.LivenessTriggers())
+	rows, err := h.Store.GetSourceActivity(insights.LivenessTriggers(), insights.NonAttackerSources()...)
 	if err != nil {
 		RespondError(w, err.Error(), http.StatusInternalServerError)
 		return

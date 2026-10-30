@@ -213,15 +213,25 @@ type SourceActivity struct {
 // GetSourceActivity groups all events (active and archived) by source,
 // skipping the triggers in exclude (Hub liveness). Timestamps are RFC 3339
 // UTC strings, so MIN/MAX order them correctly.
-func (s *SQLiteStore) GetSourceActivity(exclude []string) ([]SourceActivity, error) {
+func (s *SQLiteStore) GetSourceActivity(exclude []string, excludeSources ...string) ([]SourceActivity, error) {
 	query := `SELECT source, COUNT(*), COUNT(DISTINCT node_id || '/' || sensor_id), MIN(timestamp), MAX(timestamp)
 		FROM events`
-	args := make([]interface{}, 0, len(exclude))
+	args := make([]interface{}, 0, len(exclude)+len(excludeSources))
+	var where []string
 	if len(exclude) > 0 {
-		query += " WHERE event_trigger NOT IN (" + strings.TrimSuffix(strings.Repeat("?,", len(exclude)), ",") + ")"
+		where = append(where, "event_trigger NOT IN ("+strings.TrimSuffix(strings.Repeat("?,", len(exclude)), ",")+")")
 		for _, t := range exclude {
 			args = append(args, t)
 		}
+	}
+	if len(excludeSources) > 0 {
+		where = append(where, "source NOT IN ("+strings.TrimSuffix(strings.Repeat("?,", len(excludeSources)), ",")+")")
+		for _, src := range excludeSources {
+			args = append(args, src)
+		}
+	}
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
 	}
 	query += " GROUP BY source"
 	rows, err := s.DB.Query(query, args...)
