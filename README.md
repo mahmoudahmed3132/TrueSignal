@@ -5,6 +5,9 @@
 </p>
 <h1 align="center">TrueSignal</h1>
 
+> **Legacy, no longer maintained.** This repository is the original TrueSignal fork of HoneyWire and stays available under the GNU AGPL v3 (see [Credits & License](#credits--license)). It receives no further features or releases. Existing Hub 2.x deployments keep working; plan migration with the maintainer.
+
+
 <p align="center">
   <a href="https://github.com/mahmoudahmed3132/TrueSignal/releases">
     <img src="https://img.shields.io/badge/release-v2.1.0-blue.svg?style=flat-square" alt="Latest Release" />

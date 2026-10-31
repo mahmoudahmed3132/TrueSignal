@@ -1,5 +1,8 @@
 # Session handoff (2026-10-30, updated after the SIEM rules)
 
+> **2026-10-31: this repository is legacy (AGPL, maintenance only).** The product continues in the private, proprietary clean-room rewrite `mahmoudahmed3132/TrueSignal-Rewrite` (Hub 3.x). PORTED modules move there one step at a time through `ported-inbox/step-N` branches, which the clean implementer integrates. Do not copy code from this repository into the rewrite except through that process. This repository must keep its AGPL `LICENSE`, `NOTICE` and HoneyWire credits: it is a derivative of HoneyWire.
+
+
 Read this first, then `CLAUDE.md` (project memory, kept current) and `Docs/KNOWLEDGE-GAPS.md`. Where docs and code disagree, trust the code.
 
 ## 1. Who and how
